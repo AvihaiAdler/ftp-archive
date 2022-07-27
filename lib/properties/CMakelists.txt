@@ -1,0 +1,22 @@
+add_library(
+  properties
+  src/properties_loader.c
+)
+
+set_target_properties(
+  properties PROPERTIES
+  VERSION ${PROJECT_VERSION}
+  PUBLIC_HEADER include/properties_loader.h
+)
+
+target_include_directories(properties PRIVATE .)
+
+# import the library
+add_library(libgenerics STATIC IMPORTED)
+set_target_properties(
+  libgenerics
+  PROPERTIES
+  IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/libgenerics.a
+  INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/generics/include
+)
+target_link_libraries(properties PRIVATE libgenerics)
