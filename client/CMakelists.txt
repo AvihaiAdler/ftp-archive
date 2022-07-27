@@ -1,0 +1,32 @@
+set(SERVER_FILES ftp.c)
+add_executable(ftp ${SERVER_FILES})
+target_compile_options(ftp PRIVATE -Wall -Wextra -pedantic -O3)
+target_link_options(ftp PRIVATE -fsanitize=address,undefined)
+target_include_directories(ftp PRIVATE .)
+# target_include_directories(ftp PRIVATE ${CMAKE_SOURCE_DIR})
+
+
+# import the libraries
+# genereics
+add_library(libgenerics STATIC IMPORTED)
+set_target_properties(
+  libgenerics
+  PROPERTIES
+  IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/libgenerics.a
+  INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/generics/include
+)
+
+# properties
+add_library(libproperties STATIC IMPORTED)
+set_target_properties(
+  libproperties
+  PROPERTIES
+  IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/libproperties.a
+  INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/properties/include
+)
+
+target_link_libraries(
+  ftp PRIVATE 
+  libgenerics 
+  libproperties
+)
