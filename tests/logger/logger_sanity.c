@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 #include "logger.h"
-#define SIZE 10
+#define SIZE 20
 
 struct thread_arg {
   pthread_mutex_t *mut;
@@ -26,13 +26,13 @@ void *log_stuff(void *arg) {
   }
 
   // decerement the variable 'main' sleeps on
-  pthread_mutex_lock(t_args->mut);
-  *(t_args->remain) -= 1;
-  // when there's no more work to be done - wakeup main
-  if (*(t_args->remain) == 0) {
-    pthread_cond_signal(t_args->cond);
-  }
-  pthread_mutex_unlock(t_args->mut);
+  // pthread_mutex_lock(t_args->mut);
+  // *(t_args->remain) -= 1;
+  // // when there's no more work to be done - wakeup main
+  // if (*(t_args->remain) == 0) {
+  //   pthread_cond_signal(t_args->cond);
+  // }
+  // pthread_mutex_unlock(t_args->mut);
   return NULL;
 }
 
@@ -62,11 +62,11 @@ int main(void) {
     pthread_create(&threads[i], NULL, log_stuff, &t_args);
   }
 
-  pthread_mutex_lock(&amount_mut);
-  if (amount) {                             // there's still work to be done
-    pthread_cond_wait(&cond, &amount_mut);  // wait. release the lock
-  }
-  pthread_mutex_unlock(&amount_mut);
+  // pthread_mutex_lock(&amount_mut);
+  // if (amount) {                             // there's still work to be done
+  //   pthread_cond_wait(&cond, &amount_mut);  // wait. release the lock
+  // }
+  // pthread_mutex_unlock(&amount_mut);
 
   for (size_t i = 0; i < sizeof threads / sizeof *threads; i++) {
     assert(pthread_join(threads[i], NULL) == 0);
