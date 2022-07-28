@@ -65,7 +65,7 @@ static void init_mutex(const char *mutex_name, pthread_mutex_t *mutex,
              time_rep, mutex_name, ret);
   } else {
     *init = true;
-    snprintf(msg, sizeof msg, "[INFO] : [%s] init %s succeded", time_rep,
+    snprintf(msg, sizeof msg, "[INFO] : [%s] init of %s succeded", time_rep,
              mutex_name);
   }
   fprintf(log_info.stream, "%s\n", msg);
@@ -85,8 +85,8 @@ static void destroy_mutex(const char *mutex_name, pthread_mutex_t *mutex,
              mutex_name, ret);
   } else {
     *init = false;
-    snprintf(msg, sizeof msg, "[INFO] : [%s] destroy %s succeded", time_rep,
-             mutex_name);
+    snprintf(msg, sizeof msg, "[INFO] : [%s] destruction of %s succeded",
+             time_rep, mutex_name);
   }
   fprintf(log_info.stream, "%s\n", msg);
 }
