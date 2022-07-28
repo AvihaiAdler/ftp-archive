@@ -71,6 +71,26 @@ static void init_mutex(const char *mutex_name, pthread_mutex_t *mutex,
   fprintf(log_info.stream, "%s\n", msg);
 }
 
+static void destroy_mutex(const char *mutex_name, pthread_mutex_t *mutex,
+                          bool *init) {
+  char time_rep[SIZE] = {0};
+  char msg[SIZE * 2] = {0};
+
+  int ret = pthread_mutex_destroy(mutex);
+  get_time_unsafe(time_rep, sizeof time_rep);
+  if (ret != 0) {
+    *init = true;
+    snprintf(msg, sizeof msg,
+             "[ERROR] : [%s] failed to destroy %s. error code %d", time_rep,
+             mutex_name, ret);
+  } else {
+    *init = false;
+    snprintf(msg, sizeof msg, "[INFO] : [%s] destroy %s succeded", time_rep,
+             mutex_name);
+  }
+  fprintf(log_info.stream, "%s\n", msg);
+}
+
 // still single threaded at this point
 bool log_init(char *file_name) {
   FILE *log_fp = NULL;
@@ -126,4 +146,22 @@ void log_msg(enum level level, char *msg) {
   pthread_mutex_unlock(&log_info.stream_mutex.mutex);
 
   free(buffer);
+}
+
+bool log_destroy(void) {
+  if (log_info.stream_mutex.init) {
+    destroy_mutex("stream_mutex", &log_info.stream_mutex.mutex,
+                  &log_info.stream_mutex.init);
+  }
+
+  if (log_info.time_mutex.init) {
+    destroy_mutex("time_mutex", &log_info.stream_mutex.mutex,
+                  &log_info.time_mutex.init);
+  }
+
+  fflush(log_info.stream);
+  if (log_info.stream != stdout) {
+    fclose(log_info.stream);
+  }
+  return !log_info.stream_mutex.init && !log_info.time_mutex.init;
 }
