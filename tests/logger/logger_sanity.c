@@ -72,6 +72,8 @@ int main(void) {
     assert(pthread_join(threads[i], NULL) == 0);
   }
 
+  pthread_cond_destroy(&cond);
+
   ret = log_destroy();
   assert(ret);
   if (!ret) {
