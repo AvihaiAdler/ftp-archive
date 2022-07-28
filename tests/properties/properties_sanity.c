@@ -4,7 +4,8 @@
 #include <assert.h>
 
 int main(void) {
-  struct hash_table *properties = get_properties("./properties");
+  struct hash_table *properties =
+      get_properties("../../../tests/properties/properties");
 
   assert(properties);
   const char *key_1 = "first_key";
@@ -20,5 +21,7 @@ int main(void) {
   assert(value_2);
   printf("%s : %s\n", key_2, value_2);
   assert(strcmp(value_2, "second_value") == 0);
+
+  assert(table_size(properties) == 2);
   table_destroy(properties);
 }
