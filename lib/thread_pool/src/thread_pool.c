@@ -80,7 +80,7 @@ struct thread_pool *thread_pool_init(uint8_t num_of_threads) {
 
   thread_pool->threads = calloc(num_of_threads, sizeof *thread_pool->threads);
   if (!thread_pool->threads) {
-    cleanup(thread_pool, false, false);
+    cleanup(thread_pool, false, false, false);
     return NULL;
   }
 
@@ -108,7 +108,7 @@ struct thread_pool *thread_pool_init(uint8_t num_of_threads) {
 
   atomic_init(&thread_pool->non_busy_threads, num_of_threads);
   if (cnd_init(&thread_pool->non_busy_cond) != thrd_success) {
-    cleanup(thread_pool, true, true, true, true);
+    cleanup(thread_pool, true, true, true);
     return NULL;
   }
 
