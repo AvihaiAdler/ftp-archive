@@ -136,6 +136,8 @@ static void destroy_mutex(FILE *stream, const char *mutex_name, mtx_t *mutex,
 }
 
 void logger_destroy(struct logger *logger) {
+  if (!logger) return;
+
   if (logger->stream_mtx.stream_mtx_init) {
     destroy_mutex(logger->stream, "stream_mutex",
                   &logger->stream_mtx.stream_mtx,
@@ -151,4 +153,5 @@ void logger_destroy(struct logger *logger) {
   if (logger->stream != stdout) {
     fclose(logger->stream);
   }
+  free(logger);
 }
