@@ -25,6 +25,11 @@ struct thread_pool {
   cnd_t tasks_cnd;
 };
 
+struct args {
+  struct thread *self;
+  struct task *task;
+};
+
 struct thread_args {
   struct thread_pool *thread_pool;
   struct args args;
