@@ -4,6 +4,18 @@
 
 #include "thread_pool_impl.h"
 
+/* a wrapper function for a thread. handle task is a user defined function. the
+ * function return the result of thread_arg::task::handle_task. note that if you
+ * want to signal the thread to stop mid execution - you should check the flag
+ * thread_arg::self::halt */
+static int thread_func_wrapper(void *arg) {
+  struct thread_arg *thread_arg = arg;
+  int ret = thread_arg->task->handle_task(arg);
+  free(thread_arg->task);
+  atomic_flag_clear(&thread_arg->self->busy);
+  return ret;
+}
+
 static int manage(void *arg) {
   struct thread_pool *thread_pool = arg;
 
@@ -34,7 +46,7 @@ static int manage(void *arg) {
         struct thread_arg arg = {.self = &thread_pool->threads[i],
                                  .task = task};
         // if thread creation failed
-        if (thrd_create(&thread_pool->threads[i].thread, task->handle_task,
+        if (thrd_create(&thread_pool->threads[i].thread, thread_func_wrapper,
                         &arg) != thrd_success) {
           add_task(thread_pool, task);
           free(task);
@@ -156,7 +168,7 @@ void thread_pool_destroy(struct thread_pool *thread_pool) {
   atomic_flag_test_and_set(&thread_pool->halt);
 
   // wait on the manage thread
-  thrd_join(&thread_pool->manager, NULL);
+  thrd_join(thread_pool->manager.thread, NULL);
 
   atomic_flag_clear(&thread_pool->halt);
 
