@@ -14,26 +14,18 @@ struct task {
 struct thread {
   thrd_t thread;
   atomic_flag halt;  // indicates whether the thread should be stopped
-  atomic_flag busy;  // indicates whether a thread is currently running
-};
-
-struct thread_arg {
-  struct task *task;
-  struct thread *self;
 };
 
 struct thread_pool {
   struct thread *threads;
   uint8_t num_of_threads;
 
-  atomic_uint non_busy_threads;
-  cnd_t non_busy_cond;
-
-  struct thread manager;
-
   struct vector *tasks;
   mtx_t tasks_mtx;
   cnd_t tasks_cnd;
+};
 
-  atomic_flag halt;  // indicates whether the manager thread should be stopped
+struct thread_args {
+  struct thread_pool *thread_pool;
+  struct args args;
 };
