@@ -4,8 +4,6 @@
 
 #include "thread_pool_impl.h"
 
-// somewhat inefficient. if there're tasks but no available threads - manager
-// will run
 static int manage(void *arg) {
   struct thread_pool *thread_pool = arg;
 
@@ -14,8 +12,16 @@ static int manage(void *arg) {
 
     mtx_lock(&thread_pool->tasks_mtx);       // assume never fails
     if (!vector_size(thread_pool->tasks)) {  // no tasks yet
-      // release the lock. wait
-      cnd_wait(&thread_pool->tasks_cnd, &thread_pool->tasks_mtx);
+      // release the lock. wait for tasks
+      cnd_wait(&thread_pool->tasks_cnd,
+               &thread_pool->tasks_mtx);  // assume never fails
+    }
+
+    // there're tasks but no available threads
+    if (atomic_load(&thread_pool->non_busy_threads) == 0) {
+      // release the lock. wait for threads
+      cnd_wait(&thread_pool->non_busy_cond,
+               &thread_pool->tasks_mtx);  // assume never fails
     }
 
     for (uint8_t i = 0; i < thread_pool->num_of_threads; i++) {
@@ -25,9 +31,9 @@ static int manage(void *arg) {
 
         // the thread take ownership of task and thus it will free() the task
 
-        // if thread creation failed
         struct thread_arg arg = {.self = &thread_pool->threads[i],
                                  .task = task};
+        // if thread creation failed
         if (thrd_create(&thread_pool->threads[i].thread, task->handle_task,
                         &arg) != thrd_success) {
           add_task(thread_pool, task);
@@ -35,7 +41,11 @@ static int manage(void *arg) {
           continue;
         }
 
+        // the current thread is now busy
         atomic_flag_test_and_set(&thread_pool->threads[i].busy);
+
+        // decrement the number of available threads by 1
+        atomic_fetch_add(&thread_pool->non_busy_threads, -1);
         break;
       }
     }
@@ -45,16 +55,19 @@ static int manage(void *arg) {
   return 0;
 }
 
-static void cleanup(struct thread_pool *thread_pool, bool mtx, bool cnd) {
+static void cleanup(struct thread_pool *thread_pool, bool busy_cnd,
+                    bool tasks_mtx, bool tasks_cnd) {
   if (!thread_pool) return;
 
   if (thread_pool->threads) free(thread_pool->threads);
 
   if (thread_pool->tasks) vector_destroy(thread_pool->tasks, NULL);
 
-  if (mtx) mtx_destroy(&thread_pool->tasks_mtx);
+  if (busy_cnd) cnd_destroy(&thread_pool->non_busy_cond);
 
-  if (cnd) cnd_destroy(&thread_pool->tasks_cnd);
+  if (tasks_mtx) mtx_destroy(&thread_pool->tasks_mtx);
+
+  if (tasks_cnd) cnd_destroy(&thread_pool->tasks_cnd);
 }
 
 struct thread_pool *thread_pool_init(uint8_t num_of_threads) {
@@ -79,17 +92,23 @@ struct thread_pool *thread_pool_init(uint8_t num_of_threads) {
 
   thread_pool->tasks = vector_init(sizeof(struct task));
   if (!thread_pool->tasks) {
-    cleanup(thread_pool, false, false);
+    cleanup(thread_pool, false, false, false);
     return NULL;
   }
 
   if (mtx_init(&thread_pool->tasks_mtx, mtx_plain) != thrd_success) {
-    cleanup(thread_pool, true, false);
+    cleanup(thread_pool, false, true, false);
     return NULL;
   }
 
   if (cnd_init(&thread_pool->tasks_cnd) != thrd_success) {
-    cleanup(thread_pool, true, true);
+    cleanup(thread_pool, false, true, true);
+    return NULL;
+  }
+
+  atomic_init(&thread_pool->non_busy_threads, num_of_threads);
+  if (cnd_init(&thread_pool->non_busy_cond) != thrd_success) {
+    cleanup(thread_pool, true, true, true, true);
     return NULL;
   }
 
@@ -98,7 +117,7 @@ struct thread_pool *thread_pool_init(uint8_t num_of_threads) {
   // init manager thread
   if (thrd_create(&thread_pool->manager.thread, manage, thread_pool) !=
       thrd_success) {
-    cleanup(thread_pool, true, true);
+    cleanup(thread_pool, true, true, true);
     return NULL;
   }
   atomic_flag_test_and_set(&thread_pool->manager.busy);

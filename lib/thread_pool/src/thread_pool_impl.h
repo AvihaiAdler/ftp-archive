@@ -25,10 +25,12 @@ struct thread_pool {
   struct thread *threads;
   uint8_t num_of_threads;
 
+  atomic_uint non_busy_threads;
+  cnd_t non_busy_cond;
+
   struct thread manager;
 
   struct vector *tasks;
-
   mtx_t tasks_mtx;
   cnd_t tasks_cnd;
 
