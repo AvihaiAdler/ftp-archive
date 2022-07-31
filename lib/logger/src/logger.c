@@ -1,31 +1,11 @@
 #include "include/logger.h"
 
-#include <errno.h>
-#include <pthread.h>
-#include <stdbool.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
+#include "logger_impl.h"
+
 #define SIZE 128
-
-struct stream_mutex {
-  pthread_mutex_t mutex;
-  bool init;  // must not be changed after initialization
-};
-
-struct time_mutex {
-  pthread_mutex_t mutex;
-  bool init;  // must not be changed after initialization
-};
-
-struct log_info {
-  FILE *stream;
-  struct stream_mutex stream_mutex;
-  struct time_mutex time_mutex;
-};
-
-static struct log_info log_info;  // init as 0 as its a global
 
 static void get_time_unsafe(char *time_rep, size_t size) {
   // get current time since epoch
@@ -44,22 +24,24 @@ static void get_time_unsafe(char *time_rep, size_t size) {
 }
 
 // get time - thread safe
-static void get_time_safe(char *time_rep, size_t size) {
-  if (log_info.stream_mutex.init) {
-    pthread_mutex_lock(&log_info.stream_mutex.mutex);
+static void get_time_safe(struct logger *logger, char *time_rep, size_t size) {
+  if (logger->time_mtx.time_mtx_init) {
+    mtx_lock(&logger->time_mtx.time_mtx);  // assume never fails
+
     get_time_unsafe(time_rep, size);
-    pthread_mutex_unlock(&log_info.stream_mutex.mutex);
+
+    mtx_unlock(&logger->time_mtx.time_mtx);  // assume never fails
   }
 }
 
-static void init_mutex(const char *mutex_name, pthread_mutex_t *mutex,
+static void init_mutex(FILE *stream, const char *mutex_name, mtx_t *mutex,
                        bool *init) {
   char time_rep[SIZE] = {0};
   char msg[SIZE * 2] = {0};
 
-  int ret = pthread_mutex_init(mutex, NULL);
+  int ret = mtx_init(mutex, mtx_plain);
   get_time_unsafe(time_rep, sizeof time_rep);
-  if (ret != 0) {
+  if (ret != thrd_success) {
     *init = false;
     snprintf(msg, sizeof msg, "[ERROR] : [%s] failed to init %s. error code %d",
              time_rep, mutex_name, ret);
@@ -68,56 +50,42 @@ static void init_mutex(const char *mutex_name, pthread_mutex_t *mutex,
     snprintf(msg, sizeof msg, "[INFO] : [%s] init of %s succeded", time_rep,
              mutex_name);
   }
-  fprintf(log_info.stream, "%s\n", msg);
-}
 
-static void destroy_mutex(const char *mutex_name, pthread_mutex_t *mutex,
-                          bool *init) {
-  char time_rep[SIZE] = {0};
-  char msg[SIZE * 2] = {0};
-
-  int ret = pthread_mutex_destroy(mutex);
-  get_time_unsafe(time_rep, sizeof time_rep);
-  if (ret != 0) {
-    *init = true;
-    snprintf(msg, sizeof msg,
-             "[ERROR] : [%s] failed to destroy %s. error code %d", time_rep,
-             mutex_name, ret);
-  } else {
-    *init = false;
-    snprintf(msg, sizeof msg, "[INFO] : [%s] destruction of %s succeded",
-             time_rep, mutex_name);
-  }
-  fprintf(log_info.stream, "%s\n", msg);
+  fprintf(stream, "%s\n", msg);
 }
 
 // still single threaded at this point
-bool log_init(char *file_name) {
+struct logger *logger_init(char *file_name) {
+  struct logger *log_info = calloc(1, sizeof *log_info);
+  if (!log_info) {
+    return NULL;
+  }
+
   FILE *log_fp = NULL;
   if (file_name) {
     log_fp = fopen(file_name, "a");
   }
 
   if (!log_fp) {
-    log_info.stream = stdout;
+    log_info->stream = stdout;
   } else {
-    log_info.stream = log_fp;
+    log_info->stream = log_fp;
   }
 
-  init_mutex("stream_mutex", &log_info.stream_mutex.mutex,
-             &log_info.stream_mutex.init);
+  init_mutex(log_info->stream, "stream_mutex", &log_info->stream_mtx.stream_mtx,
+             &log_info->stream_mtx.stream_mtx_init);
 
-  init_mutex("time_mutex", &log_info.time_mutex.mutex,
-             &log_info.time_mutex.init);
+  init_mutex(log_info->stream, "time_mutex", &log_info->time_mtx.time_mtx,
+             &log_info->time_mtx.time_mtx_init);
 
-  return log_info.stream_mutex.init && log_info.time_mutex.init;
+  return log_info;
 }
 
 const char *get_log_level(enum level level) {
   switch (level) {
     case ERROR:
       return "ERROR";
-    case WARNING:
+    case WARN:
       return "WARN";
     case DEBUG:
       return "DEBUG";
@@ -128,9 +96,11 @@ const char *get_log_level(enum level level) {
   }
 }
 
-void log_msg(enum level level, char *msg) {
+void log_msg(struct logger *logger, enum level level, char *msg) {
   char time_buf[SIZE] = {0};
-  get_time_safe(time_buf, sizeof time_buf);
+  if (logger->time_mtx.time_mtx_init) {
+    get_time_safe(logger, time_buf, sizeof time_buf);
+  }
 
   int len =
       snprintf(NULL, 0, "[%s] : [%s] %s", get_log_level(level), time_buf, msg);
@@ -141,27 +111,44 @@ void log_msg(enum level level, char *msg) {
   snprintf(buffer, len + 1, "[%s] : [%s] %s", get_log_level(level), time_buf,
            msg);
 
-  pthread_mutex_lock(&log_info.stream_mutex.mutex);
-  fprintf(log_info.stream, "%s\n", buffer);
-  pthread_mutex_unlock(&log_info.stream_mutex.mutex);
+  if (logger->stream_mtx.stream_mtx_init) {
+    mtx_lock(&logger->stream_mtx.stream_mtx);  // assume never fails
+    fprintf(logger->stream, "%s\n", buffer);
+    mtx_unlock(&logger->stream_mtx.stream_mtx);  // assume never fails
+  }
 
   free(buffer);
 }
 
-bool log_destroy(void) {
-  if (log_info.stream_mutex.init) {
-    destroy_mutex("stream_mutex", &log_info.stream_mutex.mutex,
-                  &log_info.stream_mutex.init);
+static void destroy_mutex(FILE *stream, const char *mutex_name, mtx_t *mutex,
+                          bool *init) {
+  char time_rep[SIZE] = {0};
+  char msg[SIZE * 2] = {0};
+
+  mtx_destroy(mutex);
+  get_time_unsafe(time_rep, sizeof time_rep);
+
+  *init = false;
+  snprintf(msg, sizeof msg, "[INFO] : [%s] destruction of %s succeded",
+           time_rep, mutex_name);
+
+  fprintf(stream, "%s\n", msg);
+}
+
+void logger_destroy(struct logger *logger) {
+  if (logger->stream_mtx.stream_mtx_init) {
+    destroy_mutex(logger->stream, "stream_mutex",
+                  &logger->stream_mtx.stream_mtx,
+                  &logger->stream_mtx.stream_mtx_init);
   }
 
-  if (log_info.time_mutex.init) {
-    destroy_mutex("time_mutex", &log_info.stream_mutex.mutex,
-                  &log_info.time_mutex.init);
+  if (logger->time_mtx.time_mtx_init) {
+    destroy_mutex(logger->stream, "time_mutex", &logger->time_mtx.time_mtx,
+                  &logger->time_mtx.time_mtx_init);
   }
 
-  fflush(log_info.stream);
-  if (log_info.stream != stdout) {
-    fclose(log_info.stream);
+  fflush(logger->stream);
+  if (logger->stream != stdout) {
+    fclose(logger->stream);
   }
-  return !log_info.stream_mutex.init && !log_info.time_mutex.init;
 }
