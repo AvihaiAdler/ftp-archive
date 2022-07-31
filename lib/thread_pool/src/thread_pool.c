@@ -44,6 +44,9 @@ static int manage(void *arg) {
         // the current thread is now busy
         atomic_flag_test_and_set(&thread_pool->threads[i].busy);
 
+        // the current thread will now run
+        atomic_flag_clear(&thread_pool->threads[i].halt);
+
         // decrement the number of available threads by 1
         atomic_fetch_add(&thread_pool->non_busy_threads, -1);
         break;
@@ -52,6 +55,27 @@ static int manage(void *arg) {
 
     mtx_unlock(&thread_pool->tasks_mtx);  // assume never fails
   }
+
+  // thread_pool::halt has been invoked. shutdown all threads gracefully
+  for (uint8_t i = 0; i < thread_pool->num_of_threads; i++) {
+    if (atomic_flag_test_and_set(&thread_pool->threads[i].busy)) {
+      // signal the thread to stop
+      atomic_flag_test_and_set(&thread_pool->threads[i].halt);
+
+      // wait on the thread to exit
+      thrd_join(thread_pool->threads[i].thread, NULL);
+
+      // add 1 to the non busy threads count
+      atomic_fetch_add(&thread_pool->non_busy_threads, 1);
+
+      // clear the flags of the thread
+      atomic_flag_clear(&thread_pool->threads[i].busy);
+      atomic_flag_clear(&thread_pool->threads[i].halt);
+    }
+  }
+
+  // clear the flags of the thread_pool
+  atomic_flag_clear(&thread_pool->halt);
   return 0;
 }
 
@@ -127,6 +151,16 @@ struct thread_pool *thread_pool_init(uint8_t num_of_threads) {
 
 void thread_pool_destroy(struct thread_pool *thread_pool) {
   if (!thread_pool) return;
+
+  // signal the manager thread to shutdown all threads
+  atomic_flag_test_and_set(&thread_pool->halt);
+
+  // wait on the manage thread
+  thrd_join(&thread_pool->manager, NULL);
+
+  atomic_flag_clear(&thread_pool->halt);
+
+  cleanup(thread_pool, true, true, true);
 }
 
 bool add_task(struct thread_pool *thread_pool, struct task *task) {}
