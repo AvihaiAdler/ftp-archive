@@ -25,6 +25,8 @@ static void get_time_unsafe(char *time_rep, size_t size) {
 
 // get time - thread safe
 static void get_time_safe(struct logger *logger, char *time_rep, size_t size) {
+  if (!logger) return;
+
   if (logger->time_mtx.time_mtx_init) {
     mtx_lock(&logger->time_mtx.time_mtx);  // assume never fails
 
@@ -97,15 +99,25 @@ const char *get_log_level(enum level level) {
 }
 
 void log_msg(struct logger *logger, enum level level, char *msg) {
+  if (!logger) return;
+
   char time_buf[SIZE] = {0};
   if (logger->time_mtx.time_mtx_init) {
     get_time_safe(logger, time_buf, sizeof time_buf);
   }
 
+  char msg_buf[SIZE] = {0};
   int len =
       snprintf(NULL, 0, "[%s] : [%s] %s", get_log_level(level), time_buf, msg);
 
-  char *buffer = calloc(len + 1, 1);
+  char *buffer = NULL;
+  bool callocd = false;
+  if (len < SIZE) {
+    buffer = msg_buf;
+  } else {
+    buffer = calloc(len + 1, 1);
+    callocd = true;
+  }
   if (!buffer) return;
 
   snprintf(buffer, len + 1, "[%s] : [%s] %s", get_log_level(level), time_buf,
@@ -117,7 +129,7 @@ void log_msg(struct logger *logger, enum level level, char *msg) {
     mtx_unlock(&logger->stream_mtx.stream_mtx);  // assume never fails
   }
 
-  free(buffer);
+  if (callocd) free(buffer);
 }
 
 static void destroy_mutex(FILE *stream, const char *mutex_name, mtx_t *mutex,
@@ -126,6 +138,8 @@ static void destroy_mutex(FILE *stream, const char *mutex_name, mtx_t *mutex,
   char msg[SIZE * 2] = {0};
 
   mtx_destroy(mutex);
+
+  // single threaded from now on
   get_time_unsafe(time_rep, sizeof time_rep);
 
   *init = false;
