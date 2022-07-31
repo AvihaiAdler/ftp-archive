@@ -31,6 +31,8 @@ struct args {
 };
 
 struct thread_args {
-  struct thread_pool *thread_pool;
+  struct vector *tasks;
+  mtx_t *tasks_mtx;
+  cnd_t *tasks_cnd;
   struct args args;
 };

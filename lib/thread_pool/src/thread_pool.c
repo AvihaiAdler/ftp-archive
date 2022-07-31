@@ -10,15 +10,14 @@ static int thread_func_wrapper(void *arg) {
   while (!atomic_flag_test_and_set(&thread_args->args.self->halt)) {
     atomic_flag_clear(&thread_args->args.self->halt);
 
-    mtx_lock(&thread_args->thread_pool->tasks_mtx);  // assumes never fails
+    mtx_lock(thread_args->tasks_mtx);  // assumes never fails
     // there're no tasks
-    if (vector_size(thread_args->thread_pool->tasks) == 0) {
-      cnd_wait(&thread_args->thread_pool->tasks_cnd,
-               &thread_args->thread_pool->tasks_mtx);
+    if (vector_size(thread_args->tasks) == 0) {
+      cnd_wait(thread_args->tasks_cnd, thread_args->tasks_mtx);
     }
-    struct task *task = vector_remove_at(thread_args->thread_pool->tasks, 0);
+    struct task *task = vector_remove_at(thread_args->tasks, 0);
 
-    mtx_unlock(&thread_args->thread_pool->tasks_mtx);  // assumes never fails
+    mtx_unlock(thread_args->tasks_mtx);  // assumes never fails
 
     if (task && !atomic_flag_test_and_set(&thread_args->args.self->halt)) {
       atomic_flag_clear(&thread_args->args.self->halt);
@@ -75,7 +74,9 @@ struct thread_pool *thread_pool_init(uint8_t num_of_threads) {
       cleanup(thread_pool, true, true);
     }
 
-    thread_args->thread_pool = thread_pool;
+    thread_args->tasks = thread_pool->tasks;
+    thread_args->tasks_mtx = &thread_pool->tasks_mtx;
+    thread_args->tasks_cnd = &thread_pool->tasks_cnd;
     thread_args->args.self = &thread_pool->threads[i];
 
     atomic_flag_clear(&thread_pool->threads[i].halt);
