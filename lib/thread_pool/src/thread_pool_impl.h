@@ -13,6 +13,7 @@ struct task {
 
 struct thread {
   thrd_t thread;
+  atomic_flag halt;  // indicates whether the thread should be stopped
   atomic_flag busy;  // indicates whether a thread is currently running
 };
 
