@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <threads.h>
 
-#include "logger.h"
+#include "include/logger.h"
 #define SIZE 20
 
 struct thread_arg {
@@ -17,8 +17,12 @@ int log_stuff(void *arg) {
   char buf[1024] = {0};
   for (size_t i = 0; i < t_args->boundry; i++) {
     long rand = lrand48();
-    snprintf(buf, sizeof buf, "thread [%ld]: [index:%zu] %ld", thrd_current(),
-             i, rand);
+    snprintf(buf,
+             sizeof buf,
+             "thread [%ld]: [index:%zu] %ld",
+             thrd_current(),
+             i,
+             rand);
 
     log_msg(t_args->logger, i % 3 == 0 ? WARN : INFO, buf);
   }
@@ -36,8 +40,9 @@ int main(void) {
 
   for (size_t i = 0; i < amount; i++) {
     int rand = lrand48() % (20) + 4;
-    struct thread_arg t_args = {
-        .logger = logger, .boundry = rand, .remain = &amount};
+    struct thread_arg t_args = {.logger = logger,
+                                .boundry = rand,
+                                .remain = &amount};
     assert(thrd_create(&threads[i], log_stuff, &t_args) == thrd_success);
   }
 
