@@ -39,7 +39,7 @@ int main(void) {
     assert(add_task(thread_pool, &task));
   }
 
-  struct timespec wait = {.tv_sec = 10, .tv_nsec = 0};
+  struct timespec wait = {.tv_sec = 2, .tv_nsec = 0};
   struct timespec remains;
   nanosleep(&wait, &remains);
 

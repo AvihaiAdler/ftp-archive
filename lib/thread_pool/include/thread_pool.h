@@ -4,24 +4,33 @@
 #include <stdint.h>
 #include <threads.h>
 
+/* a thread_pool object. contains an array of threads, mutexes and condition
+ * variables */
 struct thread_pool;
 
-struct thread;
-
+/* represent a task which a thread may handle. the thread handle a task by
+ * calling handle_task(args). a thread may always call handle_tasks with struct
+ * args as an argument */
 struct task {
   int fd;
   void *additional_args;
   int (*handle_task)(void *arg);
 };
 
+/* the args which will be passed to int (*handle_task)(void *)*/
 struct args {
   int fd;
   thrd_t *thrd_id;
   void *additional_args;
 };
 
+/* creates a thread_pool object. expects some num_of_threads bigger than 0
+ * (which must be a reasonable amount). return struct thread_pool * on success,
+ * or NULL on failure */
 struct thread_pool *thread_pool_init(uint8_t num_of_threads);
 
+/* destroys a thread_pool object */
 void thread_pool_destroy(struct thread_pool *thread_pool);
 
+/* adds a task to the thread_pool to handle asynchronously */
 bool add_task(struct thread_pool *thread_pool, struct task *task);
