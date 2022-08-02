@@ -7,24 +7,30 @@
 static int thread_func_wrapper(void *arg) {
   struct thread_args *thread_args = arg;
 
-  while (!atomic_flag_test_and_set(&thread_args->args.self->halt)) {
-    atomic_flag_clear(&thread_args->args.self->halt);
+  while (!atomic_flag_test_and_set(&thread_args->self->halt)) {
+    atomic_flag_clear(&thread_args->self->halt);
 
     mtx_lock(thread_args->tasks_mtx);  // assumes never fails
     // there're no tasks
     if (vector_size(thread_args->tasks) == 0) {
       cnd_wait(thread_args->tasks_cnd, thread_args->tasks_mtx);
     }
+
     struct task *task = vector_remove_at(thread_args->tasks, 0);
 
     mtx_unlock(thread_args->tasks_mtx);  // assumes never fails
 
-    if (task && !atomic_flag_test_and_set(&thread_args->args.self->halt)) {
-      atomic_flag_clear(&thread_args->args.self->halt);
-      thread_args->args.task = task;
+    if (task && !atomic_flag_test_and_set(&thread_args->self->halt)) {
+      atomic_flag_clear(&thread_args->self->halt);
+
+      thread_args->args.fd = task->fd;
+      thread_args->args.additional_args = task->additional_args;
+      thread_args->args.thrd_id = &thread_args->self->thread;
+
       task->handle_task(&thread_args->args);
-      free(task);
     }
+
+    if (task) free(task);
   }
 
   free(thread_args);
@@ -68,25 +74,6 @@ struct thread_pool *thread_pool_init(uint8_t num_of_threads) {
     return NULL;
   }
 
-  // init the threads
-  for (uint8_t i = 0; i < num_of_threads; i++) {
-    struct thread_args *thread_args = calloc(1, sizeof *thread_args);
-    if (!thread_args) { cleanup(thread_pool, true, true); }
-
-    thread_args->tasks = thread_pool->tasks;
-    thread_args->tasks_mtx = &thread_pool->tasks_mtx;
-    thread_args->tasks_cnd = &thread_pool->tasks_cnd;
-    thread_args->args.self = &thread_pool->threads[i];
-
-    atomic_flag_clear(&thread_pool->threads[i].halt);
-
-    // the tread taks owership of args. its his responsibility to free it at the
-    // end
-    thrd_create(&thread_pool->threads[i].thread,
-                thread_func_wrapper,
-                &thread_args);
-  }
-
   if (mtx_init(&thread_pool->tasks_mtx, mtx_plain) != thrd_success) {
     cleanup(thread_pool, true, false);
     return NULL;
@@ -95,6 +82,25 @@ struct thread_pool *thread_pool_init(uint8_t num_of_threads) {
   if (cnd_init(&thread_pool->tasks_cnd) != thrd_success) {
     cleanup(thread_pool, true, true);
     return NULL;
+  }
+
+  // init the threads
+  for (uint8_t i = 0; i < num_of_threads; i++) {
+    struct thread_args *thread_args = calloc(1, sizeof *thread_args);
+    if (!thread_args) { cleanup(thread_pool, true, true); }
+
+    thread_args->tasks = thread_pool->tasks;
+    thread_args->tasks_mtx = &thread_pool->tasks_mtx;
+    thread_args->tasks_cnd = &thread_pool->tasks_cnd;
+    thread_args->self = &thread_pool->threads[i];
+
+    atomic_flag_clear(&thread_pool->threads[i].halt);
+
+    // the tread taks owership of args. its his responsibility to free it at the
+    // end
+    thrd_create(&thread_pool->threads[i].thread,
+                thread_func_wrapper,
+                thread_args);
   }
 
   return thread_pool;
@@ -107,12 +113,13 @@ void thread_pool_destroy(struct thread_pool *thread_pool) {
   for (uint8_t i = 0; i < thread_pool->num_of_threads; i++) {
     // signal the thread to stop
     atomic_flag_test_and_set(&thread_pool->threads[i].halt);
+  }
 
+  cnd_broadcast(&thread_pool->tasks_cnd);
+
+  for (uint8_t i = 0; i < thread_pool->num_of_threads; i++) {
     // wait on the thread to exit
     thrd_join(thread_pool->threads[i].thread, NULL);
-
-    // clear the halt flags of the thread
-    atomic_flag_clear(&thread_pool->threads[i].halt);
   }
 
   cleanup(thread_pool, true, true);
