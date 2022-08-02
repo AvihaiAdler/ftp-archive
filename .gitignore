@@ -1,5 +1,3 @@
 .vscode/*
 build/*
 *.a
-debug/*
-tests/properties/properties
