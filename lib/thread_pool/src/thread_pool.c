@@ -32,7 +32,8 @@ static int thread_func_wrapper(void *arg) {
   return 0;
 }
 
-static void cleanup(struct thread_pool *thread_pool, bool tasks_mtx,
+static void cleanup(struct thread_pool *thread_pool,
+                    bool tasks_mtx,
                     bool tasks_cnd) {
   if (!thread_pool) return;
 
@@ -48,7 +49,7 @@ static void cleanup(struct thread_pool *thread_pool, bool tasks_mtx,
 }
 
 struct thread_pool *thread_pool_init(uint8_t num_of_threads) {
-  if (num_of_threads == 0) return NULL;
+  if (num_of_threads == 0) { return NULL; }
 
   struct thread_pool *thread_pool = calloc(1, sizeof *thread_pool);
   if (!thread_pool) return NULL;
@@ -70,9 +71,7 @@ struct thread_pool *thread_pool_init(uint8_t num_of_threads) {
   // init the threads
   for (uint8_t i = 0; i < num_of_threads; i++) {
     struct thread_args *thread_args = calloc(1, sizeof *thread_args);
-    if (!thread_args) {
-      cleanup(thread_pool, true, true);
-    }
+    if (!thread_args) { cleanup(thread_pool, true, true); }
 
     thread_args->tasks = thread_pool->tasks;
     thread_args->tasks_mtx = &thread_pool->tasks_mtx;
@@ -83,7 +82,8 @@ struct thread_pool *thread_pool_init(uint8_t num_of_threads) {
 
     // the tread taks owership of args. its his responsibility to free it at the
     // end
-    thrd_create(&thread_pool->threads[i].thread, thread_func_wrapper,
+    thrd_create(&thread_pool->threads[i].thread,
+                thread_func_wrapper,
                 &thread_args);
   }
 
@@ -120,14 +120,13 @@ void thread_pool_destroy(struct thread_pool *thread_pool) {
 
 bool add_task(struct thread_pool *thread_pool, struct task *task) {
   if (!thread_pool) return false;
+
   if (!task) return false;
 
   mtx_lock(&thread_pool->tasks_mtx);  // assumes never fails
 
   bool ret = vector_push(thread_pool->tasks, task);
-  if (ret) {
-    cnd_broadcast(&thread_pool->tasks_cnd);
-  }
+  if (ret) cnd_broadcast(&thread_pool->tasks_cnd);
 
   mtx_unlock(&thread_pool->tasks_mtx);  // assumes never fails
 
