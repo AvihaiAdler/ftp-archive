@@ -77,3 +77,4 @@ SpacesInSquareBrackets: false
 Standard: c++11
 TabWidth: 2
 UseTab: Never
+ReflowComments: true
