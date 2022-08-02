@@ -1,3 +1,7 @@
+include(CTest)
+enable_testing()
+add_subdirectory(tests)
+
 add_library(
   thread_pool
   src/thread_pool.c
@@ -6,7 +10,7 @@ add_library(
 set_target_properties(
   thread_pool PROPERTIES
   VERSION ${PROJECT_VERSION}
-  PUBLIC_HEADER include/thread_poolr.h
+  PUBLIC_HEADER include/thread_pool.h
 )
 
 target_include_directories(thread_pool PRIVATE .)
