@@ -2,14 +2,23 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <threads.h>
 
 struct thread_pool;
 
 struct thread;
 
-struct task;
+struct task {
+  int fd;
+  void *additional_args;
+  int (*handle_task)(void *arg);
+};
 
-struct args;
+struct args {
+  int fd;
+  thrd_t *thrd_id;
+  void *additional_args;
+};
 
 struct thread_pool *thread_pool_init(uint8_t num_of_threads);
 
