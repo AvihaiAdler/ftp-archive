@@ -21,12 +21,13 @@ AlwaysBreakAfterReturnType: None
 AlwaysBreakTemplateDeclarations: Yes
 BinPackArguments: false
 BinPackParameters: false
+BreakBeforeBraces: Custom
 BraceWrapping:
   AfterCaseLabel: false
   AfterClass: false
   AfterStruct: false
   AfterControlStatement: Never
-  AfterEnum: false
+  AfterEnum: true
   AfterFunction: false
   AfterNamespace: false
   AfterUnion: false
@@ -39,7 +40,6 @@ BraceWrapping:
   SplitEmptyRecord: false
   SplitEmptyNamespace: false
 BreakBeforeBinaryOperators: None
-BreakBeforeBraces: Custom
 BreakBeforeTernaryOperators: false
 ColumnLimit: 80
 CompactNamespaces: false
