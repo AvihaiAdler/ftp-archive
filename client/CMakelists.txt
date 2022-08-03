@@ -1,10 +1,13 @@
-set(SERVER_FILES ftp.c)
-add_executable(ftp ${SERVER_FILES})
-target_compile_options(ftp PRIVATE -Wall -Wextra -pedantic -O3)
-target_link_options(ftp PRIVATE -fsanitize=address,undefined)
-target_include_directories(ftp PRIVATE .)
-# target_include_directories(ftp PRIVATE ${CMAKE_SOURCE_DIR})
+set(
+  CLIENT 
+  ftp.c
+  src/util.c
+)
 
+add_executable(ftp ${CLIENT})
+target_compile_options(ftp PRIVATE -Wall -Wextra -pedantic -O3)
+target_link_options(ftp PRIVATE -fsanitize=address,undefined -lpthread)
+target_include_directories(ftp PRIVATE .)
 
 # import the libraries
 # genereics
@@ -25,8 +28,18 @@ set_target_properties(
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/properties/include
 )
 
+# logger
+add_library(liblogger STATIC IMPORTED)
+set_target_properties(
+  liblogger
+  PROPERTIES
+  IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/liblogger.a
+  INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/logger/include
+)
+
 target_link_libraries(
   ftp PRIVATE 
   libgenerics 
   libproperties
+  liblogger
 )

@@ -1,18 +1,52 @@
+#include <netdb.h>
 #include <stdio.h>
-#include "vector.h"
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 
-int main(void) {
-  printf("ftp\n");
+#include "include/util.h"
+#include "logger.h"
 
-
-  int arr[] = {1, 2};
-  struct vector *vect = vector_init(sizeof *arr);
-  printf("size: %llu, capacity: %llu\n", vector_size(vect), vector_capacity(vect));
-  for(size_t i = 0; i < 2; i++) {
-    vector_push(vect, arr + i);
+int main(int argc, char *argv[]) {
+  struct logger *logger = logger_init(NULL);
+  if (!logger) {
+    fprintf(stderr, "failed to init logger\n");
+    return 1;
   }
-  printf("size: %llu, capacity: %llu\n", vector_size(vect), vector_capacity(vect));
-  printf("%d, %d\n", *(int *)vector_at(vect, 0), *(int *)vector_at(vect, 1));
-  vector_destroy(vect, NULL);
+
+  if (argc != 3) {
+    log_msg(logger, ERROR, "[ip] [port]");
+    cleanup(logger);
+    return 1;
+  }
+
+  const char *ip = argv[1];
+  const char *port = argv[2];
+
+  struct addrinfo *addr = get_addr_info(ip, port);
+  if (!addr) {
+    char *msg = get_error_msg(ip, port);
+    if (msg) log_msg(logger, ERROR, msg);
+    free(msg);
+
+    cleanup(logger);
+    return 1;
+  }
+
+  int sockfd = connect_to_host(addr);
+  freeaddrinfo(addr);
+
+  if (sockfd == -1) {
+    char *msg = get_error_msg(ip, port);
+    if (msg) log_msg(logger, ERROR, msg);
+    free(msg);
+
+    cleanup(logger);
+    return 1;
+  }
+
+  // all connected at this point
+
+  close(sockfd);
   return 0;
 }
