@@ -38,12 +38,13 @@ int main(void) {
   thrd_t threads[SIZE] = {0};
   size_t amount = sizeof threads / sizeof *threads;
 
+  struct thread_arg args[SIZE];
+
   for (size_t i = 0; i < amount; i++) {
     int rand = lrand48() % (20) + 4;
-    struct thread_arg t_args = {.logger = logger,
-                                .boundry = rand,
-                                .remain = &amount};
-    assert(thrd_create(&threads[i], log_stuff, &t_args) == thrd_success);
+    args[i] =
+      (struct thread_arg){.logger = logger, .boundry = rand, .remain = &amount};
+    assert(thrd_create(&threads[i], log_stuff, &args[i]) == thrd_success);
   }
 
   for (size_t i = 0; i < amount; i++) {
