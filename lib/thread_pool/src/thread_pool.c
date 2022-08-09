@@ -7,8 +7,8 @@
 static int thread_func_wrapper(void *arg) {
   struct thread_args *thread_args = arg;
 
-  while (!atomic_flag_test_and_set(&thread_args->self->halt)) {
-    atomic_flag_clear(&thread_args->self->halt);
+  while (!atomic_flag_test_and_set(&thread_args->self->stop)) {
+    atomic_flag_clear(&thread_args->self->stop);
 
     mtx_lock(thread_args->tasks_mtx);  // assumes never fails
     // there're no tasks
@@ -21,8 +21,8 @@ static int thread_func_wrapper(void *arg) {
     mtx_unlock(thread_args->tasks_mtx);  // assumes never fails
 
     // handle the task
-    if (task && !atomic_flag_test_and_set(&thread_args->self->halt)) {
-      atomic_flag_clear(&thread_args->self->halt);
+    if (task && !atomic_flag_test_and_set(&thread_args->self->stop)) {
+      atomic_flag_clear(&thread_args->self->stop);
 
       thread_args->args.fd = task->fd;
       thread_args->args.additional_args = task->additional_args;
@@ -99,7 +99,7 @@ struct thread_pool *thread_pool_init(uint8_t num_of_threads) {
     thread_args->tasks_cnd = &thread_pool->tasks_cnd;
     thread_args->self = &thread_pool->threads[i];
 
-    atomic_flag_clear(&thread_pool->threads[i].halt);
+    atomic_flag_clear(&thread_pool->threads[i].stop);
 
     /* the thread takes owership of thread_args. its his responsibility to free
      * it at the end*/
@@ -111,12 +111,29 @@ struct thread_pool *thread_pool_init(uint8_t num_of_threads) {
   return thread_pool;
 }
 
+bool stop_thread(struct thread_pool *thread_pool, thrd_t thread_id) {
+  if (!thread_pool) return false;
+
+  struct thread *thread = NULL;
+  for (uint8_t i = 0; i < thread_pool->num_of_threads; i++) {
+    if (thrd_equal(thread_pool->threads[i].thread, thread_id)) {
+      thread = &thread_pool->threads[i];
+    }
+
+    if (!thread) return false;
+
+    // signal the thread to stop
+    atomic_flag_test_and_set(&thread->stop);
+    return false;
+  }
+}
+
 void thread_pool_destroy(struct thread_pool *thread_pool) {
   if (!thread_pool) return;
 
   // signal all threads to shutdown
   for (uint8_t i = 0; i < thread_pool->num_of_threads; i++) {
-    atomic_flag_test_and_set(&thread_pool->threads[i].halt);
+    atomic_flag_test_and_set(&thread_pool->threads[i].stop);
   }
 
   // wakeup all threads

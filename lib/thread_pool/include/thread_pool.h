@@ -32,5 +32,9 @@ struct thread_pool *thread_pool_init(uint8_t num_of_threads);
 /* destroys a thread_pool object */
 void thread_pool_destroy(struct thread_pool *thread_pool);
 
+/* signal a specific thread to stop. return true on success (i.e. thread::halt
+ * has been set to true), false otherwise */
+bool stop_thread(struct thread_pool *thread_pool, thrd_t thread_id);
+
 /* adds a task to the thread_pool to handle asynchronously */
 bool add_task(struct thread_pool *thread_pool, struct task *task);

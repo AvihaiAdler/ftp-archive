@@ -9,7 +9,7 @@
 /* used internally to represent a thread */
 struct thread {
   thrd_t thread;
-  atomic_flag halt;  // indicates whether the thread should be stopped
+  atomic_flag stop;  // indicates whether the thread should be stopped
 };
 
 struct thread_pool {
