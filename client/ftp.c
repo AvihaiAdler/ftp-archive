@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
   free(msg);
 
   bool abort = false;
-  uint8_t input[INPUT_SIZE];
+  char input[INPUT_SIZE];
   do {
     if (!get_input(input, sizeof input)) continue;
     input[strcspn(input, "\n")] = 0;  // strip the trailing '\n'
