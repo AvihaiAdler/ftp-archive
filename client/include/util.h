@@ -25,6 +25,10 @@ uint64_t hton_u64(uint64_t value);
 
 uint64_t ntoh_u64(uint64_t value);
 
+uint16_t hton_u16(uint16_t value);
+
+uint16_t ntoh_u16(uint16_t value);
+
 bool send_payload(int sockfd, struct payload payload);
 
 struct payload recv_payload(int sockfd);
