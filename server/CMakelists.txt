@@ -13,7 +13,7 @@ add_library(libgenerics STATIC IMPORTED)
 set_target_properties(
   libgenerics
   PROPERTIES
-  IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/libgenerics.a
+  IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/lib/generics/libgenerics.a
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/generics/include
 )
 
@@ -22,7 +22,7 @@ add_library(libproperties STATIC IMPORTED)
 set_target_properties(
   libproperties
   PROPERTIES
-  IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/libproperties.a
+  IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/lib/properties/libproperties.a
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/properties/include
 )
 
@@ -31,7 +31,7 @@ add_library(liblogger STATIC IMPORTED)
 set_target_properties(
   liblogger
   PROPERTIES
-  IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/liblogger.a
+  IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/lib/logger/liblogger.a
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/logger/include
 )
 
@@ -40,7 +40,7 @@ add_library(libthread_pool STATIC IMPORTED)
 set_target_properties(
   libthread_pool
   PROPERTIES
-  IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/libthread_pool.a
+  IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/lib/thread_pool/libthread_pool.a
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/thread_pool/include
 )
 
