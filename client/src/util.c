@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include "include/command.h"
 #include "include/payload.h"
 
 static bool is_big_endian(void) {
@@ -143,4 +144,52 @@ uint16_t hton_u16(uint16_t value) {
 
 uint16_t ntoh_u16(uint16_t value) {
   return change_order_u16(value);
+}
+
+char *tolower_str(char *str, size_t len) {
+  if (!str || !len) return NULL;
+
+  for (size_t i = 0; i < len; i++) {
+    str[i] = tolower(str[i]);
+  }
+  return str;
+}
+
+// very inefficient, a hash implementation would be way better, but since we're
+// talking about small strings here - it tolerable
+static enum cmd get_command(char *cmd) {
+  if (strcmp(cmd, "quit")) {
+    return QUIT;
+  } else if (strcmp(cmd, "retr")) {
+    return RETRIEVE;
+  } else if (strcmp(cmd, "stor")) {
+    return STROE;
+  } else if (strcmp(cmd, "appe")) {
+    return APPEND;
+  } else if (strcmp(cmd, "dele")) {
+    return DELETE;
+  } else if (strcmp(cmd, "list")) {
+    return LIST;
+  }
+  return UNKNOWN;
+}
+
+struct command parse_command(char *cmd) {
+  if (!cmd) return (struct command){.cmd = UNKNOWN};
+
+  char *end = strchr(cmd, 0);
+  if (!end) return (struct command){.cmd = UNKNOWN};
+
+  struct command command = {0};
+  strtok(cmd, " ");
+  size_t i = 0;
+  for (char *ptr = cmd; ptr && i < sizeof command.args; ptr = strtok(NULL, " "), i++) {
+    if (ptr == cmd) {
+      command.cmd = get_command(cmd);
+    } else {
+      command.args[i] = ptr;
+    }
+  }
+
+  return command;
 }

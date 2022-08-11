@@ -6,6 +6,8 @@
 
 struct payload;
 
+struct command;
+
 enum indicator {
   FAILURE,
   SUCCESS,
@@ -32,3 +34,7 @@ uint16_t ntoh_u16(uint16_t value);
 bool send_payload(int sockfd, struct payload payload);
 
 struct payload recv_payload(int sockfd);
+
+char *tolower_str(char *str, size_t len);
+
+struct command parse_command(char *cmd);
