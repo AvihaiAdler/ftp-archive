@@ -17,7 +17,7 @@ enum level { ERROR, WARN, DEBUG, INFO };
  * otherwise */
 struct logger *logger_init(char *file_name);
 
-void log_msg(struct logger *logger, enum level level, char *msg);
+void logger_log(struct logger *logger, enum level level, const char *fmt, ...);
 
 /* destroys the logger 'object'. must be called after all threads are
  * joined(or killed). any attempt to call the function while the threads
