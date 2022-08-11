@@ -1,9 +1,11 @@
-set(SERVER_FILES ftpd.c)
-add_executable(ftpd ${SERVER_FILES})
+set(
+  SERVER 
+  ftpd.c
+  src/util.c)
+add_executable(ftpd ${SERVER})
 target_compile_options(ftpd PRIVATE -Wall -Wextra -pedantic -O3)
 target_link_options(ftpd PRIVATE -fsanitize=address,undefined)
 target_include_directories(ftpd PRIVATE .)
-# target_include_directories(ftpd PRIVATE ${CMAKE_SOURCE_DIR})
 
 # import the libraries
 # genereics
@@ -24,8 +26,29 @@ set_target_properties(
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/properties/include
 )
 
+# logger
+add_library(liblogger STATIC IMPORTED)
+set_target_properties(
+  liblogger
+  PROPERTIES
+  IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/liblogger.a
+  INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/logger/include
+)
+
+# thread_pool
+add_library(libthread_pool STATIC IMPORTED)
+set_target_properties(
+  libthread_pool
+  PROPERTIES
+  IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/libthread_pool.a
+  INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/thread_pool/include
+)
+
 target_link_libraries(
   ftpd PRIVATE 
   libgenerics 
   libproperties
+  liblogger
+  libthread_pool
+  pthread
 )
