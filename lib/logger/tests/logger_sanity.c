@@ -14,17 +14,9 @@ struct thread_arg {
 
 int log_stuff(void *arg) {
   struct thread_arg *t_args = (struct thread_arg *)arg;
-  char buf[1024] = {0};
   for (size_t i = 0; i < t_args->boundry; i++) {
     long rand = lrand48();
-    snprintf(buf,
-             sizeof buf,
-             "thread [%ld]: [index:%zu] %ld",
-             thrd_current(),
-             i,
-             rand);
-
-    log_msg(t_args->logger, i % 3 == 0 ? WARN : INFO, buf);
+    logger_log(t_args->logger, i % 3 ? INFO : WARN, "thread [%ld]: [index:%zu] %ld", thrd_current(), i, rand);
   }
   return 0;
 }
@@ -42,8 +34,7 @@ int main(void) {
 
   for (size_t i = 0; i < amount; i++) {
     int rand = lrand48() % (20) + 4;
-    args[i] =
-      (struct thread_arg){.logger = logger, .boundry = rand, .remain = &amount};
+    args[i] = (struct thread_arg){.logger = logger, .boundry = rand, .remain = &amount};
     assert(thrd_create(&threads[i], log_stuff, &args[i]) == thrd_success);
   }
 

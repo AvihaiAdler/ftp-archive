@@ -8,18 +8,11 @@ struct payload;
 
 struct command;
 
-enum indicator {
-  FAILURE,
-  SUCCESS,
-};
-
 struct addrinfo *get_addr_info(const char *ip, const char *port);
 
 int connect_to_host(struct addrinfo *addr);
 
 void cleanup(struct logger *logger);
-
-char *get_msg(const char *ip, const char *port, enum indicator code);
 
 char *get_input(char *input, uint8_t size);
 

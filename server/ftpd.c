@@ -16,10 +16,8 @@
 
 bool terminate = false;
 
-void signal_handler(int signum, siginfo_t *siginfo, void *ucontext) {
+void signal_handler(int signum) {
   (void)signum;
-  (void)siginfo;
-  (void)ucontext;
   terminate = true;
 }
 
@@ -31,8 +29,7 @@ int main(int argc, char *argv[]) {
 
   // create signal handler
   struct sigaction act = {0};
-  act.sa_flags = SA_SIGINFO;
-  act.sa_sigaction = signal_handler;
+  act.sa_handler = signal_handler;
   if (sigaction(SIGINT, &act, NULL) == -1) {
     fprintf(stderr, "failed to create a signal handler\n");
     return 1;
@@ -54,7 +51,7 @@ int main(int argc, char *argv[]) {
   uint8_t *num_of_threads = table_get(properties, NUM_OF_THREADS, strlen(NUM_OF_THREADS));
   struct thread_pool *thread_pool = thread_pool_init(num_of_threads ? *num_of_threads : DEFAULT_NUM_OF_THREADS);
   if (!thread_pool) {
-    log_msg(logger, ERROR, "failed to init thread pool");
+    logger_log(logger, ERROR, "failed to init thread pool");
     cleanup(properties, logger, NULL);
     return 1;
   }
@@ -66,7 +63,7 @@ int main(int argc, char *argv[]) {
   // main server loop
   while (!terminate) {}
 
-  log_msg(logger, INFO, "shutting down");
+  logger_log(logger, INFO, "shutting down");
   cleanup(properties, logger, thread_pool);
 
   return 0;

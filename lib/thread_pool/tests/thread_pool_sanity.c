@@ -14,13 +14,7 @@ int handle_task(void *arg) {
   struct timespec delay = {.tv_sec = 1, .tv_nsec = 0};
   struct timespec remains = {0};
 
-  char buf[SIZE] = {0};
-  snprintf(buf,
-           sizeof buf,
-           "thread %lu executing task %d",
-           *args->thrd_id,
-           args->fd);
-  log_msg(logger, INFO, buf);
+  logger_log(logger, INFO, "thread %lu executing task %d", *args->thrd_id, args->fd);
   nanosleep(&delay, &remains);
   return 0;
 }
@@ -33,9 +27,7 @@ int main(void) {
   assert(thread_pool);
 
   for (uint8_t i = 0; i < 100; i++) {
-    struct task task = {.fd = i,
-                        .handle_task = handle_task,
-                        .additional_args = logger};
+    struct task task = {.fd = i, .handle_task = handle_task, .additional_args = logger};
     assert(add_task(thread_pool, &task));
   }
 

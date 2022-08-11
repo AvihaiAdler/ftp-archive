@@ -1,4 +1,5 @@
 #include <arpa/inet.h>
+#include <assert.h>
 #include <netdb.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -8,6 +9,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "include/command.h"
 #include "include/payload.h"
 #include "include/util.h"
 #include "logger.h"
@@ -22,7 +24,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (argc != 3) {
-    log_msg(logger, ERROR, "[ip] [port]");
+    logger_log(logger, ERROR, "2 arguments expected [ip] [port] but non recieved");
     cleanup(logger);
     return 1;
   }
@@ -32,10 +34,7 @@ int main(int argc, char *argv[]) {
 
   struct addrinfo *addr = get_addr_info(ip, port);
   if (!addr) {
-    char *msg = get_msg(ip, port, FAILURE);
-    if (msg) log_msg(logger, ERROR, msg);
-    free(msg);
-
+    logger_log(logger, ERROR, "failed to connect to %s:%s", ip, port);
     cleanup(logger);
     return 1;
   }
@@ -44,42 +43,40 @@ int main(int argc, char *argv[]) {
   freeaddrinfo(addr);
 
   if (sockfd == -1) {
-    char *msg = get_msg(ip, port, FAILURE);
-    if (msg) log_msg(logger, ERROR, msg);
-    free(msg);
-
+    logger_log(logger, ERROR, "failed to connect to %s:%s", ip, port);
     cleanup(logger);
     return 1;
   }
 
   // all connected at this point
-  char *msg = get_msg(ip, port, SUCCESS);
-  log_msg(logger, INFO, msg);
-  free(msg);
+  logger_log(logger, ERROR, "successfully connected to %s:%s", ip, port);
 
   bool abort = false;
-  char input[INPUT_SIZE];
+  char input[INPUT_SIZE] = {0};
   do {
     if (!get_input(input, sizeof input)) continue;
-    input[strcspn(input, "\n")] = 0;  // strip the trailing '\n'
+    size_t len = strcspn(input, "\n");
+    input[len] = 0;  // strip the trailing '\n'
 
-    if (!send_payload(sockfd,
-                      (struct payload){.code = 0,
-                                       .size = strlen(input),
-                                       .data = (uint8_t *)input})) {
-      int size = snprintf(NULL, 0, "failed to send message [%s]", input);
-      char *err_msg = calloc(size + 1, 1);
-      if (err_msg) {
-        snprintf(err_msg, size + 1, "failed to send message [%s]", input);
-        log_msg(logger, ERROR, err_msg);
-        free(err_msg);
-      }
+    tolower_str(input, len - 1);
+
+    char cmd_buf[INPUT_SIZE] = {0};
+    static_assert(sizeof(cmd_buf) >= sizeof(input));
+    strcpy(cmd_buf, input);
+
+    struct command cmd = parse_command(cmd_buf);
+    if (cmd.cmd == UNKNOWN) continue;
+
+    // send a payload
+    if (!send_payload(sockfd, (struct payload){.code = 0, .size = strlen(input), .data = (uint8_t *)input})) {
+      logger_log(logger, ERROR, "failed to send message [%s]", input);
       continue;
     }
 
+    // recieve a payload
     struct payload reply = recv_payload(sockfd);
     if (reply.code == 0) {
-      log_msg(logger, ERROR, "failed to receive a message");
+      logger_log(logger, ERROR, "failed to receive a message");
       continue;
     }
 

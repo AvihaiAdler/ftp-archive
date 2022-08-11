@@ -48,33 +48,6 @@ void cleanup(struct logger *logger) {
   if (logger) logger_destroy(logger);
 }
 
-char *get_msg(const char *ip, const char *port, enum indicator code) {
-  if (!ip && !port) return NULL;
-
-  char *fmt_str;
-  switch (code) {
-    case FAILURE:
-      fmt_str = "failed to connect to %s:%s";
-      break;
-    case SUCCESS:
-      fmt_str = "successfully connected to %s:%s";
-      break;
-    default:
-      fmt_str = NULL;
-      break;
-  }
-
-  if (!fmt_str) return NULL;
-
-  int size = snprintf(NULL, 0, fmt_str, ip, port);
-
-  char *msg = calloc(size + 1, 1);
-  if (!msg) return NULL;
-
-  snprintf(msg, size + 1, fmt_str, ip, port);
-  return msg;
-}
-
 char *get_input(char *input, uint8_t size) {
   if (!input || !size) return NULL;
 
@@ -88,10 +61,10 @@ bool send_payload(int sockfd, struct payload payload) {
   if (!payload.size || !payload.data) return false;
 
   uint64_t payload_len = hton_u64(payload.size);
-  ssize_t ret = send(sockfd, &payload_len, sizeof payload_len, 0);
-  if (ret == -1) return false;
+  if (send(sockfd, &payload_len, sizeof payload_len, 0) == -1) return false;
 
-  for (size_t i = 0, ret = 0; i < payload.size; i += ret) {
+  ssize_t ret = 0;
+  for (size_t i = 0; i < payload.size; i += ret) {
     ret = send(sockfd, payload.data + i, payload.size - i, 0);
 
     if (ret == -1) return false;
