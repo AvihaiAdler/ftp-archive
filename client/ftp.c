@@ -63,19 +63,25 @@ int main(int argc, char *argv[]) {
     if (!get_input(input, sizeof input)) continue;
     input[strcspn(input, "\n")] = 0;  // strip the trailing '\n'
 
-    /*
-    TODO
-      check input command, decide whether you should recv afterwards
-    */
+    if (!send_payload(sockfd,
+                      (struct payload){.code = 0,
+                                       .size = strlen(input),
+                                       .data = (uint8_t *)input})) {
+      int size = snprintf(NULL, 0, "failed to send message [%s]", input);
+      char *err_msg = calloc(size + 1, 1);
+      if (err_msg) {
+        snprintf(err_msg, size + 1, "failed to send message [%s]", input);
+        log_msg(logger, ERROR, err_msg);
+        free(err_msg);
+      }
+      continue;
+    }
 
-    // if (!send_payload(sockfd,
-    //                   (struct payload){.size = strlen(input), .data =
-    //                   input})) {
-
-    //   continue;
-    // }
-
-    // struct payload ret = recv_payload(sockfd);
+    struct payload reply = recv_payload(sockfd);
+    if (reply.code == 0) {
+      log_msg(logger, ERROR, "failed to receive a message");
+      continue;
+    }
 
   } while (!abort);
 
