@@ -40,9 +40,7 @@ static void trim(char *str) {
   size_t len = strlen(str);
 
   // trim the end of the string
-  for (char *last_letter = str + len - 1;
-       isspace(*last_letter) && last_letter >= str;
-       last_letter--) {
+  for (char *last_letter = str + len - 1; isspace(*last_letter) && last_letter >= str; last_letter--) {
     *last_letter = 0;
   }
 
@@ -59,9 +57,11 @@ static void trim(char *str) {
 }
 
 struct hash_table *get_properties(const char *path) {
+  if (!path) return NULL;
+
   FILE *fp = fopen(path, "r");
 
-  if (!fp) { return NULL; }
+  if (!fp) return NULL;
 
   struct hash_table *properties = table_init(cmpr, NULL, NULL);
   char buffer[LEN];
@@ -89,8 +89,7 @@ struct hash_table *get_properties(const char *path) {
       return NULL;
     }
 
-    char *old_val =
-      table_put(properties, buffer, key_len + 1, delim + 1, val_len + 1);
+    char *old_val = table_put(properties, buffer, key_len + 1, delim + 1, val_len + 1);
     if (old_val) {
       cleanup(properties);
       return NULL;
