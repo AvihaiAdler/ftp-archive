@@ -41,7 +41,7 @@ BraceWrapping:
   SplitEmptyNamespace: false
 BreakBeforeBinaryOperators: None
 BreakBeforeTernaryOperators: false
-ColumnLimit: 80
+ColumnLimit: 120
 CompactNamespaces: false
 ContinuationIndentWidth: 2
 Cpp11BracedListStyle: true
