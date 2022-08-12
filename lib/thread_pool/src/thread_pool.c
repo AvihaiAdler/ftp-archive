@@ -7,8 +7,8 @@
 static int thrd_func_wrapper(void *arg) {
   struct thrd_args_inner *thread_args = arg;
 
-  bool terminate = false;
-  while (atomic_compare_exchange_strong(&thread_args->self->terminate, &terminate, false)) {
+  // as long as the thread shouldn't terminate
+  while (!atomic_load(&thread_args->self->terminate)) {
     mtx_lock(thread_args->tasks_mtx);  // assumes never fails
     // there're no tasks
     if (vector_size(thread_args->tasks) == 0) { cnd_wait(thread_args->tasks_cnd, thread_args->tasks_mtx); }
@@ -18,8 +18,8 @@ static int thrd_func_wrapper(void *arg) {
     mtx_unlock(thread_args->tasks_mtx);  // assumes never fails
 
     // handle the task
-    bool stop = true;
-    if (task && !atomic_compare_exchange_strong(&thread_args->self->stop_task, &stop, false)) {
+    // as long as task is valid as the thread shouldn't stop
+    if (task && !atomic_load(&thread_args->self->stop_task)) {
       thread_args->args.fd = task->fd;
       thread_args->args.additional_args = task->additional_args;
       thread_args->args.thrd_id = &thread_args->self->thread;
