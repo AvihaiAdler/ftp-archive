@@ -11,7 +11,6 @@ struct thrd {
   thrd_t thread;
 
   atomic_bool terminate;  // indicate the thread to terminate
-  atomic_bool stop_task;  // indicate the thread to stop whatever its doing
 };
 
 struct thrd_pool {

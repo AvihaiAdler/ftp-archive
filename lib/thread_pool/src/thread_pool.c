@@ -19,11 +19,10 @@ static int thrd_func_wrapper(void *arg) {
 
     // handle the task
     // as long as task is valid as the thread shouldn't stop
-    if (task && !atomic_load(&thread_args->self->stop_task)) {
+    if (task && !atomic_load(&thread_args->self->terminate)) {
       thread_args->args.fd = task->fd;
       thread_args->args.additional_args = task->additional_args;
       thread_args->args.thrd_id = &thread_args->self->thread;
-      thread_args->args.stop = &thread_args->self->stop_task;
 
       task->handle_task(&thread_args->args);
     }
@@ -95,7 +94,6 @@ struct thrd_pool *thrd_pool_init(uint8_t num_of_threads) {
     thread_args->self = &thread_pool->threads[i];
 
     atomic_init(&thread_pool->threads[i].terminate, false);
-    atomic_init(&thread_pool->threads[i].stop_task, false);
 
     /* the thread takes owership of thread_args. its his responsibility to free
      * it at the end*/
@@ -106,28 +104,12 @@ struct thrd_pool *thrd_pool_init(uint8_t num_of_threads) {
   return thread_pool;
 }
 
-bool thrd_pool_stop_thrd(struct thrd_pool *thread_pool, thrd_t thread_id) {
-  if (!thread_pool) return false;
-
-  struct thrd *thread = NULL;
-  for (uint8_t i = 0; i < thread_pool->num_of_threads; i++) {
-    if (thrd_equal(thread_pool->threads[i].thread, thread_id)) { thread = &thread_pool->threads[i]; }
-
-    if (!thread) return false;
-
-    // signal the thread to stop
-    atomic_store(&thread->stop_task, true);
-    return false;
-  }
-}
-
 void thrd_pool_destroy(struct thrd_pool *thread_pool) {
   if (!thread_pool) return;
 
   // signal all threads to terminate
   for (uint8_t i = 0; i < thread_pool->num_of_threads; i++) {
     atomic_store(&thread_pool->threads[i].terminate, true);
-    atomic_store(&thread_pool->threads[i].stop_task, true);
   }
 
   // wakeup all threads

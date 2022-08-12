@@ -1,6 +1,5 @@
 #pragma once
 
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <threads.h>
@@ -22,7 +21,6 @@ struct task {
 struct thrd_args {
   int fd;
   thrd_t *thrd_id;
-  atomic_bool *stop;
   void *additional_args;
 };
 
@@ -33,10 +31,6 @@ struct thrd_pool *thrd_pool_init(uint8_t num_of_threads);
 
 /* destroys a thread_pool object */
 void thrd_pool_destroy(struct thrd_pool *thread_pool);
-
-/* signal a specific thread to stop. return true on success (i.e. thread::stop_task
- * has been set to true), false otherwise */
-bool thrd_pool_stop_thrd(struct thrd_pool *thread_pool, thrd_t thread_id);
 
 /* adds a task to the thread_pool to handle asynchronously */
 bool thrd_pool_add_task(struct thrd_pool *thread_pool, struct task *task);
