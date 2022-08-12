@@ -94,8 +94,8 @@ struct thrd_pool *thrd_pool_init(uint8_t num_of_threads) {
     thread_args->tasks_cnd = &thread_pool->tasks_cnd;
     thread_args->self = &thread_pool->threads[i];
 
-    atomic_store(&thread_pool->threads[i].terminate, false);
-    atomic_store(&thread_pool->threads[i].stop_task, false);
+    atomic_init(&thread_pool->threads[i].terminate, false);
+    atomic_init(&thread_pool->threads[i].stop_task, false);
 
     /* the thread takes owership of thread_args. its his responsibility to free
      * it at the end*/
