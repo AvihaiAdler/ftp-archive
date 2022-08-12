@@ -7,13 +7,15 @@
 #include "vector.h"
 
 /* used internally to represent a thread */
-struct thread {
+struct thrd {
   thrd_t thread;
-  atomic_flag stop;  // indicates whether the thread should be stopped
+
+  atomic_bool terminate;  // indicate the thread to terminate
+  atomic_bool stop_task;  // indicate the thread to stop whatever its doing
 };
 
-struct thread_pool {
-  struct thread *threads;
+struct thrd_pool {
+  struct thrd *threads;
   uint8_t num_of_threads;
 
   struct vector *tasks;
@@ -22,12 +24,12 @@ struct thread_pool {
 };
 
 /* used internally to pass the thread the resources it needs */
-struct thread_args {
-  struct thread *self;
+struct thrd_args_inner {
+  struct thrd *self;
   struct vector *tasks;
   mtx_t *tasks_mtx;
   cnd_t *tasks_cnd;
 
   // will be passed to a user define handle function, see thread_pool.h
-  struct args args;
+  struct thrd_args args;
 };
