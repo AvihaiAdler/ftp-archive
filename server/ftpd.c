@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
   }
 
   uint8_t *num_of_threads = table_get(properties, NUM_OF_THREADS, strlen(NUM_OF_THREADS));
-  struct thread_pool *thread_pool = thread_pool_init(num_of_threads ? *num_of_threads : DEFAULT_NUM_OF_THREADS);
+  struct thrd_pool *thread_pool = thrd_pool_init(num_of_threads ? *num_of_threads : DEFAULT_NUM_OF_THREADS);
   if (!thread_pool) {
     logger_log(logger, ERROR, "failed to init thread pool");
     cleanup(properties, logger, NULL);

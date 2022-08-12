@@ -4,4 +4,4 @@
 #include "logger.h"
 #include "thread_pool.h"
 
-void cleanup(struct hash_table *properties, struct logger *logger, struct thread_pool *thread_pool);
+void cleanup(struct hash_table *properties, struct logger *logger, struct thrd_pool *thread_pool);
