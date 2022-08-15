@@ -3,6 +3,8 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <poll.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -70,7 +72,7 @@ int get_socket(struct logger *logger, const char *port, int conn_q_size) {
   return sockfd;
 }
 
-void add_new_fd(struct vector *pollfds, struct logger *logger, int fd) {
+void add_fd(struct vector *pollfds, struct logger *logger, int fd) {
   if (!pollfds || !logger) return;
 
   if (fd == -1) {
@@ -79,4 +81,33 @@ void add_new_fd(struct vector *pollfds, struct logger *logger, int fd) {
   }
 
   vector_push(pollfds, &(struct pollfd){.fd = fd, .events = POLLIN});
+}
+
+static int cmpr_pfds(const void *a, const void *b) {
+  const struct pollfd *pfd_a = a;
+  const struct pollfd *pfd_b = b;
+
+  return (pfd_a->fd > pfd_b->fd) - (pfd_a->fd < pfd_b->fd);
+}
+
+struct pollfd remove_fd(struct vector *pollfds, struct logger *logger, int fd) {
+  if (!pollfds || !logger) return (struct pollfd){.fd = -1};
+
+  if (fd == -1) {
+    logger_log(logger, ERROR, "invalid fd [%d] recieved", fd);
+    return (struct pollfd){.fd = -1};
+  }
+
+  long long pos = vector_index_of(pollfds, &(struct pollfd){.fd = fd}, cmpr_pfds);
+
+  if (pos == N_EXISTS) return (struct pollfd){.fd = -1};
+
+  struct pollfd *pfd = vector_remove_at(pollfds, pos);
+  if (!pfd) return (struct pollfd){.fd = -1};
+
+  struct pollfd ret = {0};
+  memcpy(&ret, pfd, sizeof ret);
+  free(pfd);
+
+  return ret;
 }

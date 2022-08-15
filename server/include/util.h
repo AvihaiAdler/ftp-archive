@@ -1,6 +1,7 @@
 #pragma once
 
 #include <netdb.h>
+#include <poll.h>
 #include "hash_table.h"
 #include "logger.h"
 #include "thread_pool.h"
@@ -13,4 +14,6 @@ void cleanup(struct hash_table *properties,
 
 int get_socket(struct logger *logger, const char *port, int conn_q_size);
 
-void add_new_fd(struct vector *pollfds, struct logger *logger, int fd);
+void add_fd(struct vector *pollfds, struct logger *logger, int fd);
+
+struct pollfd remove_fd(struct vector *pollfds, struct logger *logger, int fd);
