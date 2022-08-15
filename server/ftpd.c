@@ -115,15 +115,17 @@ int main(int argc, char *argv[]) {
           // get the ip as a string
           char remote_host[INET6_ADDRSTRLEN] = {0};
           char remote_port[PORT_LEN] = {0};
-          getnameinfo((struct sockaddr *)&remote_addr,
-                      remote_addrlen,
-                      remote_host,
-                      sizeof remote_host,
-                      remote_port,
-                      sizeof remote_port,
-                      NI_NUMERICHOST);
+          if (getnameinfo((struct sockaddr *)&remote_addr,
+                          remote_addrlen,
+                          remote_host,
+                          sizeof remote_host,
+                          remote_port,
+                          sizeof remote_port,
+                          NI_NUMERICHOST) == 0) {
 
-          logger_log(logger, INFO, "recieved a connection from %s", remote_host);
+            logger_log(logger, INFO, "recieved a connection from %s:%s", remote_host);
+          }
+
           add_fd(pollfds, logger, remote_fd);
         } else {  // any other socket
           struct pollfd pfd = remove_fd(pollfds, logger, current->fd);
