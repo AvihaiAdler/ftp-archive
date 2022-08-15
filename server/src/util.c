@@ -2,6 +2,7 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <netdb.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -67,4 +68,15 @@ int get_socket(struct logger *logger, const char *port, int conn_q_size) {
   }
 
   return sockfd;
+}
+
+void add_new_fd(struct vector *pollfds, struct logger *logger, int fd) {
+  if (!pollfds || !logger) return;
+
+  if (fd == -1) {
+    logger_log(logger, ERROR, "invalid fd [%d] recieved", fd);
+    return;
+  }
+
+  vector_push(pollfds, &(struct pollfd){.fd = fd, .events = POLLIN});
 }
