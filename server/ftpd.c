@@ -110,14 +110,16 @@ int main(int argc, char *argv[]) {
       struct pollfd *current = vector_at(pollfds, i);
       if (!current->revents) continue;
 
-      struct sockaddr_storage remote_addr;
+      // used to accept() new connections / get the ip:port of a socket
+      struct sockaddr_storage remote_addr = {0};
       socklen_t remote_addrlen = sizeof remote_addr;
-
       char remote_host[INET6_ADDRSTRLEN] = {0};
       char remote_port[PORT_LEN] = {0};
-      if (current->revents & POLLIN) {  // this fp is really to poll data from
+
+      if (current->revents & POLLIN) {  // this fp is ready to poll data from
         if (current->fd == sockfd) {    // the main socket
           int remote_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
+
           // get the ip:port as a string
           if (getnameinfo((struct sockaddr *)&remote_addr,
                           remote_addrlen,
@@ -131,6 +133,7 @@ int main(int argc, char *argv[]) {
 
           add_fd(pollfds, logger, remote_fd, POLLIN | POLLHUP);
         } else {  // any other socket
+          // create a task for a different thread so it will handle it
           thrd_pool_add_task(thread_pool,
                              &(struct task){.fd = current->fd,
                                             .handle_task = NULL,        // recieve_data,
