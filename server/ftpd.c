@@ -104,17 +104,19 @@ int main(int argc, char *argv[]) {
       break;
     }
 
-    for (unsigned long long i = 0; i < vector_size(pollfds); i++) {
+    for (unsigned long long i = 0; events_count > 0 && i < vector_size(pollfds); i++) {
       struct pollfd *current = vector_at(pollfds, i);
-      if (current->revents & POLLIN) {
-        if (current->fd == sockfd) {  // the main socket
-          struct sockaddr_storage remote_addr;
-          socklen_t remote_addrlen;
-          int remote_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
+      if (!current->revents) continue;
 
-          // get the ip as a string
-          char remote_host[INET6_ADDRSTRLEN] = {0};
-          char remote_port[PORT_LEN] = {0};
+      struct sockaddr_storage remote_addr;
+      socklen_t remote_addrlen = sizeof remote_addr;
+      int remote_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
+
+      char remote_host[INET6_ADDRSTRLEN] = {0};
+      char remote_port[PORT_LEN] = {0};
+      if (current->revents & POLLIN) {  // one fp is really to poll data from
+        if (current->fd == sockfd) {    // the main socket
+          // get the ip:port as a string
           if (getnameinfo((struct sockaddr *)&remote_addr,
                           remote_addrlen,
                           remote_host,
@@ -122,21 +124,36 @@ int main(int argc, char *argv[]) {
                           remote_port,
                           sizeof remote_port,
                           NI_NUMERICHOST) == 0) {
-
-            logger_log(logger, INFO, "recieved a connection from %s:%s", remote_host);
+            logger_log(logger, INFO, "recieved a connection from %s:%s", remote_host, remote_port);
           }
 
-          add_fd(pollfds, logger, remote_fd);
+          add_fd(pollfds, logger, remote_fd, POLLIN | POLLHUP);
         } else {  // any other socket
-          struct pollfd pfd = remove_fd(pollfds, logger, current->fd);
-          if (pfd.fd != -1) {
-            // thrd_pool_add_task(thread_pool,
-            //                    &(struct task){.fd = pfd->fd,
-            //                                   .handle_task = recieve_data,
-            //                                   .additional_args = pollfds});  // TODO: has to be thread safe
+          thrd_pool_add_task(thread_pool,
+                             &(struct task){.fd = current->fd,
+                                            .handle_task = NULL,        // recieve_data,
+                                            .additional_args = NULL});  // TODO: has to be thread safe
+        }
+      } else if (current->events & POLLHUP) {  // this fp has been closed
+        // get the name of the socket
+        if (getsockname(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen) == 0) {
+          // get the ip:port as a string
+          if (getnameinfo((struct sockaddr *)&remote_addr,
+                          remote_addrlen,
+                          remote_host,
+                          sizeof remote_host,
+                          remote_port,
+                          sizeof remote_port,
+                          NI_NUMERICHOST) == 0) {
+            logger_log(logger, INFO, "the a connection from %s:%s was closed", remote_host, remote_port);
           }
         }
+        // logger_log()
+        remove_fd(pollfds, logger, current->fd);
+      } else {  // some other POLL* event (POLLERR / POLLNVAL)
+        remove_fd(pollfds, logger, current->fd);
       }
+      events_count--;
     }
   }
 
