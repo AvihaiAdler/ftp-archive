@@ -1,5 +1,6 @@
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 200112L
 #include <limits.h>
+#include <netdb.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -7,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include "hash_table.h"
 #include "include/util.h"
 #include "logger.h"
@@ -17,6 +19,7 @@
 #define NUM_OF_THREADS "threads.number"
 #define DEFAULT_NUM_OF_THREADS 20
 #define PORT "port"
+#define PORT_LEN 10
 #define CONN_Q_SIZE "connection.queue.size"
 
 bool terminate = false;
@@ -103,7 +106,34 @@ int main(int argc, char *argv[]) {
 
     for (unsigned long long i = 0; i < vector_size(pollfds); i++) {
       struct pollfd *current = vector_at(pollfds, i);
-      if (current->revents & POLLIN) {}
+      if (current->revents & POLLIN) {
+        if (current->fd == sockfd) {  // the main socket
+          struct sockaddr_storage remote_addr;
+          socklen_t remote_addrlen;
+          int remote_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
+
+          // get the ip as a string
+          char remote_host[INET6_ADDRSTRLEN] = {0};
+          getnameinfo((struct sockaddr *)&remote_addr,
+                      remote_addrlen,
+                      remote_host,
+                      sizeof remote_host,
+                      NULL,
+                      0,
+                      NI_NUMERICHOST);
+
+          logger_log(logger, INFO, "recieved a connection from %s", remote_host);
+          add_fd(pollfds, logger, remote_fd);
+        } else {  // any other socket
+          struct pollfd pfd = remove_fd(pollfds, logger, current->fd);
+          if (pfd.fd != -1) {
+            // thrd_pool_add_task(thread_pool,
+            //                    &(struct task){.fd = pfd->fd,
+            //                                   .handle_task = recieve_data,
+            //                                   .additional_args = pollfds});  // TODO: has to be thread safe
+          }
+        }
+      }
     }
   }
 
