@@ -112,12 +112,12 @@ int main(int argc, char *argv[]) {
 
       struct sockaddr_storage remote_addr;
       socklen_t remote_addrlen = sizeof remote_addr;
-      int remote_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
 
       char remote_host[INET6_ADDRSTRLEN] = {0};
       char remote_port[PORT_LEN] = {0};
-      if (current->revents & POLLIN) {  // one fp is really to poll data from
+      if (current->revents & POLLIN) {  // this fp is really to poll data from
         if (current->fd == sockfd) {    // the main socket
+          int remote_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
           // get the ip:port as a string
           if (getnameinfo((struct sockaddr *)&remote_addr,
                           remote_addrlen,
