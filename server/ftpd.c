@@ -19,7 +19,7 @@
 #define NUM_OF_THREADS "threads.number"
 #define DEFAULT_NUM_OF_THREADS 20
 #define PORT "port"
-#define PORT_LEN 10
+#define PORT_LEN 7
 #define CONN_Q_SIZE "connection.queue.size"
 
 bool terminate = false;
@@ -114,12 +114,13 @@ int main(int argc, char *argv[]) {
 
           // get the ip as a string
           char remote_host[INET6_ADDRSTRLEN] = {0};
+          char remote_port[PORT_LEN] = {0};
           getnameinfo((struct sockaddr *)&remote_addr,
                       remote_addrlen,
                       remote_host,
                       sizeof remote_host,
-                      NULL,
-                      0,
+                      remote_port,
+                      sizeof remote_port,
                       NI_NUMERICHOST);
 
           logger_log(logger, INFO, "recieved a connection from %s", remote_host);
