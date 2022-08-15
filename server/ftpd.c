@@ -1,8 +1,11 @@
 #define _POSIX_C_SOURCE 199309L
+#include <limits.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "hash_table.h"
 #include "include/util.h"
@@ -13,6 +16,8 @@
 #define LOG_FILE "log.file"
 #define NUM_OF_THREADS "threads.number"
 #define DEFAULT_NUM_OF_THREADS 20
+#define PORT "port"
+#define CONN_Q_SIZE "connection.queue.size"
 
 bool terminate = false;
 
@@ -35,36 +40,75 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  // load properties
   struct hash_table *properties = get_properties(argv[1]);
   if (!properties) {
     fprintf(stderr, "properties file doens't exists or isn't valid\n");
     return 1;
   }
 
+  // init logger
   struct logger *logger = logger_init(table_get(properties, LOG_FILE, strlen(LOG_FILE)));
   if (!logger) {
-    cleanup(properties, NULL, NULL);
+    cleanup(properties, NULL, NULL, NULL);
     fprintf(stderr, "failed to init logger\n");
     return 1;
   }
 
+  // create threads
   uint8_t *num_of_threads = table_get(properties, NUM_OF_THREADS, strlen(NUM_OF_THREADS));
   struct thrd_pool *thread_pool = thrd_pool_init(num_of_threads ? *num_of_threads : DEFAULT_NUM_OF_THREADS);
   if (!thread_pool) {
     logger_log(logger, ERROR, "failed to init thread pool");
-    cleanup(properties, logger, NULL);
+    cleanup(properties, logger, NULL, NULL);
     return 1;
   }
 
-  /* TODO:
-    get a socket fd
-  */
+  // load connection queue size (the number of connection the socket will queue after that - connections will be
+  // refused)
+  char *endptr;
+  char *conn_q_size = table_get(properties, CONN_Q_SIZE, strlen(CONN_Q_SIZE));
+  long q_size = strtol(conn_q_size, &endptr, 10);
+  if (conn_q_size == endptr || q_size > INT_MAX) {
+    logger_log(logger, ERROR, "invalid %s agrument", CONN_Q_SIZE);
+    cleanup(properties, logger, thread_pool, NULL);
+    return 1;
+  }
+
+  // get a socket
+  int sockfd = get_socket(logger, table_get(properties, PORT, strlen(PORT)), (int)q_size);
+  if (sockfd == -1) {
+    logger_log(logger, ERROR, "failed to retrieve a socket");
+    cleanup(properties, logger, thread_pool, NULL);
+    return 1;
+  }
+
+  // create a vector of socktes
+  struct vector *pollfds = vector_init(sizeof(struct pollfd));
+  if (!pollfds) {
+    logger_log(logger, ERROR, "failed to init sockfds vector");
+    cleanup(properties, logger, thread_pool, NULL);
+    return 1;
+  }
+
+  vector_push(pollfds, &(struct pollfd){.fd = sockfd, .events = POLLIN});
 
   // main server loop
-  while (!terminate) {}
+  while (!terminate) {
+    int events_count = poll((struct pollfd *)pollfds->data, vector_size(pollfds), -1);
+    if (events_count == -1) {
+      logger_log(logger, ERROR, "poll error");
+      break;
+    }
+
+    for (unsigned long long i = 0; i < vector_size(pollfds); i++) {
+      struct pollfd *current = vector_at(pollfds, i);
+      if (current->revents & POLLIN) {}
+    }
+  }
 
   logger_log(logger, INFO, "shutting down");
-  cleanup(properties, logger, thread_pool);
+  cleanup(properties, logger, thread_pool, pollfds);
 
   return 0;
 }
