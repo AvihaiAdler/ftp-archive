@@ -153,7 +153,7 @@ int main(int argc, char *argv[]) {
             logger_log(logger, INFO, "the a connection from %s:%s was closed", remote_host, remote_port);
           }
         }
-        // logger_log()
+
         remove_fd(pollfds, logger, current->fd);
       } else {  // some other POLL* event (POLLERR / POLLNVAL)
         remove_fd(pollfds, logger, current->fd);
