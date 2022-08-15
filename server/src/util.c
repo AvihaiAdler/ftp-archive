@@ -72,7 +72,7 @@ int get_socket(struct logger *logger, const char *port, int conn_q_size) {
   return sockfd;
 }
 
-void add_fd(struct vector *pollfds, struct logger *logger, int fd) {
+void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events) {
   if (!pollfds || !logger) return;
 
   if (fd == -1) {
@@ -80,7 +80,7 @@ void add_fd(struct vector *pollfds, struct logger *logger, int fd) {
     return;
   }
 
-  vector_push(pollfds, &(struct pollfd){.fd = fd, .events = POLLIN});
+  vector_push(pollfds, &(struct pollfd){.fd = fd, .events = events});
 }
 
 static int cmpr_pfds(const void *a, const void *b) {
