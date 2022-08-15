@@ -67,8 +67,8 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // load connection queue size (the number of connection the socket will queue after that - connections will be
-  // refused)
+  // load connection queue size (the number of connection the socket will accept and queue. after that - connections
+  // will be refused)
   char *endptr;
   char *conn_q_size = table_get(properties, CONN_Q_SIZE, strlen(CONN_Q_SIZE));
   long q_size = strtol(conn_q_size, &endptr, 10);
@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // get a socket
+  // create a socket
   int sockfd = get_socket(logger, table_get(properties, PORT, strlen(PORT)), (int)q_size);
   if (sockfd == -1) {
     logger_log(logger, ERROR, "failed to retrieve a socket");
@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // create a vector of socktes
+  // create a vector of open fds
   struct vector *pollfds = vector_init(sizeof(struct pollfd));
   if (!pollfds) {
     logger_log(logger, ERROR, "failed to init sockfds vector");
@@ -94,7 +94,8 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  vector_push(pollfds, &(struct pollfd){.fd = sockfd, .events = POLLIN});
+  // add the main server to the list of open fds
+  add_fd(pollfds, logger, sockfd, POLLIN);
 
   // main server loop
   while (!terminate) {
@@ -104,6 +105,7 @@ int main(int argc, char *argv[]) {
       break;
     }
 
+    // search for an event
     for (unsigned long long i = 0; events_count > 0 && i < vector_size(pollfds); i++) {
       struct pollfd *current = vector_at(pollfds, i);
       if (!current->revents) continue;
