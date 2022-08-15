@@ -16,4 +16,4 @@ int get_socket(struct logger *logger, const char *port, int conn_q_size);
 
 void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events);
 
-struct pollfd remove_fd(struct vector *pollfds, struct logger *logger, int fd);
+void remove_fd(struct vector *pollfds, struct logger *logger, int fd);
