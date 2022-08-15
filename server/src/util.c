@@ -9,15 +9,12 @@
 void cleanup(struct hash_table *properties,
              struct logger *logger,
              struct thrd_pool *thread_pool,
-             struct vector *tasks,
              struct vector *pollfds) {
   if (properties) table_destroy(properties);
 
   if (logger) logger_destroy(logger);
 
   if (thread_pool) thrd_pool_destroy(thread_pool);
-
-  if (tasks) vector_destroy(tasks, NULL);
 
   if (pollfds) vector_destroy(pollfds, NULL);
 }
@@ -35,7 +32,7 @@ static struct addrinfo *get_addr_info(const char *port) {
   return info;
 }
 
-int get_socket(struct logger *logger, const char *port) {
+int get_socket(struct logger *logger, const char *port, int conn_q_size) {
   struct addrinfo *info = get_addr_info(port);
   if (!info) {
     logger_log(logger, ERROR, "no available addresses for port: %s", port);
@@ -53,7 +50,9 @@ int get_socket(struct logger *logger, const char *port) {
     int val = 1;
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof val) == -1) continue;
 
-    if (bind(sockfd, available->ai_addr, available->ai_addrlen) == 0) {
+    if (bind(sockfd, available->ai_addr, available->ai_addrlen) == -1) continue;
+
+    if (listen(sockfd, conn_q_size) == 0) {
       success = true;
       break;
     }
