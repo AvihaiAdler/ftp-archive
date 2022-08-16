@@ -43,6 +43,8 @@ struct request recieve_payload(int sockfd) {
   ssize_t recieved = recv(sockfd, &request.length, sizeof request.length, 0);
   if (recieved == -1) return (struct request){0};
 
+  request.length = change_order_u64(request.length);
+
   request.data = calloc(request.length, 1);
   if (!request.data) return (struct request){0};
 
