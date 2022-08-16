@@ -1,5 +1,6 @@
 #include "include/util.h"
 #include <arpa/inet.h>
+#include <ctype.h>
 #include <fcntl.h>
 #include <netdb.h>
 #include <poll.h>
@@ -107,4 +108,13 @@ void remove_fd(struct vector *pollfds, struct logger *logger, int fd) {
 
   close(pfd->fd);
   free(pfd);
+}
+
+char *tolower_str(char *str, size_t len) {
+  if (!str || !len) return NULL;
+
+  for (size_t i = 0; i < len; i++) {
+    str[i] = tolower(str[i]);
+  }
+  return str;
 }
