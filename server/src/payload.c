@@ -29,6 +29,13 @@ void send_payload(struct reply payload, int sockfd) {
   ssize_t bytes_sent = send(sockfd, &payload.code, sizeof payload.code, 0);
   if (bytes_sent == -1) return;  // error. possibly sockfd was closed
 
+  // send data length
+  while (send(sockfd, &payload.length, sizeof payload.length, 0) == -1) {
+    continue;
+  }
+
+  if (!payload.data) return;
+
   ssize_t ret = 0;
   for (uint64_t sent = 0; sent < payload.length; sent += ret) {
     ret = send(sockfd, payload.data, payload.length, 0);
@@ -45,7 +52,7 @@ struct request recieve_payload(int sockfd) {
 
   request.length = change_order_u64(request.length);
 
-  request.data = calloc(request.length, 1);
+  request.data = malloc(request.length);
   if (!request.data) return (struct request){0};
 
   ssize_t ret = 0;
