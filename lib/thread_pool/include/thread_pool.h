@@ -13,7 +13,8 @@ struct thrd_pool;
  * args as an argument */
 struct task {
   int fd;
-  void *additional_args;
+  void *logger;
+  void *thread_pool;
   int (*handle_task)(void *arg);
 };
 
@@ -21,7 +22,8 @@ struct task {
 struct thrd_args {
   int fd;
   thrd_t *thrd_id;
-  void *additional_args;
+  void *logger;
+  void *thread_pool;
 };
 
 /* creates a thread_pool object. expects some num_of_threads bigger than 0

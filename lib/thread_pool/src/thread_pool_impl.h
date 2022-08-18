@@ -17,7 +17,7 @@ struct thrd_pool {
   struct thrd *threads;
   uint8_t num_of_threads;
 
-  struct vector *tasks;
+  struct vector *tasks;  // treated as a queue. FIFO
   mtx_t tasks_mtx;
   cnd_t tasks_cnd;
 };

@@ -21,7 +21,8 @@ static int thrd_func_wrapper(void *arg) {
     // as long as task is valid as the thread shouldn't stop
     if (task && !atomic_load(&thread_args->self->terminate)) {
       thread_args->args.fd = task->fd;
-      thread_args->args.additional_args = task->additional_args;
+      thread_args->args.logger = task->logger;
+      thread_args->args.thread_pool = task->thread_pool;
       thread_args->args.thrd_id = &thread_args->self->thread;
 
       task->handle_task(&thread_args->args);

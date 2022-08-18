@@ -9,12 +9,12 @@
 // simulates a long task
 int handle_task(void *arg) {
   struct thrd_args *args = arg;
-  struct logger *logger = args->additional_args;
+  struct logger *logger = args->logger;
 
   struct timespec delay = {.tv_sec = 1, .tv_nsec = 0};
   struct timespec remains = {0};
 
-  logger_log(logger, INFO, "thread %lu executing task %d", *args->thrd_id, args->fd);
+  if (logger) { logger_log(logger, INFO, "thread %lu executing task %d", *args->thrd_id, args->fd); }
   nanosleep(&delay, &remains);
   return 0;
 }
@@ -27,7 +27,7 @@ int main(void) {
   assert(thread_pool);
 
   for (uint8_t i = 0; i < 100; i++) {
-    struct task task = {.fd = i, .handle_task = handle_task, .additional_args = logger};
+    struct task task = {.fd = i, .handle_task = handle_task, .logger = logger, .thread_pool = NULL};
     assert(thrd_pool_add_task(thread_pool, &task));
   }
 
