@@ -20,3 +20,7 @@ void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events);
 void remove_fd(struct vector *pollfds, struct logger *logger, int fd);
 
 char *tolower_str(char *str, size_t len);
+
+int get_request(void *args);
+
+int send_reply(void *args);

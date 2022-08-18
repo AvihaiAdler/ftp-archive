@@ -9,6 +9,8 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include "include/payload.h"
+#include "thread_pool.h"
 
 void cleanup(struct hash_table *properties,
              struct logger *logger,
@@ -117,4 +119,28 @@ char *tolower_str(char *str, size_t len) {
     str[i] = tolower(str[i]);
   }
   return str;
+}
+
+int get_request(void *args) {
+  struct thrd_args *curr_thrd_args = args;
+
+  struct request req = recieve_payload(curr_thrd_args->fd);
+  if (req.length == 0) {
+    send_payload((struct reply){.code = 400, .length = 0, .data = NULL}, curr_thrd_args->fd);
+    return 1;
+  }
+
+  // TODO: parse the recieved packet. set the handle_task based on the command
+
+  struct thrd_pool *thrd_pool = curr_thrd_args->thread_pool;
+  thrd_pool_add_task(thrd_pool,
+                     &(struct task){.fd = curr_thrd_args->fd,
+                                    .handle_task = NULL,
+                                    .logger = curr_thrd_args->logger,
+                                    .thread_pool = curr_thrd_args->thread_pool});
+  return 0;
+}
+
+int send_reply(void *args) {
+  return 0;
 }

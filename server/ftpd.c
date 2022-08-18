@@ -136,8 +136,9 @@ int main(int argc, char *argv[]) {
           // create a task for a different thread so it will handle it
           thrd_pool_add_task(thread_pool,
                              &(struct task){.fd = current->fd,
-                                            .handle_task = get_request,        // recieve_data,
-                                            .additional_args = thread_pool});  // TODO: has to be thread safe
+                                            .handle_task = get_request,  // recieve_data,
+                                            .logger = logger,
+                                            .thread_pool = thread_pool});
         }
       } else if (current->events & POLLHUP) {  // this fp has been closed
         // get the name of the socket
