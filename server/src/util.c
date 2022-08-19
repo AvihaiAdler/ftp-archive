@@ -9,8 +9,11 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include "include/commands.h"
 #include "include/payload.h"
 #include "thread_pool.h"
+
+#define CMD_LEN 5
 
 void cleanup(struct hash_table *properties,
              struct logger *logger,
@@ -121,6 +124,79 @@ char *tolower_str(char *str, size_t len) {
   return str;
 }
 
+/* used internally to hash commands (slightly modified djd2 by Dan Bernstein)
+ */
+static unsigned long long hash(const void *key, unsigned long long key_size) {
+  const unsigned char *k = key;
+  unsigned long long hash = 5381;
+  for (unsigned long long i = 0; i < key_size; i++, k++) {
+    hash = hash * 33 + *k;
+  }
+  return hash;
+}
+
+static int ack_quit(void *arg) {
+  struct thrd_args *curr_thrd_args = arg;
+  send_payload((struct reply){.code = 200, .length = 0, .data = NULL}, curr_thrd_args->fd);
+  return 0;
+}
+
+static int send_file(void *arg) {
+  return 0;
+}
+
+static int get_file(void *arg) {
+  return 0;
+}
+
+static int del_file(void *arg) {
+  return 0;
+}
+
+static int lst_files(void *arg) {
+  return 0;
+}
+
+static int invalid_cmd(void *arg) {
+  struct thrd_args *curr_thrd_args = arg;
+  send_payload((struct reply){.code = 400, .length = 0, .data = NULL}, curr_thrd_args->fd);
+  return 0;
+}
+
+static int (*get_handler(struct request request))(void *arg) {
+  char command[CMD_LEN] = {0};
+
+  size_t index = strcspn((const char *)request.data, " ");
+  if (index >= request.length) return NULL;
+
+  strncpy(command, (char *)request.data, sizeof command - 1);
+
+  int cmd_hash = (int)hash(command, strlen(command));
+
+  int (*handler)(void *);
+  switch (cmd_hash) {
+    case QUIT:
+      handler = ack_quit;
+      break;
+    case RETR:
+      handler = send_file;
+      break;
+    case APPE:
+      handler = get_file;
+      break;
+    case DELE:
+      handler = del_file;
+      break;
+    case LIST:
+      handler = lst_files;
+      break;
+    default:
+      handler = invalid_cmd;
+      break;
+  }
+  return handler;
+}
+
 int get_request(void *args) {
   struct thrd_args *curr_thrd_args = args;
 
@@ -130,17 +206,17 @@ int get_request(void *args) {
     return 1;
   }
 
-  // TODO: parse the recieved packet. set the handle_task based on the command
+  // parse the recieved packet. set the handle_task based on the command
+  int (*handler)(void *) = get_handler(req);
 
   struct thrd_pool *thrd_pool = curr_thrd_args->thread_pool;
-  thrd_pool_add_task(thrd_pool,
-                     &(struct task){.fd = curr_thrd_args->fd,
-                                    .handle_task = NULL,
-                                    .logger = curr_thrd_args->logger,
-                                    .thread_pool = curr_thrd_args->thread_pool});
-  return 0;
-}
-
-int send_reply(void *args) {
+  if (thrd_pool) {
+    thrd_pool_add_task(thrd_pool,
+                       &(struct task){.fd = curr_thrd_args->fd,
+                                      .handle_task = handler,
+                                      .logger = curr_thrd_args->logger,
+                                      .thread_pool = curr_thrd_args->thread_pool});
+  }
+  free(req.data);
   return 0;
 }
