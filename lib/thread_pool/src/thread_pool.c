@@ -25,7 +25,7 @@ static int thrd_func_wrapper(void *arg) {
       thread_args->args.thread_pool = task->thread_pool;
       thread_args->args.thrd_id = &thread_args->self->thread;
 
-      task->handle_task(&thread_args->args);
+      if (task->handle_task) task->handle_task(&thread_args->args);
     }
 
     if (task) free(task);
