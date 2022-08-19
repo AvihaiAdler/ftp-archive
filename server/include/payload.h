@@ -15,4 +15,5 @@ struct request {
 
 void send_payload(struct reply reply, int sockfd);
 
+/* returns a struct request who's its data has been heap allocated. must be free'd */
 struct request recieve_payload(int sockfd);

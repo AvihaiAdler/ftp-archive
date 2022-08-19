@@ -52,7 +52,7 @@ struct request recieve_payload(int sockfd) {
 
   request.length = change_order_u64(request.length);
 
-  request.data = malloc(request.length);
+  request.data = calloc(request.length + 1, 1);
   if (!request.data) return (struct request){0};
 
   ssize_t ret = 0;
