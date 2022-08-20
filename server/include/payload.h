@@ -13,7 +13,7 @@ struct request {
   uint8_t *data;
 };
 
-void send_payload(struct reply reply, int sockfd);
+void send_payload(struct reply reply, int sockfd, int flags);
 
 /* returns a struct request who's its data has been heap allocated. must be free'd */
-struct request recieve_payload(int sockfd);
+struct request recieve_payload(int sockfd, int flags);
