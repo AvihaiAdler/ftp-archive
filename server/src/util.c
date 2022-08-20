@@ -201,7 +201,7 @@ static int (*get_handler(struct request request))(void *arg) {
 void get_request(int sockfd, struct thrd_pool *thread_pool, struct logger *logger) {
   if (!thread_pool || !logger) return;
 
-  struct request req = recieve_payload(sockfd);
+  struct request req = recieve_payload(sockfd, MSG_DONTWAIT);
   if (req.length == 0) {
     thrd_pool_add_task(thread_pool, &(struct task){.fd = sockfd, .handle_task = invalid_cmd, .logger = logger});
     return;
