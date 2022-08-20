@@ -51,6 +51,7 @@ int get_socket(struct logger *logger, const char *port, int conn_q_size) {
   int sockfd = -1;
   bool success = false;
   for (struct addrinfo *available = info; available; available = available->ai_next) {
+    // sockfd = socket(available->ai_family, available->ai_socktype | SOCK_NONBLOCK, available->ai_protocol);
     sockfd = socket(available->ai_family, available->ai_socktype, available->ai_protocol);
     if (sockfd == -1) continue;
 
@@ -173,7 +174,7 @@ static int (*get_handler(struct request request))(void *arg) {
 
   int cmd_hash = (int)hash(command, strlen(command));
 
-  int (*handler)(void *);
+  int (*handler)(void *) = NULL;
   switch (cmd_hash) {
     case QUIT:
       handler = ack_quit;
@@ -197,26 +198,19 @@ static int (*get_handler(struct request request))(void *arg) {
   return handler;
 }
 
-int get_request(void *args) {
-  struct thrd_args *curr_thrd_args = args;
+void get_request(int sockfd, struct thrd_pool *thread_pool, struct logger *logger) {
+  if (!thread_pool || !logger) return;
 
-  struct request req = recieve_payload(curr_thrd_args->fd);
+  struct request req = recieve_payload(sockfd);
   if (req.length == 0) {
-    send_payload((struct reply){.code = 400, .length = 0, .data = NULL}, curr_thrd_args->fd);
-    return 1;
+    thrd_pool_add_task(thread_pool, &(struct task){.fd = sockfd, .handle_task = invalid_cmd, .logger = logger});
+    return;
   }
 
   // parse the recieved packet. set the handle_task based on the command
   int (*handler)(void *) = get_handler(req);
 
-  struct thrd_pool *thrd_pool = curr_thrd_args->thread_pool;
-  if (thrd_pool) {
-    thrd_pool_add_task(thrd_pool,
-                       &(struct task){.fd = curr_thrd_args->fd,
-                                      .handle_task = handler,
-                                      .logger = curr_thrd_args->logger,
-                                      .thread_pool = curr_thrd_args->thread_pool});
-  }
+  thrd_pool_add_task(thread_pool, &(struct task){.fd = sockfd, .handle_task = handler, .logger = logger});
+
   free(req.data);
-  return 0;
 }

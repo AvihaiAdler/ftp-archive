@@ -21,4 +21,4 @@ void remove_fd(struct vector *pollfds, struct logger *logger, int fd);
 
 char *tolower_str(char *str, size_t len);
 
-int get_request(void *args);
+void get_request(int sockfd, struct thrd_pool *thread_pool, struct logger *logger);

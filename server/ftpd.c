@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200112L
+#include <fcntl.h>
 #include <limits.h>
 #include <netdb.h>
 #include <poll.h>
@@ -9,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <unistd.h>
 #include "hash_table.h"
 #include "include/util.h"
 #include "logger.h"
@@ -119,6 +121,9 @@ int main(int argc, char *argv[]) {
       if (current->revents & POLLIN) {  // this fp is ready to poll data from
         if (current->fd == sockfd) {    // the main socket
           int remote_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
+          if (remote_fd == -1) continue;
+
+          if (fcntl(remote_fd, F_SETFL, O_NONBLOCK) == -1) continue;
 
           // get the ip:port as a string
           if (getnameinfo((struct sockaddr *)&remote_addr,
@@ -133,12 +138,9 @@ int main(int argc, char *argv[]) {
 
           add_fd(pollfds, logger, remote_fd, POLLIN | POLLHUP);
         } else {  // any other socket
-          // create a task for a different thread so it will handle it
-          thrd_pool_add_task(thread_pool,
-                             &(struct task){.fd = current->fd,
-                                            .handle_task = get_request,  // recieve_data,
-                                            .logger = logger,
-                                            .thread_pool = thread_pool});
+          // BOTTLENECK! may need to go back and delegate this task into a thread
+          // get the command, parse it and creates the corresponding task for a thread to handle
+          get_request(current->fd, thread_pool, logger);
         }
       } else if (current->events & POLLHUP) {  // this fp has been closed
         // get the name of the socket
@@ -159,9 +161,10 @@ int main(int argc, char *argv[]) {
       } else {  // some other POLL* event (POLLERR / POLLNVAL)
         remove_fd(pollfds, logger, current->fd);
       }
+
       events_count--;
-    }
-  }
+    }  // events loop
+  }    // main server loop
 
   logger_log(logger, INFO, "shutting down");
   cleanup(properties, logger, thread_pool, pollfds);
