@@ -27,7 +27,7 @@ int main(void) {
   assert(thread_pool);
 
   for (uint8_t i = 0; i < 100; i++) {
-    struct task task = {.fd = i, .handle_task = handle_task, .logger = logger, .thread_pool = NULL};
+    struct task task = {.fd = i, .handle_task = handle_task, .logger = logger};
     assert(thrd_pool_add_task(thread_pool, &task));
   }
 
