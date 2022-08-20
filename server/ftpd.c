@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
           int remote_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
           if (remote_fd == -1) continue;
 
-          if (fcntl(remote_fd, F_SETFL, O_NONBLOCK) == -1) continue;
+          // if (fcntl(remote_fd, F_SETFL, O_NONBLOCK) == -1) continue;
 
           // get the ip:port as a string
           if (getnameinfo((struct sockaddr *)&remote_addr,
