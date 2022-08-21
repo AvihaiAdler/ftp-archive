@@ -131,7 +131,7 @@ int main(int argc, char *argv[]) {
 
           add_fd(pollfds, logger, remote_fd, POLLIN | POLLHUP);
         } else {  // any other socket
-          // BOTTLENECK! may need to go back and delegate this task into a thread
+          // BOTTLENECK! may need to go back and delegate this task to a thread
           // get the command, parse it and creates the corresponding task for a thread to handle
           get_request(current->fd, thread_pool, logger);
         }

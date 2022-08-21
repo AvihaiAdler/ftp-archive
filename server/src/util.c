@@ -245,7 +245,7 @@ static int send_file(void *arg) {
       break;
     }
   }
-
+  fclose(fp);
   close(data_socket);
   close(passive_socket);
 
