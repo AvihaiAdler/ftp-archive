@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200112L
+#define _GNU_SOURCE
 #include <fcntl.h>
 #include <limits.h>
 #include <netdb.h>
@@ -21,7 +22,6 @@
 #define NUM_OF_THREADS "threads.number"
 #define DEFAULT_NUM_OF_THREADS 20
 #define PORT "port"
-#define PORT_LEN 7
 #define CONN_Q_SIZE "connection.queue.size"
 
 bool terminate = false;
@@ -62,7 +62,8 @@ int main(int argc, char *argv[]) {
 
   // create threads
   uint8_t *num_of_threads = table_get(properties, NUM_OF_THREADS, strlen(NUM_OF_THREADS));
-  struct thrd_pool *thread_pool = thrd_pool_init(num_of_threads ? *num_of_threads : DEFAULT_NUM_OF_THREADS);
+  struct thrd_pool *thread_pool =
+    thrd_pool_init(num_of_threads ? *num_of_threads : DEFAULT_NUM_OF_THREADS, destroy_task);
   if (!thread_pool) {
     logger_log(logger, ERROR, "failed to init thread pool");
     cleanup(properties, logger, NULL, NULL);
@@ -115,8 +116,8 @@ int main(int argc, char *argv[]) {
       // used to accept() new connections / get the ip:port of a socket
       struct sockaddr_storage remote_addr = {0};
       socklen_t remote_addrlen = sizeof remote_addr;
-      char remote_host[INET6_ADDRSTRLEN] = {0};
-      char remote_port[PORT_LEN] = {0};
+      char remote_host[NI_MAXHOST] = {0};
+      char remote_port[NI_MAXSERV] = {0};
 
       if (current->revents & POLLIN) {  // this fp is ready to poll data from
         if (current->fd == sockfd) {    // the main socket
@@ -125,16 +126,8 @@ int main(int argc, char *argv[]) {
 
           // if (fcntl(remote_fd, F_SETFL, O_NONBLOCK) == -1) continue;
 
-          // get the ip:port as a string
-          if (getnameinfo((struct sockaddr *)&remote_addr,
-                          remote_addrlen,
-                          remote_host,
-                          sizeof remote_host,
-                          remote_port,
-                          sizeof remote_port,
-                          NI_NUMERICHOST) == 0) {
-            logger_log(logger, INFO, "recieved a connection from %s:%s", remote_host, remote_port);
-          }
+          get_host_and_serv(remote_fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
+          logger_log(logger, INFO, "recieved a connection from %s:%s", remote_host, remote_port);
 
           add_fd(pollfds, logger, remote_fd, POLLIN | POLLHUP);
         } else {  // any other socket
@@ -143,19 +136,8 @@ int main(int argc, char *argv[]) {
           get_request(current->fd, thread_pool, logger);
         }
       } else if (current->events & POLLHUP) {  // this fp has been closed
-        // get the name of the socket
-        if (getsockname(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen) == 0) {
-          // get the ip:port as a string
-          if (getnameinfo((struct sockaddr *)&remote_addr,
-                          remote_addrlen,
-                          remote_host,
-                          sizeof remote_host,
-                          remote_port,
-                          sizeof remote_port,
-                          NI_NUMERICHOST) == 0) {
-            logger_log(logger, INFO, "the a connection from %s:%s was closed", remote_host, remote_port);
-          }
-        }
+        get_host_and_serv(current->fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
+        logger_log(logger, INFO, "the a connection from %s:%s was closed", remote_host, remote_port);
 
         remove_fd(pollfds, logger, current->fd);
       } else {  // some other POLL* event (POLLERR / POLLNVAL)
