@@ -13,7 +13,7 @@ void cleanup(struct hash_table *properties,
              struct thrd_pool *thread_pool,
              struct vector *pollfds);
 
-int get_socket(struct logger *logger, const char *port, int conn_q_size);
+int get_socket(struct logger *logger, const char *host, const char *serv, int conn_q_size);
 
 void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events);
 

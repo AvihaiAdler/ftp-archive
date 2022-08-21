@@ -39,23 +39,23 @@ void destroy_task(void *task) {
   if (t->additional_args) free(t->additional_args);
 }
 
-static struct addrinfo *get_addr_info(const char *port) {
-  if (!port) return NULL;
-
+static struct addrinfo *get_addr_info(const char *host, const char *serv) {
   struct addrinfo hints = {0};
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = AI_PASSIVE;
 
   struct addrinfo *info;
-  if (getaddrinfo(NULL, port, &hints, &info) != 0) return NULL;
+  if (getaddrinfo(host, serv, &hints, &info) != 0) return NULL;
   return info;
 }
 
-int get_socket(struct logger *logger, const char *port, int conn_q_size) {
-  struct addrinfo *info = get_addr_info(port);
+int get_socket(struct logger *logger, const char *host, const char *serv, int conn_q_size) {
+  if (!host && !serv) return -1;
+
+  struct addrinfo *info = get_addr_info(host, serv);
   if (!info) {
-    logger_log(logger, ERROR, "no available addresses for port: %s", port);
+    logger_log(logger, ERROR, "no available addresses for %s:%s", host ? host : "", serv ? serv : "");
     return -1;
   }
 
@@ -84,7 +84,7 @@ int get_socket(struct logger *logger, const char *port, int conn_q_size) {
 
   freeaddrinfo(info);
   if (!success) {
-    logger_log(logger, ERROR, "couldn't get a socket for port: %s", port);
+    logger_log(logger, ERROR, "couldn't get a socket for %s:%s", host ? host : "", serv ? serv : "");
     return -1;
   }
 
@@ -210,7 +210,7 @@ static int send_file(void *arg) {
   }
 
   // open a new socket on a different port
-  int passive_socket = open_data_socket(curr_thrd_args->fd);
+  int passive_socket = open_data_socket(curr_thrd_args->fd);  // problematic. the main socket is probably needed here
   if (passive_socket == -1) {
     logger_log(curr_thrd_args->logger, ERROR, "[send_file] failed to open a data socket for %s:%s", host, serv);
     return 1;

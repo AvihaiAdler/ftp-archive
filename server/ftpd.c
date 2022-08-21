@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
   }
 
   // create a socket
-  int sockfd = get_socket(logger, table_get(properties, PORT, strlen(PORT)), (int)q_size);
+  int sockfd = get_socket(logger, NULL, table_get(properties, PORT, strlen(PORT)), (int)q_size);
   if (sockfd == -1) {
     logger_log(logger, ERROR, "failed to retrieve a socket");
     cleanup(properties, logger, thread_pool, NULL);
