@@ -17,6 +17,7 @@ struct thrd_pool {
   struct thrd *threads;
   uint8_t num_of_threads;
 
+  void (*destroy_task)(void *task);
   struct vector *tasks;  // treated as a queue. FIFO
   mtx_t tasks_mtx;
   cnd_t tasks_cnd;
@@ -28,6 +29,8 @@ struct thrd_args_inner {
   struct vector *tasks;
   mtx_t *tasks_mtx;
   cnd_t *tasks_cnd;
+
+  void (*destroy_task)(void *task);
 
   // will be passed to a user define handle function, see thread_pool.h
   struct thrd_args args;

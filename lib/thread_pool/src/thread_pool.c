@@ -21,13 +21,17 @@ static int thrd_func_wrapper(void *arg) {
     // as long as task is valid as the thread shouldn't stop
     if (task && !atomic_load(&thread_args->self->terminate)) {
       thread_args->args.fd = task->fd;
+      thread_args->args.additional_args = task->additional_args;
       thread_args->args.logger = task->logger;
       thread_args->args.thrd_id = &thread_args->self->thread;
 
       if (task->handle_task) task->handle_task(&thread_args->args);
     }
 
-    if (task) free(task);
+    if (task) {
+      if (thread_args->destroy_task) thread_args->destroy_task(task);
+      free(task);
+    }
   }
 
   free(thread_args);
@@ -40,7 +44,7 @@ static void cleanup(struct thrd_pool *thread_pool, bool tasks_mtx, bool tasks_cn
 
   if (thread_pool->threads) free(thread_pool->threads);
 
-  if (thread_pool->tasks) vector_destroy(thread_pool->tasks, NULL);
+  if (thread_pool->tasks) vector_destroy(thread_pool->tasks, thread_pool->destroy_task);
 
   if (tasks_mtx) mtx_destroy(&thread_pool->tasks_mtx);
 
@@ -49,7 +53,7 @@ static void cleanup(struct thrd_pool *thread_pool, bool tasks_mtx, bool tasks_cn
   free(thread_pool);
 }
 
-struct thrd_pool *thrd_pool_init(uint8_t num_of_threads) {
+struct thrd_pool *thrd_pool_init(uint8_t num_of_threads, void (*destroy_task)(void *task)) {
   if (num_of_threads == 0) return NULL;
 
   struct thrd_pool *thread_pool = calloc(1, sizeof *thread_pool);
@@ -83,6 +87,8 @@ struct thrd_pool *thrd_pool_init(uint8_t num_of_threads) {
     return NULL;
   }
 
+  thread_pool->destroy_task = destroy_task;
+
   // creates the threads
   for (uint8_t i = 0; i < num_of_threads; i++) {
     struct thrd_args_inner *thread_args = calloc(1, sizeof *thread_args);
@@ -92,6 +98,7 @@ struct thrd_pool *thrd_pool_init(uint8_t num_of_threads) {
     thread_args->tasks_mtx = &thread_pool->tasks_mtx;
     thread_args->tasks_cnd = &thread_pool->tasks_cnd;
     thread_args->self = &thread_pool->threads[i];
+    thread_args->destroy_task = thread_pool->destroy_task;
 
     atomic_init(&thread_pool->threads[i].terminate, false);
 

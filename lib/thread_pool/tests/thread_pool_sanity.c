@@ -23,11 +23,11 @@ int main(void) {
   struct logger *logger = logger_init("threads_pool_test.bin");
   assert(logger);
 
-  struct thrd_pool *thread_pool = thrd_pool_init(20);
+  struct thrd_pool *thread_pool = thrd_pool_init(20, NULL);
   assert(thread_pool);
 
   for (uint8_t i = 0; i < 100; i++) {
-    struct task task = {.fd = i, .handle_task = handle_task, .logger = logger};
+    struct task task = {.fd = i, .handle_task = handle_task, .logger = logger, .additional_args = NULL};
     assert(thrd_pool_add_task(thread_pool, &task));
   }
 
