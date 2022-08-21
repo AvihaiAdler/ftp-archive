@@ -22,3 +22,7 @@ void remove_fd(struct vector *pollfds, struct logger *logger, int fd);
 char *tolower_str(char *str, size_t len);
 
 void get_request(int sockfd, struct thrd_pool *thread_pool, struct logger *logger);
+
+void destroy_task(void *task);
+
+void get_host_and_serv(int sockfd, char *host, size_t host_len, char *serv, size_t serv_len);
