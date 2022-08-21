@@ -21,7 +21,7 @@
 #define LOG_FILE "log.file"
 #define NUM_OF_THREADS "threads.number"
 #define DEFAULT_NUM_OF_THREADS 20
-#define PORT "port"
+#define PI_PORT "port.pi"
 #define CONN_Q_SIZE "connection.queue.size"
 
 bool terminate = false;
@@ -81,10 +81,10 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // create a socket
-  int sockfd = get_socket(logger, NULL, table_get(properties, PORT, strlen(PORT)), (int)q_size);
-  if (sockfd == -1) {
-    logger_log(logger, ERROR, "failed to retrieve a socket");
+  // create a pi (protocol interpreter) socket
+  int pi_sock_fd = get_socket(logger, NULL, table_get(properties, PI_PORT, strlen(PI_PORT)), (int)q_size);
+  if (pi_sock_fd == -1) {
+    logger_log(logger, ERROR, "failed to retrieve a pi socket");
     cleanup(properties, logger, thread_pool, NULL);
     return 1;
   }
@@ -92,13 +92,13 @@ int main(int argc, char *argv[]) {
   // create a vector of open fds
   struct vector *pollfds = vector_init(sizeof(struct pollfd));
   if (!pollfds) {
-    logger_log(logger, ERROR, "failed to init sockfds vector");
+    logger_log(logger, ERROR, "failed to init pi-socket fds vector");
     cleanup(properties, logger, thread_pool, NULL);
     return 1;
   }
 
   // add the main server to the list of open fds
-  add_fd(pollfds, logger, sockfd, POLLIN);
+  add_fd(pollfds, logger, pi_sock_fd, POLLIN);
 
   // main server loop
   while (!terminate) {
@@ -119,8 +119,8 @@ int main(int argc, char *argv[]) {
       char remote_host[NI_MAXHOST] = {0};
       char remote_port[NI_MAXSERV] = {0};
 
-      if (current->revents & POLLIN) {  // this fp is ready to poll data from
-        if (current->fd == sockfd) {    // the main socket
+      if (current->revents & POLLIN) {    // this fp is ready to poll data from
+        if (current->fd == pi_sock_fd) {  // the main socket
           int remote_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
           if (remote_fd == -1) continue;
 
