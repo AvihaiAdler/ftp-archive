@@ -170,6 +170,7 @@ static int open_data_socket(int sockfd) {
   int val = 1;
   if (setsockopt(data_socket, SOL_SOCKET, SO_REUSEADDR, &val, sizeof val) == -1) return -1;
 
+  // binds automatically to a random port
   if (listen(data_socket, 1) == -1) return -1;
 
   return data_socket;
