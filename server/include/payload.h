@@ -5,7 +5,7 @@
 struct reply {
   uint16_t code;
   uint64_t length;
-  uint8_t *data;
+  const uint8_t *data;
 };
 
 struct request {
