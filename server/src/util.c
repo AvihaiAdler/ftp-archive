@@ -42,6 +42,7 @@ void destroy_task(void *task) {
   if (t->args) {
     struct args *args = t->args;
     if (args && args->request_str) free(args->request_str);
+    if (args && args->session) free(args->session);
     free(t->args);
   }
 }
@@ -57,7 +58,7 @@ static struct addrinfo *get_addr_info(const char *host, const char *serv) {
   return info;
 }
 
-int get_socket(struct logger *logger, const char *host, const char *serv, int conn_q_size) {
+int get_socket(struct logger *logger, const char *host, const char *serv, int conn_q_size, int flags) {
   if (!host && !serv) return -1;
 
   struct addrinfo *info = get_addr_info(host, serv);
@@ -68,24 +69,29 @@ int get_socket(struct logger *logger, const char *host, const char *serv, int co
 
   int sockfd = -1;
   bool success = false;
-  for (struct addrinfo *available = info; available; available = available->ai_next) {
+  for (struct addrinfo *available = info; available && !success; available = available->ai_next) {
     // sockfd = socket(available->ai_family, available->ai_socktype | SOCK_NONBLOCK, available->ai_protocol);
     sockfd = socket(available->ai_family, available->ai_socktype, available->ai_protocol);
     if (sockfd == -1) continue;
 
-    if (fcntl(sockfd, F_SETFL, O_NONBLOCK) == -1) continue;
+    if (flags == LISTEN && fcntl(sockfd, F_SETFL, O_NONBLOCK) == -1) continue;
 
     int val = 1;
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof val) == -1) continue;
 
     if (bind(sockfd, available->ai_addr, available->ai_addrlen) == -1) continue;
 
-    if (listen(sockfd, conn_q_size) == 0) {
-      success = true;
-      break;
+    switch (flags) {
+      case CONNECT:
+        if (connect(sockfd, available->ai_addr, available->ai_addrlen) == 0) success = true;
+        break;
+      case LISTEN:  // fall through
+      default:
+        if (listen(sockfd, conn_q_size) == 0) success = true;
+        break;
     }
 
-    // failed to listen()
+    // failed to listen()/connect()
     close(sockfd);
   }
 
@@ -109,7 +115,7 @@ void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events) {
   vector_push(pollfds, &(struct pollfd){.fd = fd, .events = events});
 }
 
-void add_session(struct vector *sessions, struct logger *logger, int fd) {
+void add_session(struct vector_s *sessions, struct logger *logger, int fd) {
   if (!sessions) return;
 
   if (fd < 0) {
@@ -117,7 +123,7 @@ void add_session(struct vector *sessions, struct logger *logger, int fd) {
     return;
   }
 
-  vector_push(sessions, &(struct session){.control_fd = fd, .data_fd = -1});
+  vector_s_push(sessions, &(struct session){.control_fd = fd, .data_fd = -1, .is_passive = false});
 }
 
 static int cmpr_pfds(const void *a, const void *b) {
@@ -150,17 +156,17 @@ void remove_fd(struct vector *pollfds, struct logger *logger, int fd) {
   free(pfd);
 }
 
-void close_session(struct vector *sessions, struct logger *logger, int fd) {
+void close_session(struct vector_s *sessions, struct logger *logger, int fd) {
   if (!sessions) return;
 
-  long long pos = vector_index_of(sessions, &(struct session){.control_fd = fd}, cmpr_sessions);
+  long long pos = vector_s_index_of(sessions, &(struct session){.control_fd = fd});
 
   if (pos == N_EXISTS) {
     if (logger) logger_log(logger, INFO, "[close_session] the session with fd [%d] doesn't exists", fd);
     return;
   }
 
-  struct session *session = vector_remove_at(sessions, pos);
+  struct session *session = vector_s_remove_at(sessions, pos);
   if (!session) return;
 
   close(session->control_fd);
@@ -206,18 +212,32 @@ static int open_data_socket(int sockfd) {
 }
 
 static int ack_quit(void *arg) {
-  struct thrd_args *curr_thrd_args = arg;
-  struct args *args = curr_thrd_args->args;
-  send_payload((struct reply){.code = 200, .length = 0, .data = NULL}, args->sockfd, 0);
+  struct thrd_args *thrd_args = arg;
+  if (!thrd_args) return 1;
+
+  struct args *args = thrd_args->args;
+  if (!args) return 1;
+
+  send_payload((struct reply){.code = CMD_OK, .length = 0, .data = NULL}, args->session->control_fd, 0);
   return 0;
 }
 
 static int send_file(void *arg) {
-  struct thrd_args *curr_thrd_args = arg;
-  struct args *args = curr_thrd_args->args;
+  struct thrd_args *thrd_args = arg;
+  if (!thrd_args) return 1;
+
+  struct args *args = thrd_args->args;
+  if (!args) return 1;
+
   char host[NI_MAXHOST] = {0};
   char serv[NI_MAXSERV] = {0};
-  get_host_and_serv(args->sockfd, host, sizeof host, serv, sizeof serv);
+  get_host_and_serv(args->session->control_fd, host, sizeof host, serv, sizeof serv);
+
+  if (args->session->data_fd == -1) {
+    logger_log(args->logger, ERROR, "[send_file] data connection for %s:%s isn't open", host, serv);
+    send_payload((struct reply){.code = DATA_CONN_CLOSE, .length = 0, .data = NULL}, args->session->control_fd, 0);
+    return 1;
+  }
 
   // +5 -> 4 chars of the command + a space. we can guarantee it since otherwise the task wouldn't be added
   const char *file_name = (const char *)args->request_str + 5;
@@ -225,33 +245,9 @@ static int send_file(void *arg) {
   FILE *fp = fopen(file_name, "r");
   if (!fp) {
     logger_log(args->logger, ERROR, "got RETR request from %s:%s, but file %s doesn't exists", host, serv, file_name);
-
-    char err[ERR_LEN] = {0};
-    size_t len = snprintf(NULL, 0, "the file name %s doesn't exists", file_name);
-    if (len < sizeof err) snprintf(err, len, "the file name %s doesn't exists", file_name);
-
-    send_payload((struct reply){.code = 500, .length = len, .data = (uint8_t *)err}, args->sockfd, 0);
-    return 1;
-  }
-
-  // open a new socket on a different port
-  int passive_socket = open_data_socket(args->sockfd);  // problematic. the main socket is probably needed here
-  if (passive_socket == -1) {
-    logger_log(args->logger, ERROR, "[send_file] failed to open a data socket for %s:%s", host, serv);
-    return 1;
-  }
-
-  // send the data socket to the client in order for it to connect() to it
-  char data_serv[NI_MAXSERV] = {0};
-  get_host_and_serv(passive_socket, NULL, 0, data_serv, sizeof data_serv);
-  send_payload((struct reply){.code = 200, .data = (uint8_t *)data_serv, .length = strlen(data_serv)}, args->sockfd, 0);
-
-  // accept()
-  struct sockaddr_storage remote_addr = {0};
-  socklen_t remote_addrlen = sizeof remote_addr;
-  int data_socket = accept(passive_socket, (struct sockaddr *)&remote_addr, &remote_addrlen);
-  if (data_socket == -1) {
-    logger_log(args->logger, ERROR, "[send_file] failed to open a data socket for %s:%s", host, serv);
+    send_payload((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0, .data = NULL},
+                 args->session->control_fd,
+                 0);
     return 1;
   }
 
@@ -259,7 +255,7 @@ static int send_file(void *arg) {
   uint8_t buf[BUF_LEN];
   while (1) {
     size_t bytes_read = fread(buf, 1, sizeof buf, fp);
-    send_payload((struct reply){.code = 200, .length = bytes_read, .data = buf}, data_socket, 0);
+    send_payload((struct reply){.code = CMD_OK, .length = bytes_read, .data = buf}, args->session->data_fd, 0);
 
     if (feof(fp)) break;
 
@@ -268,10 +264,11 @@ static int send_file(void *arg) {
       break;
     }
   }
-  fclose(fp);
-  close(data_socket);
-  close(passive_socket);
+  // send EOF
+  buf[0] = EOF;
+  send_payload((struct reply){.code = FILE_ACTION_COMPLETE, .length = 1, .data = buf}, args->session->data_fd, 0);
 
+  fclose(fp);
   return 0;
 }
 
@@ -296,13 +293,69 @@ static int list_files(void *arg) {
 }
 
 static int invalid_cmd(void *arg) {
-  struct thrd_args *curr_thrd_args = arg;
-  struct args *args = curr_thrd_args->args;
-  send_payload((struct reply){.code = 400, .length = 0, .data = NULL}, args->sockfd, 0);
+  struct thrd_args *thrd_args = arg;
+  if (!thrd_args) return 1;
+
+  struct args *args = thrd_args->args;
+  if (!args) return 1;
+
+  send_payload((struct reply){.code = 500, .length = 0, .data = NULL}, args->session->control_fd, 0);
   return 0;
 }
 
-static int set_data_port(void *arg) {
+static int set_active_port(void *arg) {
+  struct thrd_args *thrd_args = arg;
+  if (!thrd_args) return 1;
+
+  struct args *args = thrd_args->args;
+  if (!args) return 1;
+
+  char host[NI_MAXHOST] = {0};
+  char serv[NI_MAXSERV] = {0};
+  get_host_and_serv(args->session->control_fd, host, sizeof host, serv, sizeof serv);
+
+  // +5 -> 4 chars of the command + a space. we can guarantee it since otherwise the task wouldn't be added
+  char *start = (char *)args->request_str + 5;
+  char *end = strchr(start, ' ');  // find the end of the host address
+  if (!end) {
+    send_payload((struct reply){.code = 500, .length = 0, .data = NULL}, args->session->control_fd, 0);
+    return 1;
+  }
+
+  size_t size = end - start;
+  char ip[INET6_ADDRSTRLEN] = {0};
+  memcpy(ip, start, size);
+
+  char port[7] = {0};
+  start = end + 1;
+  end = strchr(start, ' ');
+  memcpy(port, start, end - start);
+
+  int data_sockfd = get_socket(args->logger, ip, port, 1, CONNECT);
+  if (data_sockfd == -1) {
+    send_payload((struct reply){.code = DATA_CONN_CLOSE, .length = 0, .data = NULL}, args->session->control_fd, 0);
+    logger_log(args->logger, ERROR, "[set_active_port] failed to conncet to %s:%s", ip, port);
+    return 1;
+  }
+
+  long long index = vector_s_index_of(args->sessions, args->session);
+  if (index == N_EXISTS) {
+    logger_log(args->logger,
+               ERROR,
+               "[set_active_port] tried to update the session [%d] but session doesn't exists",
+               args->session->control_fd);
+    return 1;
+  }
+  struct session *old =
+    vector_s_replace(args->sessions,
+                     &(struct session){.control_fd = args->session->control_fd, .data_fd = data_sockfd},
+                     index);
+  if (old) free(old);
+
+  return 0;
+}
+
+static int set_passive_port(void *arg) {
   (void)arg;
   return 0;
 }
@@ -329,23 +382,24 @@ static int (*get_handler(struct request request))(void *arg) {
   } else if (strcmp(command, "list") == 0) {
     return list_files;
   } else if (strcmp(command, "port") == 0) {
-    return set_data_port;
+    return set_active_port;
   } else if (strcmp(command, "pasv") == 0) {
-    return set_data_port;
+    return set_passive_port;
   }
   return invalid_cmd;
 }
 
-void get_request(int sockfd, struct thrd_pool *thread_pool, struct logger *logger) {
+void get_request(int sockfd, struct vector_s *sessions, struct thrd_pool *thread_pool, struct logger *logger) {
   if (!thread_pool || !logger) return;
 
   struct request req = recieve_payload(sockfd, MSG_DONTWAIT);
 
   struct args *args = malloc(sizeof *args);
   if (!args) return;
-  args->sockfd = sockfd;
   args->logger = logger;
   args->request_str = req.data;
+  args->session = vector_s_find(sessions, &(struct session){.control_fd = sockfd /*don't care about data_fd*/});
+  args->sessions = NULL;
 
   if (req.length == 0) {
     thrd_pool_add_task(thread_pool, &(struct task){.handle_task = invalid_cmd, .args = args});
@@ -354,6 +408,8 @@ void get_request(int sockfd, struct thrd_pool *thread_pool, struct logger *logge
 
   // parse the recieved request. set the handle_task based on the command
   int (*handler)(void *) = get_handler(req);
+
+  if (handler == set_active_port || handler == set_passive_port) args->sessions = sessions;
 
   thrd_pool_add_task(thread_pool, &(struct task){.handle_task = handler, .args = args});
 }

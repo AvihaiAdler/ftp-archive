@@ -9,10 +9,13 @@
 #include "vector.h"
 #include "vector_s.h"
 
+enum socket_flags { LISTEN, CONNECT };
+
 struct args {
-  int sockfd;
   struct logger *logger;
   uint8_t *request_str;
+  struct session *session;
+  struct vector_s *sessions;
 };
 
 void cleanup(struct hash_table *properties,
@@ -21,21 +24,21 @@ void cleanup(struct hash_table *properties,
              struct vector_s *sessions,
              struct vector *pollfds);
 
-int get_socket(struct logger *logger, const char *host, const char *serv, int conn_q_size);
+int get_socket(struct logger *logger, const char *host, const char *serv, int conn_q_size, int flags);
 
 void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events);
 
-void add_session(struct vector *sessions, struct logger *logger, int fd);
+void add_session(struct vector_s *sessions, struct logger *logger, int fd);
 
 void remove_fd(struct vector *pollfds, struct logger *logger, int fd);
 
 int cmpr_sessions(const void *a, const void *b);
 
-void close_session(struct vector *sessions, struct logger *logger, int fd);
+void close_session(struct vector_s *sessions, struct logger *logger, int fd);
 
 char *tolower_str(char *str, size_t len);
 
-void get_request(int sockfd, struct thrd_pool *thread_pool, struct logger *logger);
+void get_request(int sockfd, struct vector_s *sessions, struct thrd_pool *thread_pool, struct logger *logger);
 
 void destroy_task(void *task);
 
