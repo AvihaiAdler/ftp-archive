@@ -5,7 +5,7 @@
 #include "thread_pool_impl.h"
 
 static int thrd_func_wrapper(void *arg) {
-  struct thrd_args_inner *thread_args = arg;
+  struct thrd_args_wrapper *thread_args = arg;
 
   // as long as the thread shouldn't terminate
   while (!atomic_load(&thread_args->self->terminate)) {
@@ -20,9 +20,7 @@ static int thrd_func_wrapper(void *arg) {
     // handle the task
     // as long as task is valid as the thread shouldn't stop
     if (task && !atomic_load(&thread_args->self->terminate)) {
-      thread_args->args.fd = task->fd;
-      thread_args->args.additional_args = task->additional_args;
-      thread_args->args.logger = task->logger;
+      thread_args->args.args = task->args;
       thread_args->args.thrd_id = &thread_args->self->thread;
 
       if (task->handle_task) task->handle_task(&thread_args->args);
@@ -91,7 +89,7 @@ struct thrd_pool *thrd_pool_init(uint8_t num_of_threads, void (*destroy_task)(vo
 
   // creates the threads
   for (uint8_t i = 0; i < num_of_threads; i++) {
-    struct thrd_args_inner *thread_args = calloc(1, sizeof *thread_args);
+    struct thrd_args_wrapper *thread_args = calloc(1, sizeof *thread_args);
     if (!thread_args) cleanup(thread_pool, true, true);
 
     thread_args->tasks = thread_pool->tasks;

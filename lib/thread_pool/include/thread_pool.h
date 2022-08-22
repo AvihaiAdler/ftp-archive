@@ -12,18 +12,14 @@ struct thrd_pool;
  * calling handle_task(args). a thread may always call handle_tasks with struct
  * args as an argument */
 struct task {
-  int fd;
-  void *logger;
-  void *additional_args;  // a ptr to additional args. must be free'd by destroy_task
+  void *args;  // a ptr to additional args. must be free'd by destroy_task
   int (*handle_task)(void *arg);
 };
 
 /* the args which will be passed to int (*handle_task)(void *)*/
 struct thrd_args {
-  int fd;
   thrd_t *thrd_id;
-  void *logger;
-  void *additional_args;
+  void *args;
 };
 
 /* creates a thread_pool object. expects some num_of_threads bigger than 0

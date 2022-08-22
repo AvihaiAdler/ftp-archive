@@ -24,7 +24,7 @@ struct thrd_pool {
 };
 
 /* used internally to pass the thread the resources it needs */
-struct thrd_args_inner {
+struct thrd_args_wrapper {
   struct thrd *self;
   struct vector *tasks;
   mtx_t *tasks_mtx;

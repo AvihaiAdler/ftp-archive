@@ -1,20 +1,31 @@
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 #include "include/thread_pool.h"
 #include "logger.h"
 
 #define SIZE 128
 
+struct args {
+  int i;
+  struct logger *logger;
+};
+
+void destroy_task(void *task) {
+  struct task *t = task;
+  if (t) free(t->args);
+}
+
 // simulates a long task
 int handle_task(void *arg) {
-  struct thrd_args *args = arg;
-  struct logger *logger = args->logger;
+  struct thrd_args *thrd_args = arg;
+  struct args *args = thrd_args->args;
 
   struct timespec delay = {.tv_sec = 1, .tv_nsec = 0};
   struct timespec remains = {0};
 
-  if (logger) { logger_log(logger, INFO, "thread %lu executing task %d", *args->thrd_id, args->fd); }
+  if (args->logger) { logger_log(args->logger, INFO, "thread %lu executing task %d", *thrd_args->thrd_id, args->i); }
   nanosleep(&delay, &remains);
   return 0;
 }
@@ -23,11 +34,15 @@ int main(void) {
   struct logger *logger = logger_init("threads_pool_test.bin");
   assert(logger);
 
-  struct thrd_pool *thread_pool = thrd_pool_init(20, NULL);
+  struct thrd_pool *thread_pool = thrd_pool_init(20, destroy_task);
   assert(thread_pool);
 
   for (uint8_t i = 0; i < 100; i++) {
-    struct task task = {.fd = i, .handle_task = handle_task, .logger = logger, .additional_args = NULL};
+    struct args *args = malloc(sizeof *args);
+    args->i = i;
+    args->logger = logger;
+
+    struct task task = {.handle_task = handle_task, .args = args};
     assert(thrd_pool_add_task(thread_pool, &task));
   }
 
