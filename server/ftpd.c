@@ -85,7 +85,8 @@ int main(int argc, char *argv[]) {
   }
 
   // create a pi (protocol interpreter) socket
-  int control_sockfd = get_socket(logger, NULL, table_get(properties, CONTROL_PORT, strlen(CONTROL_PORT)), (int)q_size);
+  int control_sockfd =
+    get_socket(logger, NULL, table_get(properties, CONTROL_PORT, strlen(CONTROL_PORT)), (int)q_size, LISTEN);
   if (control_sockfd == -1) {
     logger_log(logger, ERROR, "failed to retrieve a pi socket");
     cleanup(properties, logger, thread_pool, NULL, NULL);
@@ -145,7 +146,7 @@ int main(int argc, char *argv[]) {
         } else {  // any other socket
           // BOTTLENECK! may need to go back and delegate this task to a thread
           // get the command, parse it and creates the corresponding task for a thread to handle
-          get_request(current->fd, thread_pool, logger);
+          get_request(current->fd, sessions, thread_pool, logger);
         }
       } else if (current->events & POLLHUP) {  // this fp has been closed
         get_host_and_serv(current->fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
