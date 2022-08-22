@@ -13,15 +13,18 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include "hash_table.h"
+#include "include/session.h"
 #include "include/util.h"
 #include "logger.h"
 #include "properties_loader.h"
 #include "thread_pool.h"
+#include "vector.h"
+#include "vector_s.h"
 
 #define LOG_FILE "log.file"
 #define NUM_OF_THREADS "threads.number"
 #define DEFAULT_NUM_OF_THREADS 20
-#define PI_PORT "port.pi"
+#define CONTROL_PORT "port.pi"
 #define CONN_Q_SIZE "connection.queue.size"
 
 bool terminate = false;
@@ -55,7 +58,7 @@ int main(int argc, char *argv[]) {
   // init logger
   struct logger *logger = logger_init(table_get(properties, LOG_FILE, strlen(LOG_FILE)));
   if (!logger) {
-    cleanup(properties, NULL, NULL, NULL);
+    cleanup(properties, NULL, NULL, NULL, NULL);
     fprintf(stderr, "failed to init logger\n");
     return 1;
   }
@@ -66,7 +69,7 @@ int main(int argc, char *argv[]) {
     thrd_pool_init(num_of_threads ? *num_of_threads : DEFAULT_NUM_OF_THREADS, destroy_task);
   if (!thread_pool) {
     logger_log(logger, ERROR, "failed to init thread pool");
-    cleanup(properties, logger, NULL, NULL);
+    cleanup(properties, logger, NULL, NULL, NULL);
     return 1;
   }
 
@@ -77,28 +80,36 @@ int main(int argc, char *argv[]) {
   long q_size = strtol(conn_q_size, &endptr, 10);
   if (conn_q_size == endptr || q_size > INT_MAX) {
     logger_log(logger, ERROR, "invalid %s agrument", CONN_Q_SIZE);
-    cleanup(properties, logger, thread_pool, NULL);
+    cleanup(properties, logger, thread_pool, NULL, NULL);
     return 1;
   }
 
   // create a pi (protocol interpreter) socket
-  int pi_sock_fd = get_socket(logger, NULL, table_get(properties, PI_PORT, strlen(PI_PORT)), (int)q_size);
-  if (pi_sock_fd == -1) {
+  int control_sockfd = get_socket(logger, NULL, table_get(properties, CONTROL_PORT, strlen(CONTROL_PORT)), (int)q_size);
+  if (control_sockfd == -1) {
     logger_log(logger, ERROR, "failed to retrieve a pi socket");
-    cleanup(properties, logger, thread_pool, NULL);
+    cleanup(properties, logger, thread_pool, NULL, NULL);
+    return 1;
+  }
+
+  // create a vector of sessions
+  struct vector_s *sessions = vector_s_init(sizeof(struct session), cmpr_sessions, NULL);
+  if (!sessions) {
+    logger_log(logger, ERROR, "failed to init session vector");
+    cleanup(properties, logger, thread_pool, NULL, NULL);
     return 1;
   }
 
   // create a vector of open fds
   struct vector *pollfds = vector_init(sizeof(struct pollfd));
   if (!pollfds) {
-    logger_log(logger, ERROR, "failed to init pi-socket fds vector");
-    cleanup(properties, logger, thread_pool, NULL);
+    logger_log(logger, ERROR, "failed to init control-socket fds vector");
+    cleanup(properties, logger, thread_pool, sessions, NULL);
     return 1;
   }
 
   // add the main server to the list of open fds
-  add_fd(pollfds, logger, pi_sock_fd, POLLIN);
+  add_fd(pollfds, logger, control_sockfd, POLLIN);
 
   // main server loop
   while (!terminate) {
@@ -119,8 +130,8 @@ int main(int argc, char *argv[]) {
       char remote_host[NI_MAXHOST] = {0};
       char remote_port[NI_MAXSERV] = {0};
 
-      if (current->revents & POLLIN) {    // this fp is ready to poll data from
-        if (current->fd == pi_sock_fd) {  // the main socket
+      if (current->revents & POLLIN) {        // this fp is ready to poll data from
+        if (current->fd == control_sockfd) {  // the main socket
           int remote_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
           if (remote_fd == -1) continue;
 
@@ -130,6 +141,7 @@ int main(int argc, char *argv[]) {
           logger_log(logger, INFO, "recieved a connection from %s:%s", remote_host, remote_port);
 
           add_fd(pollfds, logger, remote_fd, POLLIN | POLLHUP);
+          add_session(sessions, logger, remote_fd);
         } else {  // any other socket
           // BOTTLENECK! may need to go back and delegate this task to a thread
           // get the command, parse it and creates the corresponding task for a thread to handle
@@ -140,8 +152,11 @@ int main(int argc, char *argv[]) {
         logger_log(logger, INFO, "the a connection from %s:%s was closed", remote_host, remote_port);
 
         remove_fd(pollfds, logger, current->fd);
+        close_session(sessions, logger, current->fd);
+        // vector_find()
       } else {  // some other POLL* event (POLLERR / POLLNVAL)
         remove_fd(pollfds, logger, current->fd);
+        close_session(sessions, logger, current->fd);
       }
 
       events_count--;
@@ -149,7 +164,7 @@ int main(int argc, char *argv[]) {
   }    // main server loop
 
   logger_log(logger, INFO, "shutting down");
-  cleanup(properties, logger, thread_pool, pollfds);
+  cleanup(properties, logger, thread_pool, sessions, pollfds);
 
   return 0;
 }
