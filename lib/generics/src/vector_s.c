@@ -83,12 +83,27 @@ void *vector_s_find(struct vector_s *vector, const void *element) {
     return NULL;
   }
 
-  vector_s_sort(vector);
-  void *elem = bsearch(element, vector->data, vector->size, vector->data_size, vector->cmpr);
+  void *tmp = NULL;
+  for (unsigned long long index = 0; index < vector->size; index++) {
+    tmp = vector->data + index * vector->data_size;
+    if (vector->cmpr(tmp, element) == 0) break;
+  }
+
+  if (!tmp) {
+    mtx_unlock(&vector->lock);
+    return NULL;
+  }
+
+  unsigned char *found = calloc(1, vector->data_size);
+  if (!found) {
+    mtx_unlock(&vector->lock);
+    return NULL;
+  }
+
+  memcpy(found, tmp, vector->data_size);
   mtx_unlock(&vector->lock);
 
-  if (!elem) return NULL;
-  return elem;
+  return found;
 }
 
 /* used internally to resize the vector by GROWTH_FACTOR */
