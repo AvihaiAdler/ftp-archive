@@ -2,6 +2,17 @@
 
 #include <stdint.h>
 
+enum reply_codes {
+  CMD_OK = 200,
+  CMD_GENRAL_ERR = 500,
+  CMD_ARGS_ERR = 501,
+  DATA_CONN_CLOSE = 425,
+  CONN_CLOSED = 426,
+  PASV = 227,
+  FILE_ACTION_COMPLETE = 250,
+  FILE_ACTION_INCOMPLETE = 450
+};
+
 struct reply {
   uint16_t code;
   uint64_t length;
