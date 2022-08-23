@@ -40,19 +40,21 @@ void cleanup(struct hash_table *properties,
 void destroy_task(void *task) {
   struct task *t = task;
   if (t->args) {
-    struct args *args = t->args;
-    switch (args->type) {
+    struct args_wrapper *args_wrapper = t->args;
+    switch (args_wrapper->type) {
       case REGULAR:
-        if (args->request_str) free(args->request_str);
+        if (args_wrapper->args) {
+          if (((struct regular_args *)args_wrapper->args)->remote) {
+            free(((struct regular_args *)args_wrapper->args)->remote);
+          }
+        }
         break;
-      case SET_PORT:
-        if (args->additional_args.set_port_params.request_str) free(args->additional_args.set_port_params.request_str);
-        break;
+      case SET_PORT:        // fall through
       case HANDLE_REQUEST:  // fall through
       default:              // do nothing
         break;
     }
-    if (args->remote) free(args->remote);
+    free(args_wrapper->args);
     free(t->args);
   }
 }
@@ -109,7 +111,7 @@ int get_socket(struct logger *logger, const char *host, const char *serv, int co
   return sockfd;
 }
 
-/* returns a conncted socket to host:serv which is bound the the local port whos local_data_sockfd bound to*/
+/* returns a connected socket to host:serv which is bound the the local port whos local_data_sockfd bound to*/
 static int get_active_socket(int local_data_sockfd, struct logger *logger, const char *host, const char *serv) {
   if (!host || !serv) return -1;
 
@@ -183,6 +185,7 @@ void add_session(struct vector_s *sessions, struct logger *logger, struct sessio
   vector_s_push(sessions, session);
 }
 
+/* cmpr fds, used internally by remove_fd */
 static int cmpr_pfds(const void *a, const void *b) {
   const struct pollfd *pfd_a = a;
   const struct pollfd *pfd_b = b;
@@ -268,93 +271,201 @@ static int open_data_socket(int sockfd) {
   return data_socket;
 }
 
+/* acknowledge a quit operation */
 static int ack_quit(void *arg) {
   struct thrd_args *thrd_args = arg;
   if (!thrd_args) return 1;
 
-  struct args *args = thrd_args->args;
-  if (!args) return 1;
-  if (args->type != REGULAR) return 1;
+  struct args_wrapper *args_wrapper = thrd_args->args;
+  if (!args_wrapper) return 1;
+  if (args_wrapper->type != REGULAR) return 1;
 
-  send_payload((struct reply){.code = CMD_OK, .length = 0, .data = NULL}, args->remote->control_fd, 0);
+  struct regular_args *regular_args = args_wrapper->args;
+  if (!regular_args) return 1;
+  send_reply((struct reply){.code = CMD_OK, .length = 0}, regular_args->remote->control_fd, 0);
   return 0;
 }
 
+/* send a file to a client. handle RETR requests */
 static int send_file(void *arg) {
   struct thrd_args *thrd_args = arg;
   if (!thrd_args) return 1;
 
-  struct args *args = thrd_args->args;
+  struct args_wrapper *args_wrapper = thrd_args->args;
+  if (!args_wrapper) return 1;
+  if (args_wrapper->type != REGULAR) return 1;
+
+  struct regular_args *args = args_wrapper->args;
   if (!args) return 1;
-  if (args->type != REGULAR) return 1;
 
   char host[NI_MAXHOST] = {0};
   char serv[NI_MAXSERV] = {0};
   get_host_and_serv(args->remote->control_fd, host, sizeof host, serv, sizeof serv);
 
   if (args->remote->data_fd == -1) {
-    logger_log(args->logger,
+    logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [send_file] data connection for %s:%s isn't open",
                *thrd_args->thrd_id,
                host,
                serv);
-    send_payload((struct reply){.code = DATA_CONN_CLOSE, .length = 0, .data = NULL}, args->remote->control_fd, 0);
+    send_reply((struct reply){.code = DATA_CONN_CLOSE, .length = 0}, args->remote->control_fd, 0);
+    return 1;
+  }
+
+  // no file name specified
+  if (args->request.length < CMD_LEN + 1) {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [send_file] [%s:%s] bad request. no file name specified",
+               *thrd_args->thrd_id,
+               host,
+               serv);
+    send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
     return 1;
   }
 
   // +5 -> 4 chars of the command + a space. we can guarantee it since otherwise the task wouldn't be added
-  const char *file_name = (const char *)args->request_str + 5;
+  const char *file_name = (const char *)args->request.request + 5;
 
   FILE *fp = fopen(file_name, "r");
   if (!fp) {
-    logger_log(args->logger,
+    logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [send_file] got RETR request from %s:%s, but file %s doesn't exists",
                *thrd_args->thrd_id,
                host,
                serv,
                file_name);
-    send_payload((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0, .data = NULL},
-                 args->remote->control_fd,
-                 0);
+    send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
     return 1;
   }
 
-  // send the file
-  uint8_t buf[BUF_LEN];
-  while (1) {
-    size_t bytes_read = fread(buf, 1, sizeof buf, fp);
-    send_payload((struct reply){.code = CMD_OK, .length = bytes_read, .data = buf}, args->remote->data_fd, 0);
+  // read & send the file
+  bool success = true;
+  struct data_block data = {0};
+  do {
+    data.length = (uint16_t)fread(data.data, 1, sizeof data.data, fp);
 
-    if (feof(fp)) break;
+    if (feof(fp)) data.data[data.length++] = EOF;
+    send_data(data, args->remote->data_fd, 0);
 
     if (ferror(fp)) {
-      logger_log(args->logger,
-                 ERROR,
-                 "[thread:%lu] [send_file] an error occur while reading from file %s",
-                 *thrd_args->thrd_id,
-                 file_name);
+      success = false;
       break;
     }
-  }
-  // send EOF
-  buf[0] = EOF;
-  send_payload((struct reply){.code = FILE_ACTION_COMPLETE, .length = 1, .data = buf}, args->remote->data_fd, 0);
+  } while (!feof(fp));
 
-  logger_log(args->logger,
-             INFO,
-             "[thread:%lu] [send_file] RERT requst from %s:%s completed successfuly. the file %s has been transmitted",
-             *thrd_args->thrd_id,
-             host,
-             serv,
-             file_name);
+  if (success) {
+    logger_log(
+      args_wrapper->logger,
+      INFO,
+      "[thread:%lu] [send_file] RERT requst from %s:%s completed successfuly. the file %s has been transmitted",
+      *thrd_args->thrd_id,
+      host,
+      serv,
+      file_name);
+    send_reply((struct reply){.code = FILE_ACTION_COMPLETE, .length = 0}, args->remote->control_fd, 0);
+  } else {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [send_file] an error occur while reading from file %s",
+               *thrd_args->thrd_id,
+               file_name);
+    send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
+  }
   fclose(fp);
   return 0;
 }
 
+// MT_safe???
+/* get a file from a client. handle STOR requests */
 static int get_file(void *arg) {
-  (void)arg;
+  struct thrd_args *thrd_args = arg;
+  if (!thrd_args) return 1;
+
+  struct args_wrapper *args_wrapper = thrd_args->args;
+  if (!args_wrapper) return 1;
+  if (args_wrapper->type != REGULAR) return 1;
+
+  struct regular_args *args = args_wrapper->args;
+  if (!args) return 1;
+
+  char host[NI_MAXHOST] = {0};
+  char serv[NI_MAXSERV] = {0};
+  get_host_and_serv(args->remote->control_fd, host, sizeof host, serv, sizeof serv);
+
+  if (args->remote->data_fd == -1) {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [get_file] data connection for %s:%s isn't open",
+               *thrd_args->thrd_id,
+               host,
+               serv);
+    send_reply((struct reply){.code = DATA_CONN_CLOSE, .length = 0}, args->remote->control_fd, 0);
+    return 1;
+  }
+
+  // no file name specified
+  if (args->request.length < CMD_LEN + 1) {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [get_file] [%s:%s] bad request. no file name specified",
+               *thrd_args->thrd_id,
+               host,
+               serv);
+    send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
+    return 1;
+  }
+
+  // +5 -> 4 chars of the command + a space. we can guarantee it since otherwise the task wouldn't be added
+  const char *file_name = (const char *)args->request.request + 5;
+
+  FILE *fp = fopen(file_name, "w");
+  if (!fp) {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [get_file] got STOR request from %s:%s, but file %s falied to open",
+               *thrd_args->thrd_id,
+               host,
+               serv,
+               file_name);
+    send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
+    return 1;
+  }
+
+  // get the file & store it
+  bool success = true;
+  struct data_block data = {0};
+  do {
+    data = receive_data(args->remote->data_fd, 0);
+    (void)fwrite(data.data, 1, data.length, fp);  // assumes never fails
+
+    if (ferror(fp)) {
+      success = false;
+      continue;
+    }
+  } while (data.data[data.length - 1] != EOF);
+
+  // send feedback
+  if (success) {
+    logger_log(args_wrapper->logger,
+               INFO,
+               "[thread:%lu] [get_file] STOR requst from %s:%s completed successfuly. the file %s has been stored",
+               *thrd_args->thrd_id,
+               host,
+               serv,
+               file_name);
+    send_reply((struct reply){.code = FILE_ACTION_COMPLETE, .length = 0}, args->remote->control_fd, 0);
+  } else {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [send_file] an error occur while writing to file %s",
+               *thrd_args->thrd_id,
+               file_name);
+    send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
+  }
+  fclose(fp);
   return 0;
 }
 
@@ -363,6 +474,7 @@ static int append_to_file(void *arg) {
   return 0;
 }
 
+/* delete the file who's name specified in the request. handle DELE requests */
 static int del_file(void *arg) {
   (void)arg;
   return 0;
@@ -373,23 +485,39 @@ static int list_files(void *arg) {
   return 0;
 }
 
+/* open a connection between the server's data port to a client's specified ip:port */
 static int set_active_port(void *arg) {
   struct thrd_args *thrd_args = arg;
   if (!thrd_args) return 1;
 
-  struct args *args = thrd_args->args;
+  struct args_wrapper *args_wrapper = thrd_args->args;
+  if (!args_wrapper) return 1;
+  if (args_wrapper->type != SET_PORT) return 1;
+
+  struct port_args *args = args_wrapper->args;
   if (!args) return 1;
-  if (args->type != SET_PORT) return 1;
 
   char host[NI_MAXHOST] = {0};
   char serv[NI_MAXSERV] = {0};
-  get_host_and_serv(args->remote->control_fd, host, sizeof host, serv, sizeof serv);
+  get_host_and_serv(args->remote_fd, host, sizeof host, serv, sizeof serv);
+
+  // no file name specified
+  if (args->request.length < CMD_LEN + 1) {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [set_port] [%s:%s] bad request. no host:serv specified",
+               *thrd_args->thrd_id,
+               host,
+               serv);
+    send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote_fd, 0);
+    return 1;
+  }
 
   // +5 -> 4 chars of the command + a space. we can guarantee it since otherwise the task wouldn't be added
-  char *start = (char *)args->additional_args.set_port_params.request_str + 5;
+  char *start = (char *)args->request.request + 5;
   char *end = strchr(start, ' ');  // find the end of the host address
   if (!end) {
-    send_payload((struct reply){.code = 500, .length = 0, .data = NULL}, args->remote->control_fd, 0);
+    send_reply((struct reply){.code = 500, .length = 0}, args->remote_fd, 0);
     return 1;
   }
 
@@ -402,10 +530,10 @@ static int set_active_port(void *arg) {
   end = strchr(start, ' ');
   memcpy(port, start, end - start);
 
-  int data_sockfd = get_active_socket(args->additional_args.local->data_fd, args->logger, ip, port);
+  int data_sockfd = get_active_socket(args->local->data_fd, args_wrapper->logger, ip, port);
   if (data_sockfd == -1) {
-    send_payload((struct reply){.code = DATA_CONN_CLOSE, .length = 0, .data = NULL}, args->remote->control_fd, 0);
-    logger_log(args->logger,
+    send_reply((struct reply){.code = DATA_CONN_CLOSE, .length = 0}, args->remote_fd, 0);
+    logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [set_active_port] failed to conncet to %s:%s",
                *thrd_args->thrd_id,
@@ -414,19 +542,19 @@ static int set_active_port(void *arg) {
     return 1;
   }
 
-  long long index = vector_s_index_of(args->additional_args.sessions, args->remote);
+  long long index = vector_s_index_of(args->sessions, &(struct session){.control_fd = args->remote_fd});
   if (index == N_EXISTS) {
-    logger_log(args->logger,
+    logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [set_active_port] tried to update the session [%d] but session doesn't exists",
                *thrd_args->thrd_id,
-               args->remote->control_fd);
+               args->remote_fd);
     return 1;
   }
-  struct session *old = vector_s_replace(
-    args->additional_args.sessions,
-    &(struct session){.control_fd = args->remote->control_fd, .data_fd = data_sockfd, .is_passive = false},
-    index);
+  struct session *old =
+    vector_s_replace(args->sessions,
+                     &(struct session){.control_fd = args->remote_fd, .data_fd = data_sockfd, .is_passive = false},
+                     index);
   if (old) free(old);
 
   return 0;
@@ -437,13 +565,14 @@ static int set_passive_port(void *arg) {
   return 0;
 }
 
+/* parses a request. return a ptr to a function to handle said request */
 static int (*get_handler(struct request request))(void *arg) {
   char command[CMD_LEN] = {0};
 
-  size_t index = strcspn((const char *)request.data, " ");
-  if (index >= request.length) return NULL;
+  size_t index = strcspn((const char *)request.request, " ");
+  if (index != sizeof command - 1) return NULL;
 
-  strncpy(command, (const char *)request.data, sizeof command - 1);
+  memcpy(command, request.request, sizeof command - 1);
   tolower_str(command, strlen(command));
 
   if (strcmp(command, "quit") == 0) {
@@ -466,83 +595,116 @@ static int (*get_handler(struct request request))(void *arg) {
   return NULL;
 }
 
+/* parses a request. initialize all args assosiated with said to request for the handler. creates and add the
+ * appropriate task for the thread_pool to handle */
 int handle_request(void *arg) {
   struct thrd_args *thrd_args = arg;
   if (!thrd_args) return 1;
 
-  struct args *args = thrd_args->args;
-  if (!args) return 1;
-  if (args->type != HANDLE_REQUEST) return 1;
+  struct args_wrapper *args_wrapper = thrd_args->args;
+  if (!args_wrapper) return 1;
+  if (args_wrapper->type != HANDLE_REQUEST) return 1;
 
-  struct request request = recieve_payload(args->remote->control_fd, 0);
+  struct request_args *args = args_wrapper->args;
+  if (!args) return 1;
+
+  // get the request
+  struct request request = recieve_request(args->remote_fd, 0);
   if (!request.length) {
-    logger_log(args->logger,
+    logger_log(args_wrapper->logger,
                ERROR,
-               "[thread:%lu] [handle_requst] bad request",
+               "[thread:%lu] [handle_requst] bad request [size:%hu]",
                *thrd_args->thrd_id,
-               (char *)request.data);
-    send_payload((struct reply){.code = CMD_GENRAL_ERR, .length = 0, .data = NULL}, args->remote->control_fd, 0);
+               request.length);
+    send_reply((struct reply){.code = CMD_GENRAL_ERR, .length = 0}, args->remote_fd, 0);
     return 1;
   }
 
-  // parse the recieved request. set the handle_task based on the command
+  // parse the recieved request. get ptr to a handler function to resolve said request
   int (*handler)(void *) = get_handler(request);
   if (!handler) {
-    logger_log(args->logger,
+    logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [handle_requst] failed to get the handler of command %s",
                *thrd_args->thrd_id,
-               (char *)request.data);
-    send_payload((struct reply){.code = CMD_GENRAL_ERR, .length = 0, .data = NULL}, args->remote->control_fd, 0);
+               (const char *)request.request);
+    send_reply((struct reply){.code = CMD_GENRAL_ERR, .length = 0}, args->remote_fd, 0);
     return 1;
   }
 
-  struct args *task_args = malloc(sizeof *task_args);
-  if (!task_args) {
-    logger_log(args->logger, ERROR, "[thread:%lu] [handle_requst] allocation failure", *thrd_args->thrd_id);
-    send_payload((struct reply){.code = LCL_PROCESS_ERR, .length = 0, .data = NULL}, args->remote->control_fd, 0);
+  // creates & initializes the args the handler will need in order to resolve the request
+  struct args_wrapper *task_args_wrapper = malloc(sizeof *task_args_wrapper);
+  if (!args_wrapper) {
+    logger_log(args_wrapper->logger, ERROR, "[thread:%lu] [handle_requst] allocation failure", *thrd_args->thrd_id);
+    send_reply((struct reply){.code = LCL_PROCESS_ERR, .length = 0}, args->remote_fd, 0);
     return 1;
   }
 
-  task_args->logger = args->logger;
-  task_args->remote = vector_s_find(args->additional_args.sessions, args->remote);
-  if (handler == set_active_port || handler == set_passive_port) {
-    task_args->type = SET_PORT;
-    task_args->additional_args.local = args->additional_args.local;
-    task_args->additional_args.sessions = args->additional_args.sessions;
-    task_args->additional_args.set_port_params.request_str = request.data;
-  } else {
-    task_args->type = REGULAR;
-    task_args->request_str = request.data;
-  }
+  // initialize args_wrapper for the new task
+  if (handler == set_active_port || handler == set_passive_port) {  // port related tasks
+    // alocate port_args and init it
+    struct port_args *port_args = malloc(sizeof *port_args);
+    if (!port_args) {
+      logger_log(args_wrapper->logger, ERROR, "[thread:%lu] [handle_requst] allocation failure", *thrd_args->thrd_id);
+      send_reply((struct reply){.code = LCL_PROCESS_ERR, .length = 0}, args->remote_fd, 0);
+      return 1;
+    }
 
-  thrd_pool_add_task(args->additional_args.handle_request_params.thread_pool,
-                     &(struct task){.args = task_args, .handle_task = handler});
+    port_args->local = args->local;
+    port_args->remote_fd = args->remote_fd;
+    port_args->sessions = args->sessions;
+    memcpy(&port_args->request, &request, sizeof port_args->request);
+
+    task_args_wrapper->type = SET_PORT;
+    task_args_wrapper->args = port_args;
+  } else {  // regular tasks (file tasks)
+    struct regular_args *regular_args = malloc(sizeof *regular_args);
+    if (!regular_args) {
+      logger_log(args_wrapper->logger, ERROR, "[thread:%lu] [handle_requst] allocation failure", *thrd_args->thrd_id);
+      send_reply((struct reply){.code = LCL_PROCESS_ERR, .length = 0}, args->remote_fd, 0);
+      return 1;
+    }
+    regular_args->remote = vector_s_find(args->sessions, &(struct session){.control_fd = args->remote_fd});
+    memcpy(&regular_args->request, &request, sizeof regular_args->request);
+
+    task_args_wrapper->type = REGULAR;
+    task_args_wrapper->args = regular_args;
+  }
+  task_args_wrapper->logger = args_wrapper->logger;
+
+  thrd_pool_add_task(args->thread_pool, &(struct task){.args = task_args_wrapper, .handle_task = handler});
 
   return 0;
 }
 
-// void get_request(int sockfd, struct vector_s *sessions, struct thrd_pool *thread_pool, struct logger *logger) {
-//   if (!thread_pool || !logger) return;
+void get_request(struct session *local,
+                 int remote_fd,
+                 struct vector_s *sessions,
+                 struct thrd_pool *thread_pool,
+                 struct logger *logger) {
+  if (!thread_pool || !logger) return;
 
-//   struct request req = recieve_payload(sockfd, MSG_DONTWAIT);
+  // creates and initializes the args for handle_request()
+  struct args_wrapper *task_args_wrapper = malloc(sizeof *task_args_wrapper);
+  if (!task_args_wrapper) {
+    logger_log(logger, ERROR, "[main] allocation failure");
+    send_reply((struct reply){.code = LCL_PROCESS_ERR, .length = 0}, remote_fd, 0);
+  }
 
-//   struct args *args = malloc(sizeof *args);
-//   if (!args) return;
-//   args->logger = logger;
-//   args->request_str = req.data;
-//   args->session = vector_s_find(sessions, &(struct session){.control_fd = sockfd /*don't care about data_fd*/});
-//   args->sessions = NULL;
+  struct request_args *request_args = malloc(sizeof *request_args);
+  if (!request_args) {
+    logger_log(logger, ERROR, "[main] allocation failure");
+    send_reply((struct reply){.code = LCL_PROCESS_ERR, .length = 0}, remote_fd, 0);
+  }
 
-//   if (req.length == 0) {
-//     thrd_pool_add_task(thread_pool, &(struct task){.handle_task = invalid_cmd, .args = args});
-//     return;
-//   }
+  request_args->local = local;
+  request_args->remote_fd = remote_fd;
+  request_args->sessions = sessions;
+  request_args->thread_pool = thread_pool;
 
-//   // parse the recieved request. set the handle_task based on the command
-//   int (*handler)(void *) = get_handler(req);
+  task_args_wrapper->type = HANDLE_REQUEST;
+  task_args_wrapper->args = request_args;
+  task_args_wrapper->logger = logger;
 
-//   if (handler == set_active_port || handler == set_passive_port) args->sessions = sessions;
-
-//   thrd_pool_add_task(thread_pool, &(struct task){.handle_task = handler, .args = args});
-// }
+  thrd_pool_add_task(thread_pool, &(struct task){.args = task_args_wrapper, .handle_task = handle_request});
+}
