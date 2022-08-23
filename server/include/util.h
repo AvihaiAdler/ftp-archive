@@ -4,18 +4,34 @@
 #include <poll.h>
 #include <stddef.h>
 #include "hash_table.h"
+#include "include/session.h"
 #include "logger.h"
 #include "thread_pool.h"
 #include "vector.h"
 #include "vector_s.h"
 
-enum socket_flags { LISTEN, CONNECT };
-
 struct args {
+  union {
+    uint8_t *request_str;
+    union {
+      struct additional_args {
+        struct set_port_params {
+          uint8_t *request_str;
+        } set_port_params;
+
+        struct handle_request_params {
+          struct thrd_pool *thread_pool;
+        } handle_request_params;
+
+        struct session *local;  // may never chagned by the threads
+        struct vector_s *sessions;
+      } additional_args;
+    };
+  };
+
+  enum type { REGULAR, SET_PORT, HANDLE_REQUEST } type;
+  struct session *remote;
   struct logger *logger;
-  uint8_t *request_str;
-  struct session *session;
-  struct vector_s *sessions;
 };
 
 void cleanup(struct hash_table *properties,
@@ -28,7 +44,7 @@ int get_socket(struct logger *logger, const char *host, const char *serv, int co
 
 void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events);
 
-void add_session(struct vector_s *sessions, struct logger *logger, int fd);
+void add_session(struct vector_s *sessions, struct logger *logger, struct session *session);
 
 void remove_fd(struct vector *pollfds, struct logger *logger, int fd);
 
@@ -38,7 +54,9 @@ void close_session(struct vector_s *sessions, struct logger *logger, int fd);
 
 char *tolower_str(char *str, size_t len);
 
-void get_request(int sockfd, struct vector_s *sessions, struct thrd_pool *thread_pool, struct logger *logger);
+// void get_request(int sockfd, struct vector_s *sessions, struct thrd_pool *thread_pool, struct logger *logger);
+
+int handle_request(void *arg);
 
 void destroy_task(void *task);
 
