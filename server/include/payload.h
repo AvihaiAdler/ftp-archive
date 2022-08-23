@@ -6,6 +6,7 @@ enum reply_codes {
   CMD_OK = 200,
   CMD_GENRAL_ERR = 500,
   CMD_ARGS_ERR = 501,
+  LCL_PROCESS_ERR = 451,
   DATA_CONN_CLOSE = 425,
   CONN_CLOSED = 426,
   PASV = 227,
