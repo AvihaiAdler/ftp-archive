@@ -157,24 +157,7 @@ int main(int argc, char *argv[]) {
           add_session(sessions, logger, &(struct session){.control_fd = remote_fd, .data_fd = -1, .is_passive = false});
         } else {  // any other socket
           // create a handle_request task
-          struct args *task_args = malloc(sizeof *task_args);
-          if (!task_args) {
-            logger_log(logger, ERROR, "[main] allocation failure");
-            events_count--;
-            continue;
-          }
-
-          task_args->logger = logger;
-          task_args->remote = vector_s_find(sessions, &(struct session){.control_fd = current->fd});
-          task_args->type = HANDLE_REQUEST;
-          task_args->additional_args.local = &local_fds;
-          task_args->additional_args.sessions = sessions;
-          task_args->additional_args.handle_request_params.thread_pool = thread_pool;
-
-          thrd_pool_add_task(thread_pool, &(struct task){.args = task_args, .handle_task = handle_request});
-          // BOTTLENECK! may need to go back and delegate this task to a thread
-          // get the command, parse it and creates the corresponding task for a thread to handle
-          // get_request(current->fd, sessions, thread_pool, logger);
+          get_request(&local_fds, current->fd, sessions, thread_pool, logger);
         }
       } else if (current->events & POLLHUP) {  // this fp has been closed
         get_host_and_serv(current->fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
