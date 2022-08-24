@@ -16,7 +16,8 @@ enum reply_codes {
   CONN_CLOSED = 426,
   PASV = 227,
   FILE_ACTION_COMPLETE = 250,
-  FILE_ACTION_INCOMPLETE = 450
+  FILE_ACTION_INCOMPLETE = 550,
+  FILE_NAME_NOT_ALLOWED = 553
 };
 
 struct reply {
@@ -37,6 +38,7 @@ struct data_block {
 
 ssize_t send_reply(struct reply reply, int sockfd, int flags);
 
+/* returns a request strct. request::request is a null terminated string */
 struct request recieve_request(int sockfd, int flags);
 
 ssize_t send_data(struct data_block data, int sockfd, int flags);
