@@ -63,11 +63,11 @@ void close_session(struct vector_s *sessions, struct logger *logger, int fd);
 char *tolower_str(char *str, size_t len);
 
 /* creates a new handle_request() task for the thread_pool to handle. used by the main thread */
-void get_request(struct session *local,
-                 int remote_fd,
-                 struct vector_s *sessions,
-                 struct thrd_pool *thread_pool,
-                 struct logger *logger);
+void add_request_task(struct session *local,
+                      int remote_fd,
+                      struct vector_s *sessions,
+                      struct thrd_pool *thread_pool,
+                      struct logger *logger);
 
 /* parse a request and creates a new task for the thread_pool to handle */
 int handle_request(void *arg);

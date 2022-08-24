@@ -833,11 +833,11 @@ int handle_request(void *arg) {
   return 0;
 }
 
-void get_request(struct session *local,
-                 int remote_fd,
-                 struct vector_s *sessions,
-                 struct thrd_pool *thread_pool,
-                 struct logger *logger) {
+void add_request_task(struct session *local,
+                      int remote_fd,
+                      struct vector_s *sessions,
+                      struct thrd_pool *thread_pool,
+                      struct logger *logger) {
   if (!thread_pool || !logger) return;
 
   // creates and initializes the args for handle_request()
