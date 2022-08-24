@@ -20,6 +20,8 @@
 #define CMD_LEN 5
 #define BUF_LEN 1024
 #define ERR_LEN 1025
+#define FILE_NAME_LEN 25
+#define FD_LEN 20
 
 void cleanup(struct hash_table *properties,
              struct logger *logger,
@@ -253,24 +255,6 @@ void get_host_and_serv(int sockfd, char *host, size_t host_len, char *serv, size
   }
 }
 
-static int open_data_socket(int sockfd) {
-  struct sockaddr_storage addr;
-  socklen_t addr_len = sizeof addr;
-
-  if (getsockname(sockfd, (struct sockaddr *)&addr, &addr_len) != 0) return -1;
-
-  int data_socket = socket(addr.ss_family, SOCK_STREAM, 0);
-  if (data_socket == -1) return -1;
-
-  int val = 1;
-  if (setsockopt(data_socket, SOL_SOCKET, SO_REUSEADDR, &val, sizeof val) == -1) return -1;
-
-  // binds automatically to a random port
-  if (listen(data_socket, 1) == -1) return -1;
-
-  return data_socket;
-}
-
 /* acknowledge a quit operation */
 static int ack_quit(void *arg) {
   struct thrd_args *thrd_args = arg;
@@ -305,7 +289,7 @@ static int send_file(void *arg) {
   if (args->remote->data_fd == -1) {
     logger_log(args_wrapper->logger,
                ERROR,
-               "[thread:%lu] [send_file] data connection for %s:%s isn't open",
+               "[thread:%lu] [send_file] [%s:%s] data connection for closed",
                *thrd_args->thrd_id,
                host,
                serv);
@@ -326,17 +310,47 @@ static int send_file(void *arg) {
   }
 
   // +5 -> 4 chars of the command + a space. we can guarantee it since otherwise the task wouldn't be added
-  const char *file_name = (const char *)args->request.request + 5;
+  const char *file_name = (const char *)args->request.request + CMD_LEN;
 
-  FILE *fp = fopen(file_name, "r");
-  if (!fp) {
+  // file name contains a ../
+  if (strstr(file_name, "../")) {
     logger_log(args_wrapper->logger,
                ERROR,
-               "[thread:%lu] [send_file] got RETR request from %s:%s, but file %s doesn't exists",
+               "[thread:%lu] [send_file] [%s:%s] bad request. file name [%s] not allowed",
                *thrd_args->thrd_id,
                host,
                serv,
                file_name);
+    send_reply((struct reply){.code = FILE_NAME_NOT_ALLOWED, .length = 0}, args->remote->control_fd, 0);
+    return 1;
+  }
+
+  // file name too long
+  if (strlen(file_name) > FILE_NAME_LEN - 1) {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [send_file] [%s:%s] bad request. file name [%s] too long",
+               *thrd_args->thrd_id,
+               host,
+               serv,
+               file_name);
+    send_reply((struct reply){.code = FILE_NAME_NOT_ALLOWED, .length = 0}, args->remote->control_fd, 0);
+    return 1;
+  }
+
+  char path[FILE_NAME_LEN + 2] = {0};
+  strcpy(path, "./");
+  strcat(path, file_name);
+
+  FILE *fp = fopen(path, "r");
+  if (!fp) {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [send_file] [%s:%s] got RETR request, but file [%s] doesn't exists",
+               *thrd_args->thrd_id,
+               host,
+               serv,
+               path);
     send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
     return 1;
   }
@@ -357,28 +371,28 @@ static int send_file(void *arg) {
   } while (!feof(fp));
 
   if (success) {
-    logger_log(
-      args_wrapper->logger,
-      INFO,
-      "[thread:%lu] [send_file] RERT requst from %s:%s completed successfuly. the file %s has been transmitted",
-      *thrd_args->thrd_id,
-      host,
-      serv,
-      file_name);
+    logger_log(args_wrapper->logger,
+               INFO,
+               "[thread:%lu] [send_file] [%s:%s] RERT requst completed successfuly. the file [%s] has been transmitted",
+               *thrd_args->thrd_id,
+               host,
+               serv,
+               path);
     send_reply((struct reply){.code = FILE_ACTION_COMPLETE, .length = 0}, args->remote->control_fd, 0);
   } else {
     logger_log(args_wrapper->logger,
                ERROR,
-               "[thread:%lu] [send_file] an error occur while reading from file %s",
+               "[thread:%lu] [send_file] [%s:%s] RERT requst failed, an error occur while reading from file [%s]",
                *thrd_args->thrd_id,
-               file_name);
+               host,
+               serv,
+               path);
     send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
   }
   fclose(fp);
   return 0;
 }
 
-// MT_safe???
 /* get a file from a client. handle STOR requests */
 static int get_file(void *arg) {
   struct thrd_args *thrd_args = arg;
@@ -398,7 +412,7 @@ static int get_file(void *arg) {
   if (args->remote->data_fd == -1) {
     logger_log(args_wrapper->logger,
                ERROR,
-               "[thread:%lu] [get_file] data connection for %s:%s isn't open",
+               "[thread:%lu] [get_file] [%s:%s] data connection closed",
                *thrd_args->thrd_id,
                host,
                serv);
@@ -419,17 +433,57 @@ static int get_file(void *arg) {
   }
 
   // +5 -> 4 chars of the command + a space. we can guarantee it since otherwise the task wouldn't be added
-  const char *file_name = (const char *)args->request.request + 5;
+  const char *file_name = (const char *)args->request.request + CMD_LEN;
+
+  // file name contains a ../
+  if (strstr(file_name, "../")) {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [get_file] [%s:%s] bad request. file name [%s] not allowed",
+               *thrd_args->thrd_id,
+               host,
+               serv,
+               file_name);
+    send_reply((struct reply){.code = FILE_NAME_NOT_ALLOWED, .length = 0}, args->remote->control_fd, 0);
+    return 1;
+  }
+
+  // file name too long
+  if (strlen(file_name) > FILE_NAME_LEN - 1) {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [get_file] [%s:%s] bad request. file name [%s] too long",
+               *thrd_args->thrd_id,
+               host,
+               serv,
+               file_name);
+    send_reply((struct reply){.code = FILE_NAME_NOT_ALLOWED, .length = 0}, args->remote->control_fd, 0);
+    return 1;
+  }
+
+  // creates a unique path (file_name) so that only one thread at a time will access said file. the unique file name
+  // consists of: the supplied file name (from the clinet) + client ip + client port + client control_fd
+  char path[FILE_NAME_LEN * FD_LEN + NI_MAXHOST + NI_MAXSERV] = {0};
+  strcpy(path, "./");
+  strcat(path, file_name);
+  strcat(path, host);
+  strcat(path, serv);
+
+  char fd_as_str[FD_LEN] = {0};
+  if (snprintf(NULL, 0, "%d", args->remote->control_fd) < FD_LEN - 1) {
+    snprintf(fd_as_str, sizeof fd_as_str, "%d", args->remote->control_fd);
+    strcat(path, fd_as_str);
+  }
 
   FILE *fp = fopen(file_name, "w");
   if (!fp) {
     logger_log(args_wrapper->logger,
                ERROR,
-               "[thread:%lu] [get_file] got STOR request from %s:%s, but file %s falied to open",
+               "[thread:%lu] [get_file] [%s:%s] got STOR request, but file [%s] falied to open",
                *thrd_args->thrd_id,
                host,
                serv,
-               file_name);
+               path);
     send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
     return 1;
   }
@@ -447,11 +501,23 @@ static int get_file(void *arg) {
     }
   } while (data.data[data.length - 1] != EOF);
 
+  fclose(fp);
+
+  // rename the unique file to the name supplied by the client
+  int ret = 0;
+  if (success) { ret = rename(path, file_name); }
+
+  // rename failed. should happens
+  if (ret) {
+    remove(path);
+    success = false;
+  }
+
   // send feedback
   if (success) {
     logger_log(args_wrapper->logger,
                INFO,
-               "[thread:%lu] [get_file] STOR requst from %s:%s completed successfuly. the file %s has been stored",
+               "[thread:%lu] [get_file] [%s:%s] STOR requst completed successfuly. the file [%s] has been stored",
                *thrd_args->thrd_id,
                host,
                serv,
@@ -460,23 +526,102 @@ static int get_file(void *arg) {
   } else {
     logger_log(args_wrapper->logger,
                ERROR,
-               "[thread:%lu] [send_file] an error occur while writing to file %s",
+               "[thread:%lu] [send_file] [%s:%s] STOR request failed. an error occur while writing to file [%s]",
                *thrd_args->thrd_id,
-               file_name);
+               host,
+               serv,
+               path);
     send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
   }
-  fclose(fp);
+
   return 0;
 }
 
-static int append_to_file(void *arg) {
-  (void)arg;
-  return 0;
-}
+/* deletes the file who's name specified in the request. handle DELE requests */
+static int delete_file(void *arg) {
+  struct thrd_args *thrd_args = arg;
+  if (!thrd_args) return 1;
 
-/* delete the file who's name specified in the request. handle DELE requests */
-static int del_file(void *arg) {
-  (void)arg;
+  struct args_wrapper *args_wrapper = thrd_args->args;
+  if (!args_wrapper) return 1;
+  if (args_wrapper->type != REGULAR) return 1;
+
+  struct regular_args *args = args_wrapper->args;
+  if (!args) return 1;
+
+  char host[NI_MAXHOST] = {0};
+  char serv[NI_MAXSERV] = {0};
+  get_host_and_serv(args->remote->control_fd, host, sizeof host, serv, sizeof serv);
+
+  // no file name specified
+  if (args->request.length < CMD_LEN + 1) {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [delete_file] [%s:%s] bad request. no file name specified",
+               *thrd_args->thrd_id,
+               host,
+               serv);
+    send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
+    return 1;
+  }
+
+  // +5 -> 4 chars of the command + a space. we can guarantee it since otherwise the task wouldn't be added
+  const char *file_name = (const char *)args->request.request + CMD_LEN;
+
+  // file name contains a ../
+  if (strstr(file_name, "../")) {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [delete_file] [%s:%s] bad request. file name [%s] not allowed",
+               *thrd_args->thrd_id,
+               host,
+               serv,
+               file_name);
+    send_reply((struct reply){.code = FILE_NAME_NOT_ALLOWED, .length = 0}, args->remote->control_fd, 0);
+    return 1;
+  }
+
+  // file name too long
+  if (strlen(file_name) > FILE_NAME_LEN - 1) {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [delete_file] [%s:%s] bad request. file name [%s] too long",
+               *thrd_args->thrd_id,
+               host,
+               serv,
+               file_name);
+    send_reply((struct reply){.code = FILE_NAME_NOT_ALLOWED, .length = 0}, args->remote->control_fd, 0);
+    return 1;
+  }
+
+  char path[FILE_NAME_LEN + 2] = {0};
+  strcpy(path, "./");
+  strcat(path, file_name);
+
+  // remove the file
+  int ret = remove(path);
+
+  if (!ret) {
+    logger_log(args_wrapper->logger,
+               INFO,
+               "[thread:%lu] [delete_file] [%s:%s] DELE requst completed successfuly. the file [%s] has been removed",
+               *thrd_args->thrd_id,
+               host,
+               serv,
+               path);
+    send_reply((struct reply){.code = FILE_ACTION_COMPLETE, .length = 0}, args->remote->control_fd, 0);
+  } else {
+    logger_log(
+      args_wrapper->logger,
+      ERROR,
+      "[thread:%lu] [delete_file] [%s:%s] DELE requst failed, an error occur while trying to delete the file [%s]",
+      *thrd_args->thrd_id,
+      host,
+      serv,
+      path);
+    send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
+  }
+
   return 0;
 }
 
@@ -485,7 +630,7 @@ static int list_files(void *arg) {
   return 0;
 }
 
-/* open a connection between the server's data port to a client's specified ip:port */
+/* opens a connection between the server's data port to a client's specified ip:port */
 static int set_active_port(void *arg) {
   struct thrd_args *thrd_args = arg;
   if (!thrd_args) return 1;
@@ -501,7 +646,7 @@ static int set_active_port(void *arg) {
   char serv[NI_MAXSERV] = {0};
   get_host_and_serv(args->remote_fd, host, sizeof host, serv, sizeof serv);
 
-  // no file name specified
+  // no host:serv specified
   if (args->request.length < CMD_LEN + 1) {
     logger_log(args_wrapper->logger,
                ERROR,
@@ -514,7 +659,7 @@ static int set_active_port(void *arg) {
   }
 
   // +5 -> 4 chars of the command + a space. we can guarantee it since otherwise the task wouldn't be added
-  char *start = (char *)args->request.request + 5;
+  char *start = (char *)args->request.request + CMD_LEN;
   char *end = strchr(start, ' ');  // find the end of the host address
   if (!end) {
     send_reply((struct reply){.code = 500, .length = 0}, args->remote_fd, 0);
@@ -581,10 +726,8 @@ static int (*get_handler(struct request request))(void *arg) {
     return send_file;
   } else if (strcmp(command, "stor") == 0) {
     return get_file;
-  } else if (strcmp(command, "appe") == 0) {
-    return append_to_file;
   } else if (strcmp(command, "dele") == 0) {
-    return del_file;
+    return delete_file;
   } else if (strcmp(command, "list") == 0) {
     return list_files;
   } else if (strcmp(command, "port") == 0) {
@@ -625,7 +768,7 @@ int handle_request(void *arg) {
   if (!handler) {
     logger_log(args_wrapper->logger,
                ERROR,
-               "[thread:%lu] [handle_requst] failed to get the handler of command %s",
+               "[thread:%lu] [handle_requst] failed to get the handler of command [%s]",
                *thrd_args->thrd_id,
                (const char *)request.request);
     send_reply((struct reply){.code = CMD_GENRAL_ERR, .length = 0}, args->remote_fd, 0);
