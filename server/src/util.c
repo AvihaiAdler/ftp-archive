@@ -21,7 +21,9 @@
 #define BUF_LEN 1024
 #define ERR_LEN 1025
 #define FILE_NAME_LEN 25
-#define FD_LEN 20
+#define HOME "/home/ftp/"
+#define HOME_LEN 10
+#define FD_LEN 10
 
 void cleanup(struct hash_table *properties,
              struct logger *logger,
@@ -255,6 +257,17 @@ void get_host_and_serv(int sockfd, char *host, size_t host_len, char *serv, size
   }
 }
 
+static size_t get_path(char *restrict path, size_t path_size, const char *restrict file_name, size_t file_name_size) {
+  if (!path || !file_name) return 0;
+
+  size_t home_size = strlen(HOME);
+  if (path_size < home_size + file_name_size + 1) return 0;
+
+  strcpy(path, HOME);
+  strcat(path, file_name);
+  return home_size + file_name_size + 1;
+}
+
 /* acknowledge a quit operation */
 static int ack_quit(void *arg) {
   struct thrd_args *thrd_args = arg;
@@ -325,8 +338,12 @@ static int send_file(void *arg) {
     return 1;
   }
 
+  // get the file path
+  char path[HOME_LEN + FILE_NAME_LEN + 1] = {0};
+  size_t path_len = get_path(path, sizeof path, file_name, strlen(file_name));
+
   // file name too long
-  if (strlen(file_name) > FILE_NAME_LEN - 1) {
+  if (!path_len) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [send_file] [%s:%s] bad request. file name [%s] too long",
@@ -337,10 +354,6 @@ static int send_file(void *arg) {
     send_reply((struct reply){.code = FILE_NAME_NOT_ALLOWED, .length = 0}, args->remote->control_fd, 0);
     return 1;
   }
-
-  char path[FILE_NAME_LEN + 2] = {0};
-  strcpy(path, "./");
-  strcat(path, file_name);
 
   FILE *fp = fopen(path, "r");
   if (!fp) {
@@ -463,8 +476,8 @@ static int get_file(void *arg) {
 
   // creates a unique path (file_name) so that only one thread at a time will access said file. the unique file name
   // consists of: the supplied file name (from the clinet) + client ip + client port + client control_fd
-  char path[FILE_NAME_LEN * FD_LEN + NI_MAXHOST + NI_MAXSERV] = {0};
-  strcpy(path, "./");
+  char path[FILE_NAME_LEN + HOME_LEN + FD_LEN + INET6_ADDRSTRLEN + NI_MAXSERV + 1] = {0};
+  strcpy(path, HOME);
   strcat(path, file_name);
   strcat(path, host);
   strcat(path, serv);
@@ -581,8 +594,12 @@ static int delete_file(void *arg) {
     return 1;
   }
 
+  // get the file path
+  char path[HOME_LEN + FILE_NAME_LEN + 1] = {0};
+  size_t path_len = get_path(path, sizeof path, file_name, strlen(file_name));
+
   // file name too long
-  if (strlen(file_name) > FILE_NAME_LEN - 1) {
+  if (!path_len) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [delete_file] [%s:%s] bad request. file name [%s] too long",
@@ -593,10 +610,6 @@ static int delete_file(void *arg) {
     send_reply((struct reply){.code = FILE_NAME_NOT_ALLOWED, .length = 0}, args->remote->control_fd, 0);
     return 1;
   }
-
-  char path[FILE_NAME_LEN + 2] = {0};
-  strcpy(path, "./");
-  strcat(path, file_name);
 
   // remove the file
   int ret = remove(path);
