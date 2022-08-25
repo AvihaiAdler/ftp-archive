@@ -23,17 +23,17 @@ enum reply_codes {
 struct reply {
   uint16_t code;
   uint16_t length;
-  int8_t reply[REPLY_MAX_LEN];
+  uint8_t reply[REPLY_MAX_LEN];
 };
 
 struct request {
   uint16_t length;
-  int8_t request[REQUEST_MAX_LEN];
+  uint8_t request[REQUEST_MAX_LEN];
 };
 
 struct data_block {
   uint16_t length;
-  int8_t data[DATA_BLOCK_MAX_LEN];
+  uint8_t data[DATA_BLOCK_MAX_LEN];
 };
 
 ssize_t send_reply(struct reply reply, int sockfd, int flags);
