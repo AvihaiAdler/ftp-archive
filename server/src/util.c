@@ -19,6 +19,10 @@
 #include "include/session.h"
 #include "thread_pool.h"
 
+// limitation on file sizes the server will accept
+#define LIMIT_FILE_SIZE 0
+#define MB_LIMIT 10
+
 #define CMD_LEN 5
 #define BUF_LEN 1024
 #define ERR_LEN 1025
@@ -285,7 +289,7 @@ static int ack_quit(void *arg) {
   return 0;
 }
 
-/* send a file to a client. handle RETR requests */
+/* send a file to a client. handles RETR requests */
 static int send_file(void *arg) {
   struct thrd_args *thrd_args = arg;
   if (!thrd_args) return 1;
@@ -408,7 +412,7 @@ static int send_file(void *arg) {
   return 0;
 }
 
-/* get a file from a client. handle STOR requests */
+/* get a file from a client. handles STOR requests */
 static int get_file(void *arg) {
   struct thrd_args *thrd_args = arg;
   if (!thrd_args) return 1;
@@ -494,7 +498,7 @@ static int get_file(void *arg) {
   if (!fp) {
     logger_log(args_wrapper->logger,
                ERROR,
-               "[thread:%lu] [get_file] [%s:%s] got STOR request, but file [%s] falied to open",
+               "[thread:%lu] [get_file] [%s:%s] got STOR request, but file [%s] failed to open",
                *thrd_args->thrd_id,
                host,
                serv,
@@ -506,9 +510,29 @@ static int get_file(void *arg) {
   // get the file & store it
   bool success = true;
   struct data_block data = {0};
+  size_t overall_bytes_recieved = 0;
   do {
     data = receive_data(args->remote->data_fd, 0);
     (void)fwrite(data.data, 1, data.length, fp);  // assumes never fails
+
+    overall_bytes_recieved += data.length;
+#ifdef LIMIT_FILE_SIZE
+    // limit the file size to MB_LIMIT MB
+    if (overall_bytes_recieved >= MB_LIMIT * 1024 * 1024) {
+      logger_log(args_wrapper->logger,
+                 ERROR,
+                 "[thread:%lu] [get_file] [%s:%s] got STOR request, but file [%s] exeeds [%d]mb",
+                 *thrd_args->thrd_id,
+                 host,
+                 serv,
+                 path,
+                 MB_LIMIT);
+      send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
+      fclose(fp);
+      remove(path);
+      return 1;
+    }
+#endif
 
     if (ferror(fp)) {
       success = false;
@@ -522,7 +546,7 @@ static int get_file(void *arg) {
   int ret = 0;
   if (success) { ret = rename(path, file_name); }
 
-  // rename failed. should happens
+  // rename failed
   if (ret) {
     remove(path);
     success = false;
@@ -552,7 +576,7 @@ static int get_file(void *arg) {
   return 0;
 }
 
-/* deletes the file who's name specified in the request. handle DELE requests */
+/* deletes the file who's name specified in the request. handles DELE requests */
 static int delete_file(void *arg) {
   struct thrd_args *thrd_args = arg;
   if (!thrd_args) return 1;
@@ -640,6 +664,7 @@ static int delete_file(void *arg) {
   return 0;
 }
 
+/* lists all files in a directory. handles LIST requests */
 static int list_files(void *arg) {
   struct thrd_args *thrd_args = arg;
   if (!thrd_args) return 1;
