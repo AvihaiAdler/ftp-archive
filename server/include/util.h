@@ -27,7 +27,7 @@ struct request_args {
   int remote_fd;
   struct session *local;  // may never chagned by the threads
   struct vector_s *sessions;
-  struct thrd_pool *thread_pool;
+  struct thread_pool *thread_pool;
 };
 
 struct args_wrapper {
@@ -38,7 +38,7 @@ struct args_wrapper {
 
 void cleanup(struct hash_table *properties,
              struct logger *logger,
-             struct thrd_pool *thread_pool,
+             struct thread_pool *thread_pool,
              struct vector_s *sessions,
              struct vector *pollfds);
 
@@ -66,7 +66,7 @@ char *tolower_str(char *str, size_t len);
 void add_request_task(struct session *local,
                       int remote_fd,
                       struct vector_s *sessions,
-                      struct thrd_pool *thread_pool,
+                      struct thread_pool *thread_pool,
                       struct logger *logger);
 
 /* parse a request and creates a new task for the thread_pool to handle */

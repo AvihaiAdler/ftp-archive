@@ -66,8 +66,8 @@ int main(int argc, char *argv[]) {
 
   // create threads
   uint8_t *num_of_threads = table_get(properties, NUM_OF_THREADS, strlen(NUM_OF_THREADS));
-  struct thrd_pool *thread_pool =
-    thrd_pool_init(num_of_threads ? *num_of_threads : DEFAULT_NUM_OF_THREADS, destroy_task);
+  struct thread_pool *thread_pool =
+    thread_pool_init(num_of_threads ? *num_of_threads : DEFAULT_NUM_OF_THREADS, destroy_task);
   if (!thread_pool) {
     logger_log(logger, ERROR, "[main] failed to init thread pool");
     cleanup(properties, logger, NULL, NULL, NULL);
@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
 
           // if (fcntl(remote_fd, F_SETFL, O_NONBLOCK) == -1) continue;
 
-          get_host_and_serv(remote_fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
+          get_ip_and_port(remote_fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
           logger_log(logger, INFO, "[main] recieved a connection from [%s:%s]", remote_host, remote_port);
 
           add_fd(pollfds, logger, remote_fd, POLLIN | POLLHUP);
@@ -161,7 +161,7 @@ int main(int argc, char *argv[]) {
           add_request_task(&local_fds, current->fd, sessions, thread_pool, logger);
         }
       } else if (current->events & POLLHUP) {  // this fp has been closed
-        get_host_and_serv(current->fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
+        get_ip_and_port(current->fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
         logger_log(logger, INFO, "[main] the a connection from [%s:%s] was closed", remote_host, remote_port);
 
         remove_fd(pollfds, logger, current->fd);

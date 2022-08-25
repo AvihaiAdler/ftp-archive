@@ -4,8 +4,8 @@
 
 #include "thread_pool_impl.h"
 
-static int thrd_func_wrapper(void *arg) {
-  struct thrd_args_wrapper *thread_args = arg;
+static int thread_func_wrapper(void *arg) {
+  struct thread_args *thread_args = arg;
 
   // as long as the thread shouldn't terminate
   while (!atomic_load(&thread_args->self->terminate)) {
@@ -20,10 +20,9 @@ static int thrd_func_wrapper(void *arg) {
     // handle the task
     // as long as task is valid as the thread shouldn't stop
     if (task && !atomic_load(&thread_args->self->terminate)) {
-      thread_args->args.args = task->args;
-      thread_args->args.thrd_id = &thread_args->self->thread;
+      thread_args->args = task->args;
 
-      if (task->handle_task) task->handle_task(&thread_args->args);
+      if (task->handle_task) task->handle_task(thread_args->args);
     }
 
     if (task) {
@@ -37,7 +36,7 @@ static int thrd_func_wrapper(void *arg) {
   return 0;
 }
 
-static void cleanup(struct thrd_pool *thread_pool, bool tasks_mtx, bool tasks_cnd) {
+static void cleanup(struct thread_pool *thread_pool, bool tasks_mtx, bool tasks_cnd) {
   if (!thread_pool) return;
 
   if (thread_pool->threads) free(thread_pool->threads);
@@ -51,10 +50,10 @@ static void cleanup(struct thrd_pool *thread_pool, bool tasks_mtx, bool tasks_cn
   free(thread_pool);
 }
 
-struct thrd_pool *thrd_pool_init(uint8_t num_of_threads, void (*destroy_task)(void *task)) {
+struct thread_pool *thread_pool_init(uint8_t num_of_threads, void (*destroy_task)(void *task)) {
   if (num_of_threads == 0) return NULL;
 
-  struct thrd_pool *thread_pool = calloc(1, sizeof *thread_pool);
+  struct thread_pool *thread_pool = calloc(1, sizeof *thread_pool);
   if (!thread_pool) return NULL;
 
   thread_pool->num_of_threads = num_of_threads;
@@ -89,7 +88,7 @@ struct thrd_pool *thrd_pool_init(uint8_t num_of_threads, void (*destroy_task)(vo
 
   // creates the threads
   for (uint8_t i = 0; i < num_of_threads; i++) {
-    struct thrd_args_wrapper *thread_args = calloc(1, sizeof *thread_args);
+    struct thread_args *thread_args = calloc(1, sizeof *thread_args);
     if (!thread_args) cleanup(thread_pool, true, true);
 
     thread_args->tasks = thread_pool->tasks;
@@ -102,14 +101,14 @@ struct thrd_pool *thrd_pool_init(uint8_t num_of_threads, void (*destroy_task)(vo
 
     /* the thread takes owership of thread_args. its his responsibility to free
      * it at the end*/
-    thrd_create(&thread_pool->threads[i].thread, thrd_func_wrapper,
+    thrd_create(&thread_pool->threads[i].thread, thread_func_wrapper,
                 thread_args);  // assumes never fails
   }
 
   return thread_pool;
 }
 
-void thrd_pool_destroy(struct thrd_pool *thread_pool) {
+void thread_pool_destroy(struct thread_pool *thread_pool) {
   if (!thread_pool) return;
 
   // signal all threads to terminate
@@ -128,7 +127,7 @@ void thrd_pool_destroy(struct thrd_pool *thread_pool) {
   cleanup(thread_pool, true, true);
 }
 
-bool thrd_pool_add_task(struct thrd_pool *thread_pool, struct task *task) {
+bool thread_pool_add_task(struct thread_pool *thread_pool, struct task *task) {
   if (!thread_pool) return false;
 
   if (!task) return false;

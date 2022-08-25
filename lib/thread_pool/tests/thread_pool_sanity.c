@@ -19,13 +19,14 @@ void destroy_task(void *task) {
 
 // simulates a long task
 int handle_task(void *arg) {
-  struct thrd_args *thrd_args = arg;
-  struct args *args = thrd_args->args;
+  if (!arg) return 1;
+
+  struct args *args = arg;
 
   struct timespec delay = {.tv_sec = 1, .tv_nsec = 0};
   struct timespec remains = {0};
 
-  if (args->logger) { logger_log(args->logger, INFO, "thread %lu executing task %d", *thrd_args->thrd_id, args->i); }
+  if (args->logger) { logger_log(args->logger, INFO, "thread %lu executing task %d", thrd_current(), args->i); }
   nanosleep(&delay, &remains);
   return 0;
 }
@@ -34,7 +35,7 @@ int main(void) {
   struct logger *logger = logger_init("threads_pool_test.bin");
   assert(logger);
 
-  struct thrd_pool *thread_pool = thrd_pool_init(20, destroy_task);
+  struct thread_pool *thread_pool = thread_pool_init(20, destroy_task);
   assert(thread_pool);
 
   for (uint8_t i = 0; i < 100; i++) {
@@ -43,13 +44,13 @@ int main(void) {
     args->logger = logger;
 
     struct task task = {.handle_task = handle_task, .args = args};
-    assert(thrd_pool_add_task(thread_pool, &task));
+    assert(thread_pool_add_task(thread_pool, &task));
   }
 
   struct timespec wait = {.tv_sec = 2, .tv_nsec = 0};
   struct timespec remains;
   nanosleep(&wait, &remains);
 
-  thrd_pool_destroy(thread_pool);
+  thread_pool_destroy(thread_pool);
   logger_destroy(logger);
 }

@@ -33,14 +33,14 @@
 
 void cleanup(struct hash_table *properties,
              struct logger *logger,
-             struct thrd_pool *thread_pool,
+             struct thread_pool *thread_pool,
              struct vector_s *sessions,
              struct vector *pollfds) {
   if (properties) table_destroy(properties);
 
   if (logger) logger_destroy(logger);
 
-  if (thread_pool) thrd_pool_destroy(thread_pool);
+  if (thread_pool) thread_pool_destroy(thread_pool);
 
   if (sessions) vector_s_destroy(sessions);
 
@@ -276,10 +276,7 @@ static size_t get_path(char *restrict path, size_t path_size, const char *restri
 
 /* acknowledge a quit operation */
 static int ack_quit(void *arg) {
-  struct thrd_args *thrd_args = arg;
-  if (!thrd_args) return 1;
-
-  struct args_wrapper *args_wrapper = thrd_args->args;
+  struct args_wrapper *args_wrapper = arg;
   if (!args_wrapper) return 1;
   if (args_wrapper->type != REGULAR) return 1;
 
@@ -291,10 +288,7 @@ static int ack_quit(void *arg) {
 
 /* send a file to a client. handles RETR requests */
 static int send_file(void *arg) {
-  struct thrd_args *thrd_args = arg;
-  if (!thrd_args) return 1;
-
-  struct args_wrapper *args_wrapper = thrd_args->args;
+  struct args_wrapper *args_wrapper = arg;
   if (!args_wrapper) return 1;
   if (args_wrapper->type != REGULAR) return 1;
 
@@ -303,13 +297,13 @@ static int send_file(void *arg) {
 
   char host[NI_MAXHOST] = {0};
   char serv[NI_MAXSERV] = {0};
-  get_host_and_serv(args->remote->control_fd, host, sizeof host, serv, sizeof serv);
+  get_ip_and_port(args->remote->control_fd, host, sizeof host, serv, sizeof serv);
 
   if (args->remote->data_fd == -1) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [send_file] [%s:%s] data connection for closed",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv);
     send_reply((struct reply){.code = DATA_CONN_CLOSE, .length = 0}, args->remote->control_fd, 0);
@@ -321,7 +315,7 @@ static int send_file(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [send_file] [%s:%s] bad request. no file name specified",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv);
     send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
@@ -336,7 +330,7 @@ static int send_file(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [send_file] [%s:%s] bad request. file name [%s] not allowed",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv,
                file_name);
@@ -353,7 +347,7 @@ static int send_file(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [send_file] [%s:%s] bad request. file name [%s] too long",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv,
                file_name);
@@ -366,7 +360,7 @@ static int send_file(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [send_file] [%s:%s] got RETR request, but file [%s] doesn't exists",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv,
                path);
@@ -393,7 +387,7 @@ static int send_file(void *arg) {
     logger_log(args_wrapper->logger,
                INFO,
                "[thread:%lu] [send_file] [%s:%s] RERT requst completed successfuly. the file [%s] has been transmitted",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv,
                path);
@@ -402,7 +396,7 @@ static int send_file(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [send_file] [%s:%s] RERT requst failed, an error occur while reading from file [%s]",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv,
                path);
@@ -414,10 +408,7 @@ static int send_file(void *arg) {
 
 /* get a file from a client. handles STOR requests */
 static int get_file(void *arg) {
-  struct thrd_args *thrd_args = arg;
-  if (!thrd_args) return 1;
-
-  struct args_wrapper *args_wrapper = thrd_args->args;
+  struct args_wrapper *args_wrapper = arg;
   if (!args_wrapper) return 1;
   if (args_wrapper->type != REGULAR) return 1;
 
@@ -426,13 +417,13 @@ static int get_file(void *arg) {
 
   char host[NI_MAXHOST] = {0};
   char serv[NI_MAXSERV] = {0};
-  get_host_and_serv(args->remote->control_fd, host, sizeof host, serv, sizeof serv);
+  get_ip_and_port(args->remote->control_fd, host, sizeof host, serv, sizeof serv);
 
   if (args->remote->data_fd == -1) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [get_file] [%s:%s] data connection closed",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv);
     send_reply((struct reply){.code = DATA_CONN_CLOSE, .length = 0}, args->remote->control_fd, 0);
@@ -444,7 +435,7 @@ static int get_file(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [get_file] [%s:%s] bad request. no file name specified",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv);
     send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
@@ -459,7 +450,7 @@ static int get_file(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [get_file] [%s:%s] bad request. file name [%s] not allowed",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv,
                file_name);
@@ -472,7 +463,7 @@ static int get_file(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [get_file] [%s:%s] bad request. file name [%s] too long",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv,
                file_name);
@@ -499,7 +490,7 @@ static int get_file(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [get_file] [%s:%s] got STOR request, but file [%s] failed to open",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv,
                path);
@@ -522,7 +513,7 @@ static int get_file(void *arg) {
       logger_log(args_wrapper->logger,
                  ERROR,
                  "[thread:%lu] [get_file] [%s:%s] got STOR request, but file [%s] exeeds [%d]mb",
-                 *thrd_args->thrd_id,
+                 thrd_current(),
                  host,
                  serv,
                  path,
@@ -557,7 +548,7 @@ static int get_file(void *arg) {
     logger_log(args_wrapper->logger,
                INFO,
                "[thread:%lu] [get_file] [%s:%s] STOR requst completed successfuly. the file [%s] has been stored",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv,
                file_name);
@@ -566,7 +557,7 @@ static int get_file(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [send_file] [%s:%s] STOR request failed. an error occur while writing to file [%s]",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv,
                path);
@@ -578,10 +569,7 @@ static int get_file(void *arg) {
 
 /* deletes the file who's name specified in the request. handles DELE requests */
 static int delete_file(void *arg) {
-  struct thrd_args *thrd_args = arg;
-  if (!thrd_args) return 1;
-
-  struct args_wrapper *args_wrapper = thrd_args->args;
+  struct args_wrapper *args_wrapper = arg;
   if (!args_wrapper) return 1;
   if (args_wrapper->type != REGULAR) return 1;
 
@@ -590,14 +578,14 @@ static int delete_file(void *arg) {
 
   char host[NI_MAXHOST] = {0};
   char serv[NI_MAXSERV] = {0};
-  get_host_and_serv(args->remote->control_fd, host, sizeof host, serv, sizeof serv);
+  get_ip_and_port(args->remote->control_fd, host, sizeof host, serv, sizeof serv);
 
   // no file name specified
   if (args->request.length < CMD_LEN + 1) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [delete_file] [%s:%s] bad request. no file name specified",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv);
     send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
@@ -612,7 +600,7 @@ static int delete_file(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [delete_file] [%s:%s] bad request. file name [%s] not allowed",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv,
                file_name);
@@ -629,7 +617,7 @@ static int delete_file(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [delete_file] [%s:%s] bad request. file name [%s] too long",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv,
                file_name);
@@ -644,7 +632,7 @@ static int delete_file(void *arg) {
     logger_log(args_wrapper->logger,
                INFO,
                "[thread:%lu] [delete_file] [%s:%s] DELE requst completed successfuly. the file [%s] has been removed",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv,
                path);
@@ -654,7 +642,7 @@ static int delete_file(void *arg) {
       args_wrapper->logger,
       ERROR,
       "[thread:%lu] [delete_file] [%s:%s] DELE requst failed, an error occur while trying to delete the file [%s]",
-      *thrd_args->thrd_id,
+      thrd_current(),
       host,
       serv,
       path);
@@ -666,10 +654,7 @@ static int delete_file(void *arg) {
 
 /* lists all files in a directory. handles LIST requests */
 static int list_files(void *arg) {
-  struct thrd_args *thrd_args = arg;
-  if (!thrd_args) return 1;
-
-  struct args_wrapper *args_wrapper = thrd_args->args;
+  struct args_wrapper *args_wrapper = arg;
   if (!args_wrapper) return 1;
   if (args_wrapper->type != REGULAR) return 1;
 
@@ -678,14 +663,14 @@ static int list_files(void *arg) {
 
   char host[NI_MAXHOST] = {0};
   char serv[NI_MAXSERV] = {0};
-  get_host_and_serv(args->remote->control_fd, host, sizeof host, serv, sizeof serv);
+  get_ip_and_port(args->remote->control_fd, host, sizeof host, serv, sizeof serv);
 
   // no file name specified
   if (args->request.length < CMD_LEN + 1) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [list_files] [%s:%s] bad request. no file name specified",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv);
     send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
@@ -700,7 +685,7 @@ static int list_files(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [list_files] [%s:%s] bad request. file name [%s] not allowed",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv,
                file_name);
@@ -717,7 +702,7 @@ static int list_files(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [list_files] [%s:%s] bad request. file name [%s] too long",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv,
                file_name);
@@ -734,7 +719,7 @@ static int list_files(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [list_files] [%s:%s] bad request. file name [%s] isn't a directory",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv,
                path);
@@ -761,7 +746,7 @@ static int list_files(void *arg) {
   logger_log(args_wrapper->logger,
              INFO,
              "[thread:%lu] [list_files] [%s:%s] LIST requst completed successfuly",
-             *thrd_args->thrd_id,
+             thrd_current(),
              host,
              serv,
              path);
@@ -772,10 +757,7 @@ static int list_files(void *arg) {
 
 /* opens a connection between the server's data port to a client's specified ip:port */
 static int set_active_port(void *arg) {
-  struct thrd_args *thrd_args = arg;
-  if (!thrd_args) return 1;
-
-  struct args_wrapper *args_wrapper = thrd_args->args;
+  struct args_wrapper *args_wrapper = arg;
   if (!args_wrapper) return 1;
   if (args_wrapper->type != SET_PORT) return 1;
 
@@ -784,14 +766,14 @@ static int set_active_port(void *arg) {
 
   char host[NI_MAXHOST] = {0};
   char serv[NI_MAXSERV] = {0};
-  get_host_and_serv(args->remote_fd, host, sizeof host, serv, sizeof serv);
+  get_ip_and_port(args->remote_fd, host, sizeof host, serv, sizeof serv);
 
   // no host:serv specified
   if (args->request.length < CMD_LEN + 1) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [set_port] [%s:%s] bad request. no host:serv specified",
-               *thrd_args->thrd_id,
+               thrd_current(),
                host,
                serv);
     send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote_fd, 0);
@@ -821,7 +803,7 @@ static int set_active_port(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [set_active_port] failed to conncet to %s:%s",
-               *thrd_args->thrd_id,
+               thrd_current(),
                ip,
                port);
     return 1;
@@ -832,7 +814,7 @@ static int set_active_port(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [set_active_port] tried to update the session [%d] but session doesn't exists",
-               *thrd_args->thrd_id,
+               thrd_current(),
                args->remote_fd);
     return 1;
   }
@@ -881,10 +863,7 @@ static int (*get_handler(struct request request))(void *arg) {
 /* parses a request. initialize all args assosiated with said to request for the handler. creates and add the
  * appropriate task for the thread_pool to handle */
 int handle_request(void *arg) {
-  struct thrd_args *thrd_args = arg;
-  if (!thrd_args) return 1;
-
-  struct args_wrapper *args_wrapper = thrd_args->args;
+  struct args_wrapper *args_wrapper = arg;
   if (!args_wrapper) return 1;
   if (args_wrapper->type != HANDLE_REQUEST) return 1;
 
@@ -897,7 +876,7 @@ int handle_request(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [handle_requst] bad request [size:%hu]",
-               *thrd_args->thrd_id,
+               thrd_current(),
                request.length);
     send_reply((struct reply){.code = CMD_GENRAL_ERR, .length = 0}, args->remote_fd, 0);
     return 1;
@@ -909,7 +888,7 @@ int handle_request(void *arg) {
     logger_log(args_wrapper->logger,
                ERROR,
                "[thread:%lu] [handle_requst] failed to get the handler of command [%s]",
-               *thrd_args->thrd_id,
+               thrd_current(),
                (const char *)request.request);
     send_reply((struct reply){.code = CMD_GENRAL_ERR, .length = 0}, args->remote_fd, 0);
     return 1;
@@ -918,7 +897,7 @@ int handle_request(void *arg) {
   // creates & initializes the args the handler will need in order to resolve the request
   struct args_wrapper *task_args_wrapper = malloc(sizeof *task_args_wrapper);
   if (!args_wrapper) {
-    logger_log(args_wrapper->logger, ERROR, "[thread:%lu] [handle_requst] allocation failure", *thrd_args->thrd_id);
+    logger_log(args_wrapper->logger, ERROR, "[thread:%lu] [handle_requst] allocation failure", thrd_current());
     send_reply((struct reply){.code = LCL_PROCESS_ERR, .length = 0}, args->remote_fd, 0);
     return 1;
   }
@@ -928,7 +907,7 @@ int handle_request(void *arg) {
     // alocate port_args and init it
     struct port_args *port_args = malloc(sizeof *port_args);
     if (!port_args) {
-      logger_log(args_wrapper->logger, ERROR, "[thread:%lu] [handle_requst] allocation failure", *thrd_args->thrd_id);
+      logger_log(args_wrapper->logger, ERROR, "[thread:%lu] [handle_requst] allocation failure", thrd_current());
       send_reply((struct reply){.code = LCL_PROCESS_ERR, .length = 0}, args->remote_fd, 0);
       return 1;
     }
@@ -943,7 +922,7 @@ int handle_request(void *arg) {
   } else {  // regular tasks (file tasks)
     struct regular_args *regular_args = malloc(sizeof *regular_args);
     if (!regular_args) {
-      logger_log(args_wrapper->logger, ERROR, "[thread:%lu] [handle_requst] allocation failure", *thrd_args->thrd_id);
+      logger_log(args_wrapper->logger, ERROR, "[thread:%lu] [handle_requst] allocation failure", thrd_current());
       send_reply((struct reply){.code = LCL_PROCESS_ERR, .length = 0}, args->remote_fd, 0);
       return 1;
     }
@@ -955,7 +934,7 @@ int handle_request(void *arg) {
   }
   task_args_wrapper->logger = args_wrapper->logger;
 
-  thrd_pool_add_task(args->thread_pool, &(struct task){.args = task_args_wrapper, .handle_task = handler});
+  thread_pool_add_task(args->thread_pool, &(struct task){.args = task_args_wrapper, .handle_task = handler});
 
   return 0;
 }
@@ -963,7 +942,7 @@ int handle_request(void *arg) {
 void add_request_task(struct session *local,
                       int remote_fd,
                       struct vector_s *sessions,
-                      struct thrd_pool *thread_pool,
+                      struct thread_pool *thread_pool,
                       struct logger *logger) {
   if (!thread_pool || !logger) return;
 
@@ -989,5 +968,5 @@ void add_request_task(struct session *local,
   task_args_wrapper->args = request_args;
   task_args_wrapper->logger = logger;
 
-  thrd_pool_add_task(thread_pool, &(struct task){.args = task_args_wrapper, .handle_task = handle_request});
+  thread_pool_add_task(thread_pool, &(struct task){.args = task_args_wrapper, .handle_task = handle_request});
 }
