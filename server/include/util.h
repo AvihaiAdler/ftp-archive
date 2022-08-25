@@ -74,5 +74,5 @@ int handle_request(void *arg);
 
 void destroy_task(void *task);
 
-/* gets the host and service associated with a sockfd */
-void get_host_and_serv(int sockfd, char *host, size_t host_len, char *serv, size_t serv_len);
+/* gets the ip and port associated with a sockfd */
+void get_ip_and_port(int sockfd, char *host, size_t host_len, char *serv, size_t serv_len);

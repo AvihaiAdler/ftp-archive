@@ -253,7 +253,7 @@ char *tolower_str(char *str, size_t len) {
   return str;
 }
 
-void get_host_and_serv(int sockfd, char *host, size_t host_len, char *serv, size_t serv_len) {
+void get_ip_and_port(int sockfd, char *host, size_t host_len, char *serv, size_t serv_len) {
   struct sockaddr_storage addr;
   socklen_t addrlen = sizeof addr;
 
