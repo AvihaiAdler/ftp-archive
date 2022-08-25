@@ -1,8 +1,10 @@
+/* all send_* related function calls in this file - assumes never fail */
 #define _POSIX_C_SOURCE 200112L
 #define _GNU_SOURCE
 #include "include/util.h"
 #include <arpa/inet.h>
 #include <ctype.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <netdb.h>
 #include <poll.h>
@@ -512,7 +514,7 @@ static int get_file(void *arg) {
       success = false;
       continue;
     }
-  } while (data.data[data.length - 1] != EOF);
+  } while ((int8_t)data.data[data.length - 1] != EOF);
 
   fclose(fp);
 
@@ -639,7 +641,107 @@ static int delete_file(void *arg) {
 }
 
 static int list_files(void *arg) {
-  (void)arg;
+  struct thrd_args *thrd_args = arg;
+  if (!thrd_args) return 1;
+
+  struct args_wrapper *args_wrapper = thrd_args->args;
+  if (!args_wrapper) return 1;
+  if (args_wrapper->type != REGULAR) return 1;
+
+  struct regular_args *args = args_wrapper->args;
+  if (!args) return 1;
+
+  char host[NI_MAXHOST] = {0};
+  char serv[NI_MAXSERV] = {0};
+  get_host_and_serv(args->remote->control_fd, host, sizeof host, serv, sizeof serv);
+
+  // no file name specified
+  if (args->request.length < CMD_LEN + 1) {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [list_files] [%s:%s] bad request. no file name specified",
+               *thrd_args->thrd_id,
+               host,
+               serv);
+    send_reply((struct reply){.code = FILE_ACTION_INCOMPLETE, .length = 0}, args->remote->control_fd, 0);
+    return 1;
+  }
+
+  // +5 -> 4 chars of the command + a space. we can guarantee it since otherwise the task wouldn't be added
+  const char *file_name = (const char *)args->request.request + CMD_LEN;
+
+  // file name contains a ../
+  if (strstr(file_name, "../")) {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [list_files] [%s:%s] bad request. file name [%s] not allowed",
+               *thrd_args->thrd_id,
+               host,
+               serv,
+               file_name);
+    send_reply((struct reply){.code = FILE_NAME_NOT_ALLOWED, .length = 0}, args->remote->control_fd, 0);
+    return 1;
+  }
+
+  // get the file path
+  char path[HOME_LEN + FILE_NAME_LEN + 1] = {0};
+  size_t path_len = get_path(path, sizeof path, file_name, strlen(file_name));
+
+  // file name too long
+  if (!path_len) {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [list_files] [%s:%s] bad request. file name [%s] too long",
+               *thrd_args->thrd_id,
+               host,
+               serv,
+               file_name);
+    send_reply((struct reply){.code = FILE_NAME_NOT_ALLOWED, .length = 0}, args->remote->control_fd, 0);
+    return 1;
+  }
+
+  // open the directory, read and send() its content. sends EOF when its done. since the threads won't be sharing the
+  // same DIR *, it is thread safe
+  DIR *dir = opendir(path);
+
+  // path doesn't point to a directory
+  if (!dir) {
+    logger_log(args_wrapper->logger,
+               ERROR,
+               "[thread:%lu] [list_files] [%s:%s] bad request. file name [%s] isn't a directory",
+               *thrd_args->thrd_id,
+               host,
+               serv,
+               path);
+    send_reply((struct reply){.code = CMD_ARGS_ERR, .length = 0}, args->remote->control_fd, 0);
+    return 1;
+  }
+
+  struct data_block data = {0};
+  for (struct dirent *dirnet = readdir(dir); dirnet; dirnet = readdir(dir)) {
+    // dirnet::d_name is of size 256 as per https://man7.org/linux/man-pages/man3/readdir.3.html
+    strcpy((char *)data.data, dirnet->d_name);
+    data.length = (uint16_t)strlen(dirnet->d_name);
+    send_data(data, args->remote->data_fd, 0);
+  }
+
+  // send EOF when done
+  data.length = 2;
+  sprintf((char *)data.data, "%c%c", EOF, 0);
+  send_data(data, args->remote->data_fd, 0);
+
+  closedir(dir);
+
+  send_reply((struct reply){.code = CMD_OK, .length = 0}, args->remote->control_fd, 0);
+  logger_log(args_wrapper->logger,
+             INFO,
+             "[thread:%lu] [list_files] [%s:%s] LIST requst completed successfuly",
+             *thrd_args->thrd_id,
+             host,
+             serv,
+             path);
+  send_reply((struct reply){.code = FILE_ACTION_COMPLETE, .length = 0}, args->remote->control_fd, 0);
+
   return 0;
 }
 
