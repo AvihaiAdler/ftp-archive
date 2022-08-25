@@ -13,6 +13,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include "hash_table.h"
+#include "include/handlers.h"
 #include "include/session.h"
 #include "include/util.h"
 #include "logger.h"
@@ -155,10 +156,12 @@ int main(int argc, char *argv[]) {
 
           add_fd(pollfds, logger, remote_fd, POLLIN | POLLHUP);
           // TODO: conncet() local::data_fd to host:port
-          add_session(sessions, logger, &(struct session){.control_fd = remote_fd, .data_fd = -1, .is_passive = false});
+          add_session(sessions,
+                      logger,
+                      &(struct session){.control_fd = remote_fd, .data_fd = -1, .data_sock_type = ACTIVE});
         } else {  // any other socket
           // create a handle_request task
-          add_request_task(&local_fds, current->fd, sessions, thread_pool, logger);
+          add_request_task(current->fd, &local_fds, sessions, thread_pool, logger);
         }
       } else if (current->events & POLLHUP) {  // this fp has been closed
         get_ip_and_port(current->fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
