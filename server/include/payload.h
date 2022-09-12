@@ -16,12 +16,17 @@ enum reply_codes {
   CLOSING_DATA_CONN_SUCCESSFUL_TRASFER = 226,
   PASV = 227,
   DATA_CONN_CANNOT_OPEN = 425,
-  LCL_PROCESS_ERR = 451,
+  INTERNAL_PROCESSING_ERR = 451,
   CONN_CLOSED = 426,
   CMD_SYNTAX_ERR = 500,
   CMD_ARGS_SYNTAX_ERR = 501,
+  BAD_CMD_SEQUENCE = 503,
   FILE_ACTION_INCOMPLETE = 550,
   FILE_NAME_NOT_ALLOWED = 553
+};
+
+enum descriptor_codes {
+  DESCPTR_EOF = 0x40,  // 64. specify EOF for the last block of a file
 };
 
 struct reply {
@@ -36,15 +41,19 @@ struct request {
 };
 
 struct data_block {
+  uint8_t descriptor;
   uint16_t length;
   uint8_t data[DATA_BLOCK_MAX_LEN];
 };
 
-ssize_t send_reply(struct reply reply, int sockfd, int flags);
+/* sends a reply. returns 0 on success */
+ssize_t send_reply(struct reply *reply, int sockfd, int flags);
 
-/* returns a request strct. request::request is a null terminated string */
-struct request recieve_request(int sockfd, int flags);
+/* recieve a request. returns 0 on success. request::request is a null terminated string */
+ssize_t recieve_request(struct request *request, int sockfd, int flags);
 
-ssize_t send_data(struct data_block data, int sockfd, int flags);
+/* sends a data block 'as is'. returns 0 on success */
+ssize_t send_data(struct data_block *data, int sockfd, int flags);
 
-struct data_block receive_data(int sockfd, int flags);
+/* recieves a data block. returns 0 on success. data_block::data is not a null terminated string */
+ssize_t receive_data(struct data_block *data, int sockfd, int flags);
