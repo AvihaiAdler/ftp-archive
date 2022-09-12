@@ -228,10 +228,28 @@ void *vector_s_remove_at(struct vector_s *vector, unsigned long long pos) {
   return old;
 }
 
-void *vector_s_replace(struct vector_s *vector, const void *element, unsigned long long pos) {
+void *vector_s_remove(struct vector_s *vector, void *element) {
   mtx_lock(&vector->lock);
-  void *tmp = vector_at(vector, pos);
-  if (!tmp) {
+  long long pos = vector_s_index_of(vector, element);
+  if (pos == N_EXISTS) {
+    mtx_unlock(&vector->lock);
+    return NULL;
+  }
+
+  unsigned char *old = vector_s_remove_at(vector, pos);
+  if (!old) {
+    mtx_unlock(&vector->lock);
+    return NULL;
+  }
+
+  mtx_unlock(&vector->lock);
+  return old;
+}
+
+void *vector_s_replace(struct vector_s *vector, const void *old_elem, const void *new_elem) {
+  mtx_lock(&vector->lock);
+  long long pos = vector_s_index_of(vector, old_elem);
+  if (pos == N_EXISTS) {
     mtx_unlock(&vector->lock);
     return NULL;
   }
@@ -242,9 +260,9 @@ void *vector_s_replace(struct vector_s *vector, const void *element, unsigned lo
     return NULL;
   }
 
-  memcpy(old, tmp, vector->data_size);
+  memcpy(old, vector_at(vector, pos), vector->data_size);
 
-  memcpy(&vector->data[pos * vector->data_size], element, vector->data_size);
+  memcpy(&vector->data[pos * vector->data_size], new_elem, vector->data_size);
   mtx_unlock(&vector->lock);
   return old;
 }

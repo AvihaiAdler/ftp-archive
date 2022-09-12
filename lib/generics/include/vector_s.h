@@ -71,10 +71,14 @@ void *vector_s_pop(struct vector_s *vector);
  * be free'd). NULL on failure */
 void *vector_s_remove_at(struct vector_s *vector, unsigned long long pos);
 
+/* finds and remove the element element. returns a copy of the removed element (which has to
+ * be free'd). NULL on failure */
+void *vector_s_remove(struct vector_s *vector, void *element);
+
 /* replaces an element on the vector at position pos. returns a copy of the
  * replaced element on success as heap allocated element (has to be free'd), or
  * NULL on failure */
-void *vector_s_replace(struct vector_s *vector, const void *element, unsigned long long pos);
+void *vector_s_replace(struct vector_s *vector, const void *old_elem, const void *new_elem);
 
 /* shrinks the underlying array to fit exactly vector::size elements. returns the
  * new capacity */
