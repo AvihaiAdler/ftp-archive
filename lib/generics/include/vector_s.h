@@ -42,7 +42,7 @@ unsigned long long vector_s_capacity(struct vector_s *vector);
 /* returns whether vector is emtpy or not. if vector is NULL - returns true */
 bool vector_s_empty(struct vector_s *vector);
 
-/* search for an element linearly [O(n)] and returns it. returns
+/* searches for an element linearly [O(n)] and returns it. returns
  * NULL on failure */
 void *vector_s_find(struct vector_s *vector, const void *element);
 
