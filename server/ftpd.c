@@ -22,14 +22,16 @@
 #include "vector.h"
 #include "vector_s.h"
 
-#define LOG_FILE "log.file"
-#define NUM_OF_THREADS "threads.number"
+#define LOG_FILE "log_file"
+#define NUM_OF_THREADS "threads_number"
 #define DEFAULT_NUM_OF_THREADS 20
-#define CONTROL_PORT "port.control"
-#define DATA_PORT "port.data"
-#define CONN_Q_SIZE "connection.queue.size"
+#define CONTROL_PORT "control_port"
+#define DATA_PORT "data_port"
+#define CONN_Q_SIZE "connection_queue_size"
+#define ROOT_DIR "root_directory"
+#define DEFAULT_ROOT_DIR "/home/ftpd"
 
-bool terminate = false;
+static bool terminate = false;
 
 void signal_handler(int signum) {
   (void)signum;
@@ -42,10 +44,8 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // create signal handler
-  struct sigaction act = {0};
-  act.sa_handler = signal_handler;
-  if (sigaction(SIGINT, &act, NULL) == -1) {
+  // create a signal handler
+  if (!create_sig_handler(SIGINT, signal_handler)) {
     fprintf(stderr, "[main] failed to create a signal handler\n");
     return 1;
   }
@@ -65,10 +65,28 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  // get the number of threads
+  uint8_t num_of_threads = DEFAULT_NUM_OF_THREADS;
+  char *num_of_threads_str = table_get(properties, NUM_OF_THREADS, strlen(NUM_OF_THREADS));
+  if (num_of_threads_str) {
+    char *endptr;
+    long tmp = strtol(num_of_threads_str, &endptr, 10);
+    if (endptr == num_of_threads_str) {
+      logger_log(logger, ERROR, "[main] invalid [%s]: [%s]", NUM_OF_THREADS, num_of_threads_str);
+      cleanup(properties, logger, NULL, NULL, NULL);
+      return 1;
+    }
+
+    if (tmp > UINT8_MAX) {
+      logger_log(logger, ERROR, "[main] invalid [%s]: [%s]", NUM_OF_THREADS, num_of_threads_str);
+      cleanup(properties, logger, NULL, NULL, NULL);
+      return 1;
+    }
+    num_of_threads = (uint8_t)tmp;
+  }
+
   // create threads
-  uint8_t *num_of_threads = table_get(properties, NUM_OF_THREADS, strlen(NUM_OF_THREADS));
-  struct thread_pool *thread_pool =
-    thread_pool_init(num_of_threads ? *num_of_threads : DEFAULT_NUM_OF_THREADS, destroy_task);
+  struct thread_pool *thread_pool = thread_pool_init(num_of_threads, destroy_task);
   if (!thread_pool) {
     logger_log(logger, ERROR, "[main] failed to init thread pool");
     cleanup(properties, logger, NULL, NULL, NULL);
@@ -87,27 +105,16 @@ int main(int argc, char *argv[]) {
   }
 
   // create a control socket
-  int control_sockfd =
-    get_socket(logger, NULL, table_get(properties, CONTROL_PORT, strlen(CONTROL_PORT)), (int)q_size, AI_PASSIVE);
-  if (control_sockfd == -1) {
+  int server_listening_sockfd =
+    get_server_socket(logger, NULL, table_get(properties, CONTROL_PORT, strlen(CONTROL_PORT)), (int)q_size, AI_PASSIVE);
+  if (server_listening_sockfd == -1) {
     logger_log(logger, ERROR, "[main] failed to retrieve a control socket");
     cleanup(properties, logger, thread_pool, NULL, NULL);
     return 1;
   }
 
-  // create a data socket
-  int data_sockfd = get_socket(logger, NULL, table_get(properties, DATA_PORT, strlen(DATA_PORT)), (int)q_size, 0);
-  if (control_sockfd == -1) {
-    logger_log(logger, ERROR, "[main] failed to retrieve a data socket");
-    cleanup(properties, logger, thread_pool, NULL, NULL);
-    return 1;
-  }
-
-  // server socket fds
-  struct session local_fds = {.control_fd = control_sockfd, .data_fd = data_sockfd};
-
   // create a vector of sessions
-  struct vector_s *sessions = vector_s_init(sizeof(struct session), cmpr_sessions, NULL);
+  struct vector_s *sessions = vector_s_init(sizeof(struct session), cmpr_sessions, NULL);  // change the free func
   if (!sessions) {
     logger_log(logger, ERROR, "[main] failed to init session vector");
     cleanup(properties, logger, thread_pool, NULL, NULL);
@@ -123,18 +130,32 @@ int main(int argc, char *argv[]) {
   }
 
   // add the main server control sockfd to the list of open fds
-  add_fd(pollfds, logger, control_sockfd, POLLIN);
+  add_fd(pollfds, logger, server_listening_sockfd, POLLIN);
+
+  // get the root directory. all server files will be uploded there / to a sub dir with it
+  const char *root_dir = table_get(properties, ROOT_DIR, strlen(ROOT_DIR));
+  if (!root_dir) {
+    logger_log(logger, ERROR, "[main] unsupplied root_directory. using the defualt [%s]", DEFAULT_ROOT_DIR);
+    root_dir = DEFAULT_ROOT_DIR;
+  }
+
+  sigset_t ppoll_sigset;
+  if (sigemptyset(&ppoll_sigset) != 0) {
+    logger_log(logger, ERROR, "[main] falied to init sigset_t for ppoll");
+    cleanup(properties, logger, thread_pool, sessions, pollfds);
+    return 1;
+  }
 
   // main server loop
   while (!terminate) {
-    int events_count = poll((struct pollfd *)pollfds->data, vector_size(pollfds), -1);
+    int events_count = ppoll((struct pollfd *)pollfds->data, vector_size(pollfds), NULL, &ppoll_sigset);
     if (events_count == -1) {
       logger_log(logger, ERROR, "[main] poll error");
       break;
     }
 
     // search for an event
-    for (unsigned long long i = 0; events_count > 0 && i < vector_size(pollfds); i++) {
+    for (unsigned long long i = 0; events_count > 0 && i < vector_size(pollfds); i++, events_count--) {
       struct pollfd *current = vector_at(pollfds, i);
       if (!current->revents) continue;
 
@@ -144,39 +165,48 @@ int main(int argc, char *argv[]) {
       char remote_host[NI_MAXHOST] = {0};
       char remote_port[NI_MAXSERV] = {0};
 
-      if (current->revents & POLLIN) {              // this fp is ready to poll data from
-        if (current->fd == local_fds.control_fd) {  // the main socket
+      if (current->revents & POLLIN) {                 // this fp is ready to poll data from
+        if (current->fd == server_listening_sockfd) {  // the main socket
           int remote_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
-          if (remote_fd == -1) continue;
-
-          // if (fcntl(remote_fd, F_SETFL, O_NONBLOCK) == -1) continue;
+          if (remote_fd == -1) {
+            // events_count--;  // ?
+            logger_log(logger, ERROR, "[main] accept() failue");
+            continue;
+          }
 
           get_ip_and_port(remote_fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
           logger_log(logger, INFO, "[main] recieved a connection from [%s:%s]", remote_host, remote_port);
 
-          add_fd(pollfds, logger, remote_fd, POLLIN | POLLHUP);
-          // TODO: conncet() local::data_fd to host:port
-          add_session(sessions,
-                      logger,
-                      &(struct session){.control_fd = remote_fd, .data_fd = -1, .data_sock_type = ACTIVE});
+          add_fd(pollfds, logger, remote_fd, POLLIN);
+
+          struct session session = {0};
+
+          if (!construct_session(&session, remote_fd, root_dir, strlen(root_dir))) {
+            logger_log(logger, ERROR, "[main] falied to construct a session for [%s:%s]", remote_host, remote_port);
+            continue;
+          }
+
+          add_session(sessions, logger, &session);
+
+          struct args args = {.logger = logger, .remote_fd = remote_fd, .session = session, .sessions = sessions};
+          thread_pool_add_task(thread_pool, &(struct task){.args = &args, .handle_task = greet});
         } else {  // any other socket
-          // create a handle_request task
-          add_request_task(current->fd, &local_fds, sessions, thread_pool, logger);
+          // could be either a control socket or a session::context::passive_sockfd socket
+          // if its a control socket: get a request
+          // otherwise: accept, update the session::data_fd
         }
       } else if (current->events & POLLHUP) {  // this fp has been closed
         get_ip_and_port(current->fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
         logger_log(logger, INFO, "[main] the a connection from [%s:%s] was closed", remote_host, remote_port);
 
-        remove_fd(pollfds, logger, current->fd);
-        close_session(sessions, logger, current->fd);
+        remove_fd(pollfds, current->fd);
+        close_session(sessions, current->fd);
         // vector_find()
       } else if (current->events & (POLLERR | POLLNVAL)) {  // (POLLERR / POLLNVAL)
         logger_log(logger, INFO, "[main] the a connection from [%s:%s] was closed", remote_host, remote_port);
-        remove_fd(pollfds, logger, current->fd);
-        close_session(sessions, logger, current->fd);
+        remove_fd(pollfds, current->fd);
+        close_session(sessions, current->fd);
       }
-
-      events_count--;
     }  // events loop
   }    // main server loop
 
