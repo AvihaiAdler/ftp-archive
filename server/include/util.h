@@ -7,6 +7,7 @@
 #include "include/payload.h"
 #include "include/session.h"
 #include "logger.h"
+#include "session.h"
 #include "thread_pool.h"
 #include "vector.h"
 #include "vector_s.h"
@@ -26,6 +27,9 @@ int get_client_socket(struct logger *logger, const char *host, const char *serv,
 
 /* adds a sockfd to the vector of sockfd used by poll() */
 void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events);
+
+/* constructs a session object. returns true on success, false otherwise */
+bool construct_session(struct session *session, int remote_fd, const char *path, size_t path_len);
 
 /* adds a pair of control_sockfd, data_sockfd to the vector of these pairs used by the threads */
 void add_session(struct vector_s *sessions, struct logger *logger, struct session *session);

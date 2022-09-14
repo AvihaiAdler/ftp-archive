@@ -163,6 +163,24 @@ void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events) {
   vector_push(pollfds, &(struct pollfd){.fd = fd, .events = events});
 }
 
+bool construct_session(struct session *session, int remote_fd, const char *path, size_t path_len) {
+  if (!session || !path) return false;
+
+  session->control_fd = remote_fd;
+  session->data_fd = -1;
+  session->data_sock_type = ACTIVE;
+
+  session->context = (struct context){0};
+  session->context.passive_sockfd = -1;
+
+  session->context.curr_dir = calloc(path_len + 1, 1);
+  if (!session->context.curr_dir) return false;
+
+  memcpy(session->context.curr_dir, path, path_len);
+
+  return true;
+}
+
 void add_session(struct vector_s *sessions, struct logger *logger, struct session *session) {
   if (!sessions) return;
 
@@ -186,7 +204,9 @@ int cmpr_sessions(const void *a, const void *b) {
   const struct session *s_a = a;
   const struct session *s_b = b;
 
-  if (s_a->control_fd == s_b->control_fd || s_a->data_fd == s_b->data_fd) return 0;
+  /* searches for the session by either fds. ignores a::data_fd alltogether. i.e. looks for a session whos either
+   * b::control_fd OR b::data_fd equal to a::control_fd*/
+  if (s_a->control_fd == s_b->control_fd || s_a->control_fd == s_b->context.passive_sockfd) return 0;
   if (s_a->control_fd > s_b->control_fd) return 1;
   return -1;
 }
