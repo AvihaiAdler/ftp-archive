@@ -50,3 +50,6 @@ void get_ip_and_port(int sockfd, char *ip, size_t ip_size, char *port, size_t po
 
 /* get the (first listed) local ip of the machine */
 bool get_local_ip(char *ip, size_t ip_size, int inet);
+
+/* establish a signal handler */
+bool create_sig_handler(int signal, void (*handler)(int signal));

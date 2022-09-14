@@ -6,6 +6,7 @@
 #include <ifaddrs.h>
 #include <netdb.h>
 #include <poll.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -276,5 +277,23 @@ bool get_local_ip(char *ip, size_t ip_size, int inet) {
   }
 
   if (ifaddrs) freeifaddrs(ifaddrs);
+  return true;
+}
+
+bool create_sig_handler(int signal, void (*handler)(int signal)) {
+  // block 'signal' utill the handler is established. all susequent calls to sig* assumes success
+  sigset_t sigset;
+  sigemptyset(&sigset);
+  sigaddset(&sigset, signal);
+  sigprocmask(SIG_BLOCK, &sigset, NULL);
+
+  // create signal handler
+  struct sigaction act = {0};
+  act.sa_handler = handler;
+  sigemptyset(&act.sa_mask);
+  if (sigaction(signal, &act, NULL) == -1) return false;
+
+  sigprocmask(SIG_UNBLOCK, &sigset, NULL);  // unblock 'signal'
+
   return true;
 }
