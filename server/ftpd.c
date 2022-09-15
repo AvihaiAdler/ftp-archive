@@ -62,6 +62,13 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  // create a signal handler (must be invoked prior to the creation of the thread pool due to the sigprocmask() call)
+  if (!create_sig_handler(SIGINT, signal_handler)) {
+    logger_log(logger, ERROR, "[main] failed to create a signal handler");
+    cleanup(properties, logger, NULL, NULL, NULL);
+    return 1;
+  }
+
   // get the number of threads
   uint8_t num_of_threads = DEFAULT_NUM_OF_THREADS;
   char *num_of_threads_str = table_get(properties, NUM_OF_THREADS, strlen(NUM_OF_THREADS));
@@ -136,13 +143,6 @@ int main(int argc, char *argv[]) {
     root_dir = DEFAULT_ROOT_DIR;
   }
 
-  // create a signal handler
-  if (!create_sig_handler(SIGINT, signal_handler)) {
-    logger_log(logger, ERROR, "[main] failed to create a signal handler");
-    cleanup(properties, logger, thread_pool, sessions, pollfds);
-    return 1;
-  }
-
   sigset_t ppoll_sigset;
   if (sigemptyset(&ppoll_sigset) != 0) {
     logger_log(logger, ERROR, "[main] falied to init sigset_t for ppoll");
@@ -205,7 +205,6 @@ int main(int argc, char *argv[]) {
 
         remove_fd(pollfds, current->fd);
         close_session(sessions, current->fd);
-        // vector_find()
       } else if (current->events & (POLLERR | POLLNVAL)) {  // (POLLERR / POLLNVAL)
         logger_log(logger, INFO, "[main] the a connection from [%s:%s] was closed", remote_host, remote_port);
         remove_fd(pollfds, current->fd);
