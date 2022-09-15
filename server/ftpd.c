@@ -1,10 +1,11 @@
 #define _POSIX_C_SOURCE 200112L
 #define _GNU_SOURCE
-#include <fcntl.h>
+// #include <fcntl.h>
 #include <limits.h>
 #include <netdb.h>
 #include <poll.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -31,11 +32,11 @@
 #define ROOT_DIR "root_directory"
 #define DEFAULT_ROOT_DIR "/home/ftpd"
 
-static bool terminate = false;
+static atomic_bool terminate;
 
 void signal_handler(int signum) {
   (void)signum;
-  terminate = true;
+  atomic_store(&terminate, true);
 }
 
 int main(int argc, char *argv[]) {
@@ -44,11 +45,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // create a signal handler
-  if (!create_sig_handler(SIGINT, signal_handler)) {
-    fprintf(stderr, "[main] failed to create a signal handler\n");
-    return 1;
-  }
+  atomic_init(&terminate, false);
 
   // load properties
   struct hash_table *properties = get_properties(argv[1]);
@@ -139,6 +136,13 @@ int main(int argc, char *argv[]) {
     root_dir = DEFAULT_ROOT_DIR;
   }
 
+  // create a signal handler
+  if (!create_sig_handler(SIGINT, signal_handler)) {
+    logger_log(logger, ERROR, "[main] failed to create a signal handler");
+    cleanup(properties, logger, thread_pool, sessions, pollfds);
+    return 1;
+  }
+
   sigset_t ppoll_sigset;
   if (sigemptyset(&ppoll_sigset) != 0) {
     logger_log(logger, ERROR, "[main] falied to init sigset_t for ppoll");
@@ -147,7 +151,7 @@ int main(int argc, char *argv[]) {
   }
 
   // main server loop
-  while (!terminate) {
+  while (!atomic_load(&terminate)) {
     int events_count = ppoll((struct pollfd *)pollfds->data, vector_size(pollfds), NULL, &ppoll_sigset);
     if (events_count == -1) {
       logger_log(logger, ERROR, "[main] poll error");
