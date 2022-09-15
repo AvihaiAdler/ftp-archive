@@ -89,11 +89,30 @@ int main(int argc, char *argv[]) {
     num_of_threads = (uint8_t)tmp;
   }
 
+  // block the signal SIGINT for all threads (including main)
+  sigset_t threads_sigset;
+  int ret = sigemptyset(&threads_sigset);
+  ret |= sigaddset(&threads_sigset, SIGINT);
+  ret |= sigprocmask(SIG_BLOCK, &threads_sigset, NULL);
+
+  if (ret) {
+    logger_log(logger, ERROR, "[main] failed to establish a signal mask for all threads");
+    cleanup(properties, logger, NULL, NULL, NULL);
+    return 1;
+  }
+
   // create threads
   struct thread_pool *thread_pool = thread_pool_init(num_of_threads, destroy_task);
   if (!thread_pool) {
     logger_log(logger, ERROR, "[main] failed to init thread pool");
     cleanup(properties, logger, NULL, NULL, NULL);
+    return 1;
+  }
+
+  // unblock SIGINT for main thread (only)
+  if (pthread_sigmask(SIG_UNBLOCK, &threads_sigset, NULL) != 0) {
+    logger_log(logger, ERROR, "[main] failed to establish a signal mask for main");
+    cleanup(properties, logger, thread_pool, NULL, NULL);
     return 1;
   }
 
