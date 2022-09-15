@@ -15,7 +15,9 @@ int generate_random(int min, int max) {
   return (int)(rand_val * range + min);
 }
 
-void destroy_points(struct point *points) { free(points); }
+void destroy_points(struct point *points) {
+  free(points);
+}
 
 struct point *create_points(size_t arr_size, int min, int max) {
   struct point *points = calloc(arr_size, sizeof *points);
@@ -69,7 +71,9 @@ void destroy(void *data) {
   if (point) free(point);
 }
 
-void after(struct list *list) { list_destroy(list, NULL); }
+void after(struct list *list) {
+  list_destroy(list, NULL);
+}
 
 void list_prepend_and_peek_test(struct point *points, size_t arr_size) {
   // given
@@ -239,9 +243,9 @@ void list_index_of_test(struct point *points, size_t arr_size) {
   struct list *list = before(points, arr_size);
 
   // when
-  long long int first = list_index_of(list, &points[0], cmpr);
-  long long int last = list_index_of(list, &points[arr_size - 1], cmpr);
-  long long int mid = list_index_of(list, &points[arr_size / 2], cmpr);
+  intmax_t first = list_index_of(list, &points[0], cmpr);
+  intmax_t last = list_index_of(list, &points[arr_size - 1], cmpr);
+  intmax_t mid = list_index_of(list, &points[arr_size / 2], cmpr);
 
   // then
   assert(first == 0);
@@ -259,10 +263,8 @@ void list_replace_at_test(struct point *points, size_t arr_size) {
 
   // when
   struct point *replaced_first = list_replace_at(list, &p, sizeof p, 0);
-  struct point *replaced_mid =
-      list_replace_at(list, &p, sizeof p, arr_size / 2);
-  struct point *replaced_last =
-      list_replace_at(list, &p, sizeof p, arr_size - 1);
+  struct point *replaced_mid = list_replace_at(list, &p, sizeof p, arr_size / 2);
+  struct point *replaced_last = list_replace_at(list, &p, sizeof p, arr_size - 1);
 
   // then
   assert(replaced_first && replaced_mid && replaced_last);
@@ -287,8 +289,7 @@ void list_replace_test(struct point *points, size_t arr_size) {
   struct point p = {.x = -1, .y = -1};
 
   // when
-  struct point *replaced =
-      list_replace(list, &points[arr_size / 2], &p, sizeof p, cmpr);
+  struct point *replaced = list_replace(list, &points[arr_size / 2], &p, sizeof p, cmpr);
 
   // then
   assert(replaced);
@@ -310,7 +311,7 @@ void list_sort_test(struct point *points, size_t arr_size) {
   list_sort(list, cmpr);
 
   // then
-  for (unsigned long long i = 0; i < arr_size; i++) {
+  for (size_t i = 0; i < arr_size; i++) {
     assert(equals(&copy[i], list_at(list, i)));
   }
 

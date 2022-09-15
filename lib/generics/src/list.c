@@ -1,6 +1,5 @@
 #include "include/list.h"
 
-#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -17,13 +16,9 @@ void list_destroy(struct list *list, void (*destroy)(void *data)) {
   for (struct node *tmp = list->head; list->head; tmp = list->head) {
     list->head = list->head->next;
 
-    if (destroy) {
-      destroy(tmp->data);
-    }
+    if (destroy) { destroy(tmp->data); }
 
-    if (tmp->data) {
-      free(tmp->data);
-    }
+    if (tmp->data) { free(tmp->data); }
 
     free(tmp);
   }
@@ -32,8 +27,7 @@ void list_destroy(struct list *list, void (*destroy)(void *data)) {
 
 /* construct a node with the a copy of the data passed in. returns a heap
  * allocated node on success, NULL on failure. internal use only */
-struct node *init_node(struct list *list, const void *data,
-                       unsigned long long data_size) {
+struct node *init_node(struct list *list, const void *data, size_t data_size) {
   if (data_size == 0) return NULL;
 
   struct node *node = calloc(1, sizeof *node);
@@ -50,7 +44,7 @@ struct node *init_node(struct list *list, const void *data,
   return node;
 }
 
-unsigned long long list_size(struct list *list) {
+size_t list_size(struct list *list) {
   if (!list) return 0;
   return list->size;
 }
@@ -60,10 +54,9 @@ bool list_empty(struct list *list) {
   return list->size == 0;
 }
 
-bool list_prepend(struct list *list, const void *data,
-                  unsigned long long data_size) {
+bool list_prepend(struct list *list, const void *data, size_t data_size) {
   if (!list) return false;
-  if (list->size == LLONG_MAX) return false;
+  if (list->size == (SIZE_MAX >> 1)) return false;
 
   struct node *tmp = init_node(list, data, data_size);
   if (!tmp) return false;
@@ -80,10 +73,9 @@ bool list_prepend(struct list *list, const void *data,
   return true;
 }
 
-bool list_append(struct list *list, const void *data,
-                 unsigned long long data_size) {
+bool list_append(struct list *list, const void *data, size_t data_size) {
   if (!list) return false;
-  if (list->size == LLONG_MAX) return false;
+  if (list->size == (SIZE_MAX >> 1)) return false;
 
   struct node *tmp = init_node(list, data, data_size);
   if (!tmp) return false;
@@ -100,11 +92,10 @@ bool list_append(struct list *list, const void *data,
   return true;
 }
 
-bool list_insert_at(struct list *list, const void *data,
-                    unsigned long long data_size, unsigned long long pos) {
+bool list_insert_at(struct list *list, const void *data, size_t data_size, size_t pos) {
   if (!list) return false;
   if (pos > list->size) return false;
-  if (list->size == LLONG_MAX) return false;
+  if (list->size == (SIZE_MAX >> 1)) return false;
 
   if (pos == 0) return list_prepend(list, data, data_size);
   if (pos == list->size) return list_append(list, data, data_size);
@@ -125,11 +116,12 @@ bool list_insert_at(struct list *list, const void *data,
   return true;
 }
 
-bool list_insert_priority(struct list *list, const void *data,
-                          unsigned long long data_size,
+bool list_insert_priority(struct list *list,
+                          const void *data,
+                          size_t data_size,
                           int (*cmpr)(const void *, const void *)) {
   if (!list) return false;
-  if (list->size == LLONG_MAX) return false;
+  if (list->size == (SIZE_MAX >> 1)) return false;
 
   if (!list->head) return list_prepend(list, data, data_size);  // list is empty
 
@@ -172,13 +164,13 @@ void *list_peek_last(struct list *list) {
   return list->tail->data;
 }
 
-void *list_at(struct list *list, unsigned long long pos) {
+void *list_at(struct list *list, size_t pos) {
   if (!list) return NULL;
   if (!list->head) return NULL;
   if (pos >= list->size) return NULL;
 
   struct node *tmp = list->head;
-  for (unsigned long long counter = 0; counter < pos; counter++) {
+  for (size_t counter = 0; counter < pos; counter++) {
     tmp = tmp->next;
   }
   return tmp->data;
@@ -224,7 +216,7 @@ void *list_remove_last(struct list *list) {
   return data;
 }
 
-void *list_remove_at(struct list *list, unsigned long long pos) {
+void *list_remove_at(struct list *list, size_t pos) {
   if (!list) return NULL;
   if (pos >= list->size) return NULL;
 
@@ -245,21 +237,19 @@ void *list_remove_at(struct list *list, unsigned long long pos) {
   return data;
 }
 
-long long list_index_of(struct list *list, const void *data,
-                        int (*cmpr)(const void *, const void *)) {
+intmax_t list_index_of(struct list *list, const void *data, int (*cmpr)(const void *, const void *)) {
   if (!list) return N_EXISTS;
   if (!cmpr) return N_EXISTS;
   if (!list->head) return N_EXISTS;
 
-  long long pos = 0;
+  intmax_t pos = 0;
   for (struct node *tmp = list->head; tmp; tmp = tmp->next, pos++) {
     if (cmpr(tmp->data, data) == 0) return pos;
   }
   return N_EXISTS;
 }
 
-void *list_replace_at(struct list *list, const void *data,
-                      unsigned long long data_size, unsigned long long pos) {
+void *list_replace_at(struct list *list, const void *data, size_t data_size, size_t pos) {
   if (!list) return NULL;
   if (!list->head) return NULL;
   if (pos < 0) return NULL;
@@ -292,18 +282,18 @@ void *list_replace_at(struct list *list, const void *data,
 
 /* replaces the first occurence of old_data with new_data. returns a pointer to
  * old_data on success, NULL otherwise */
-void *list_replace(struct list *list, const void *old_data,
-                   const void *new_data, unsigned long long new_data_size,
+void *list_replace(struct list *list,
+                   const void *old_data,
+                   const void *new_data,
+                   size_t new_data_size,
                    int (*cmpr)(const void *, const void *)) {
-  long long pos = list_index_of(list, old_data, cmpr);
+  intmax_t pos = list_index_of(list, old_data, cmpr);
   if (pos < 0) return NULL;
 
-  return list_replace_at(list, new_data, new_data_size,
-                         (unsigned long long)pos);
+  return list_replace_at(list, new_data, new_data_size, (size_t)pos);
 }
 
-static struct node *list_merge(struct node *front, struct node *back,
-                               int (*cmpr)(const void *, const void *)) {
+static struct node *list_merge(struct node *front, struct node *back, int (*cmpr)(const void *, const void *)) {
   struct node *merged = NULL;
 
   // base
@@ -322,8 +312,7 @@ static struct node *list_merge(struct node *front, struct node *back,
   return merged;
 }
 
-static void list_split(struct node *src, struct node **front,
-                       struct node **back) {
+static void list_split(struct node *src, struct node **front, struct node **back) {
   struct node *slow = src;
   struct node *fast = slow->next;
 
@@ -336,9 +325,7 @@ static void list_split(struct node *src, struct node **front,
   }
 
   // slow reached the middle of the list;
-  if (slow->next) {
-    slow->next->prev = NULL;
-  }
+  if (slow->next) { slow->next->prev = NULL; }
 
   *front = src;
   *back = slow->next;

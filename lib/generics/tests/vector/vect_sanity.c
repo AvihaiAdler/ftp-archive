@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -25,7 +24,9 @@ struct vector *before(int *arr, size_t arr_size) {
   return vect;
 }
 
-void after(struct vector *vect) { vector_destroy(vect, NULL); }
+void after(struct vector *vect) {
+  vector_destroy(vect, NULL);
+}
 
 void vector_push_sanity_test(int num) {
   // given
@@ -105,11 +106,11 @@ void vector_reserve_sanity_test(int *arr, size_t arr_size) {
   // given
   struct vector *vect = before(arr, arr_size);
 
-  unsigned long long init_capacity = vector_capacity(vect);
+  size_t init_capacity = vector_capacity(vect);
   assert(init_capacity > 0);
 
   // when
-  unsigned long long new_capacity = vector_reserve(vect, init_capacity * 4);
+  size_t new_capacity = vector_reserve(vect, init_capacity * 4);
 
   // then
   assert(new_capacity > init_capacity);
@@ -158,8 +159,8 @@ void vector_replace_sanity_test(int *arr, size_t arr_size) {
 void vector_shrink_sanity_test(int *arr, size_t arr_size) {
   // given
   struct vector *vect = before(arr, arr_size);
-  unsigned long long init_capacity = vector_capacity(vect);
-  unsigned long long vect_init_size = vector_size(vect);
+  size_t init_capacity = vector_capacity(vect);
+  size_t vect_init_size = vector_size(vect);
 
   // force a resize
   if (vect_init_size == init_capacity) {
@@ -168,8 +169,8 @@ void vector_shrink_sanity_test(int *arr, size_t arr_size) {
   }
 
   // when
-  unsigned long long new_capacity = vector_shrink(vect);
-  unsigned long long vect_size = vector_size(vect);
+  size_t new_capacity = vector_shrink(vect);
+  size_t vect_size = vector_size(vect);
 
   // then
   assert(init_capacity > new_capacity);
@@ -184,7 +185,7 @@ void vector_index_of_sanity_test(int *arr, size_t arr_size) {
   struct vector *vect = before(arr, arr_size);
 
   // when
-  long long index = vector_index_of(vect, &arr[arr_size / 2], cmpr);
+  intmax_t index = vector_index_of(vect, &arr[arr_size / 2], cmpr);
 
   // then
   assert(index >= 0);
@@ -202,8 +203,8 @@ void vector_sort_santiy_test(int *arr, size_t arr_size) {
   vector_sort(vect, cmpr);
 
   // then
-  unsigned long long vect_size = vector_size(vect);
-  for (unsigned long long i = 0; i < vect_size - 1; i++) {
+  size_t vect_size = vector_size(vect);
+  for (size_t i = 0; i < vect_size - 1; i++) {
     assert(*(int *)vector_at(vect, i) < *(int *)vector_at(vect, i + 1));
   }
 

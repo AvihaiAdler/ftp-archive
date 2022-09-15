@@ -13,9 +13,9 @@ struct node {
   unsigned char *value;
 
   // the size of key in bytes
-  unsigned long long key_size;
+  size_t key_size;
   // the size of value in bytes
-  unsigned long long value_size;
+  size_t value_size;
 
   struct node *next;
   struct node *prev;
@@ -31,10 +31,10 @@ struct entry {
 /* hash table struct */
 struct hash_table {
   // total number of entries
-  unsigned long long capacity;
+  size_t capacity;
 
   // total number of 'buckets'
-  unsigned long long num_of_elements;
+  size_t num_of_elements;
 
   struct vector *entries;
 
@@ -62,27 +62,23 @@ void table_destroy(struct hash_table *table);
 bool table_empty(struct hash_table *table);
 
 /* returns the number of elements in the table */
-unsigned long long table_size(struct hash_table *table);
+size_t table_size(struct hash_table *table);
 
 /* returns the number of entries in the table */
-unsigned long long table_capacity(struct hash_table *table);
+size_t table_capacity(struct hash_table *table);
 
 /* creates a copy of the data passed in - and store it in the table. returns the
  * previous value for that key (which has to be free'd) or NULL if there was no
  * mapping for that key. key_size - the size of key in bytes, value_size - the
  * size of value in bytes */
-void *table_put(struct hash_table *table, const void *key,
-                unsigned long long key_size, const void *value,
-                unsigned long long value_size);
+void *table_put(struct hash_table *table, const void *key, size_t key_size, const void *value, size_t value_size);
 
 /* removes the mapping for a specific key if present. returns the previous value
  * (which has to be free'd) or NULL if there was no mapping for that key.
  * key_size - the size of key in bytes */
-void *table_remove(struct hash_table *table, const void *key,
-                   unsigned long long key_size);
+void *table_remove(struct hash_table *table, const void *key, size_t key_size);
 
 /* returns the mapping for a specific key if present or NULL if there was no
  * mapping for that key. the value must not be free'd. key_size - the size of
  * key in bytes */
-void *table_get(struct hash_table *table, const void *key,
-                unsigned long long key_size);
+void *table_get(struct hash_table *table, const void *key, size_t key_size);
