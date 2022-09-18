@@ -1,16 +1,23 @@
 #pragma once
 
+#include <stdbool.h>
 #define FILE_NAME_LEN 128
 
-struct session {
+struct fds {
   int control_fd;
   int data_fd;
-  enum { PASSIVE, ACTIVE } data_sock_type;
+  int listen_sockfd;
+};
 
-  struct context {
-    int passive_sockfd;
-    char *file_name;
-    char *curr_dir;
-    int (*handler)(void *);
-  } context;
+struct context {
+  bool logged_in;
+  char *file_name;
+  char *curr_dir;
+  int (*handler)(void *);
+};
+
+struct session {
+  struct fds fds;
+  enum { PASSIVE, ACTIVE } data_sock_type;
+  struct context context;
 };
