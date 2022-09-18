@@ -40,6 +40,14 @@ void destroy_task(void *task) {
   if (t->args) { free(t->args); }
 }
 
+/* cmpr fds, used internally by remove_fd */
+static int cmpr_pfds(const void *a, const void *b) {
+  const struct pollfd *pfd_a = a;
+  const struct pollfd *pfd_b = b;
+
+  return (pfd_a->fd > pfd_b->fd) - (pfd_a->fd < pfd_b->fd);
+}
+
 struct addrinfo *get_addr_info(const char *host, const char *serv, int flags) {
   struct addrinfo hints = {0};
   hints.ai_family = AF_UNSPEC;
@@ -175,7 +183,7 @@ bool construct_session(struct session *session, int remote_fd, const char *path,
   session->data_sock_type = ACTIVE;
   session->fds.listen_sockfd = -1;
 
-  session->context = (struct context){0};
+  session->context = (struct context){.logged_in = true};
 
   session->context.curr_dir = calloc(path_len + 1, 1);
   if (!session->context.curr_dir) return false;
@@ -194,14 +202,6 @@ void add_session(struct vector_s *sessions, struct logger *logger, struct sessio
   }
 
   vector_s_push(sessions, session);
-}
-
-/* cmpr fds, used internally by remove_fd */
-static int cmpr_pfds(const void *a, const void *b) {
-  const struct pollfd *pfd_a = a;
-  const struct pollfd *pfd_b = b;
-
-  return (pfd_a->fd > pfd_b->fd) - (pfd_a->fd < pfd_b->fd);
 }
 
 int cmpr_sessions(const void *a, const void *b) {
