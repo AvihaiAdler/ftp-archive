@@ -234,7 +234,8 @@ int main(int argc, char *argv[]) {
           thread_pool_add_task(thread_pool, &(struct task){.args = &args, .handle_task = greet});
         } else if (current->fd == server_fds.event_fd) {  // event fd
           uint64_t discard = 0;
-          read(current->fd, &discard, sizeof discard);  // consume the value in event_fd
+          ssize_t ret = read(current->fd, &discard, sizeof discard);  // consume the value in event_fd
+          if (ret == -1) { logger_log(logger, INFO, "[main] failed to consume the value of event_fd"); }
 
           // update pollfds. add the passive sockfd to pollfds
           size_t size = vector_size(pollfds);
@@ -258,10 +259,10 @@ int main(int argc, char *argv[]) {
 
           if (current->fd == session->fds.control_fd) {  // session::fds::control_fd
             // get request
-          } else {  // session::fds::listen_sockfd
+          } else {  // session::fds::listen_sockfd. will only happened as a result of a PASV command
             get_ip_and_port(session->fds.control_fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
-            int remote_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
-            if (remote_fd == -1) {
+            int data_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
+            if (data_fd == -1) {
               logger_log(logger, ERROR, "[main] accept() failue for session [%s:%s]", remote_host, remote_port);
               continue;
             }
@@ -272,12 +273,17 @@ int main(int argc, char *argv[]) {
                        remote_host,
                        remote_port);
 
+            // stop monitor session::fds::listen_sockfd
             remove_fd(pollfds, current->fd);
+            // close session::fds::listen_sockfd
             close(current->fd);
 
             // replace the old session
             struct session new_session = {0};
             memcpy(&new_session, session, sizeof new_session);
+            new_session.fds.data_fd = data_fd;   // the new passive data_fd
+            new_session.fds.listen_sockfd = -1;  // invalidate session::fds::listen_sockfd
+
             struct session *old = vector_s_replace(sessions, session, &new_session);
             if (old != session) {
               logger_log(logger,
