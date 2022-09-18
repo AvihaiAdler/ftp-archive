@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200112L
 #define _GNU_SOURCE
-// #include <fcntl.h>
+
+#include <errno.h>
 #include <limits.h>
 #include <netdb.h>
 #include <poll.h>
@@ -13,6 +14,7 @@
 #include <string.h>
 #include <sys/eventfd.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include "hash_table.h"
 #include "include/handlers.h"
@@ -68,6 +70,27 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  // get the root directory. all server files will be uploded there / to a sub dir with it
+  const char *root_dir = table_get(properties, ROOT_DIR, strlen(ROOT_DIR));
+  if (!root_dir) {
+    logger_log(logger, ERROR, "[main] unsupplied root_directory. using the default [%s]", DEFAULT_ROOT_DIR);
+    root_dir = DEFAULT_ROOT_DIR;
+  }
+
+  // try to create the directory the files will be stored in
+  int ret = mkdir(root_dir, S_IRUSR | S_IWUSR | S_IXUSR);
+
+  // if mkdir failed but not because the directory already exists:
+  if (ret != 0 && errno != EEXIST) {
+    logger_log(logger,
+               ERROR,
+               "failed to create the directory [%s]. returned with error [%s]",
+               root_dir,
+               strerr_safe(errno));
+    cleanup(properties, logger, NULL, NULL, NULL);
+    return 1;
+  }
+
   // create a signal handler (must be invoked prior to the creation of the thread pool due to the sigprocmask() call)
   if (!create_sig_handler(SIGINT, signal_handler)) {
     logger_log(logger, ERROR, "[main] failed to create a signal handler");
@@ -97,7 +120,7 @@ int main(int argc, char *argv[]) {
 
   // block SIGINT for all threads (including main)
   sigset_t threads_sigset;
-  int ret = sigemptyset(&threads_sigset);
+  ret = sigemptyset(&threads_sigset);
   ret |= sigaddset(&threads_sigset, SIGINT);
   ret |= sigprocmask(SIG_BLOCK, &threads_sigset, NULL);
 
@@ -175,13 +198,7 @@ int main(int argc, char *argv[]) {
   add_fd(pollfds, logger, server_fds.listen_sockfd, POLLIN);
   add_fd(pollfds, logger, server_fds.event_fd, POLLIN);
 
-  // get the root directory. all server files will be uploded there / to a sub dir with it
-  const char *root_dir = table_get(properties, ROOT_DIR, strlen(ROOT_DIR));
-  if (!root_dir) {
-    logger_log(logger, ERROR, "[main] unsupplied root_directory. using the defualt [%s]", DEFAULT_ROOT_DIR);
-    root_dir = DEFAULT_ROOT_DIR;
-  }
-
+  // for ppoll
   sigset_t ppoll_sigset;
   if (sigemptyset(&ppoll_sigset) != 0) {
     logger_log(logger, ERROR, "[main] falied to init sigset_t for ppoll");
@@ -230,7 +247,11 @@ int main(int argc, char *argv[]) {
 
           add_session(sessions, logger, &session);
 
-          struct args args = {.logger = logger, .remote_fd = remote_fd, .session = session, .sessions = sessions};
+          struct args args = {.logger = logger,
+                              .remote_fd = remote_fd,
+                              .event_fd = server_fds.event_fd,
+                              .session = session,
+                              .sessions = sessions};
           thread_pool_add_task(thread_pool, &(struct task){.args = &args, .handle_task = greet});
         } else if (current->fd == server_fds.event_fd) {  // event fd
           uint64_t discard = 0;
@@ -312,6 +333,8 @@ int main(int argc, char *argv[]) {
   }    // main server loop
 
   logger_log(logger, INFO, "[main] shutting down");
+  close(server_fds.listen_sockfd);
+  close(server_fds.event_fd);
   cleanup(properties, logger, thread_pool, sessions, pollfds);
 
   return 0;
