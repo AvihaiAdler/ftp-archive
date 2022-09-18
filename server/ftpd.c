@@ -140,12 +140,20 @@ int main(int argc, char *argv[]) {
   server_fds.listen_sockfd =
     get_server_socket(logger, NULL, table_get(properties, CONTROL_PORT, strlen(CONTROL_PORT)), (int)q_size, AI_PASSIVE);
   if (server_fds.listen_sockfd == -1) {
-    logger_log(logger, ERROR, "[main] failed to retrieve a control socket");
+    logger_log(logger, ERROR, "[main] failed to retrieve a listen socket");
     cleanup(properties, logger, thread_pool, NULL, NULL);
     return 1;
   }
 
+  /* create an event fd. the fd will be used as a way to communicate between the threads and main. when opening a
+   * passive socket the thread who open it will write to event fd. the server will then iterate through all sessions and
+   * add the new socket to pollfds */
   server_fds.event_fd = eventfd(0, EFD_NONBLOCK);
+  if (server_fds.event_fd == -1) {
+    logger_log(logger, ERROR, "[main] failed to retrieve an event fd");
+    cleanup(properties, logger, thread_pool, NULL, NULL);
+    return 1;
+  }
 
   // create a vector of sessions
   struct vector_s *sessions = vector_s_init(sizeof(struct session), cmpr_sessions, NULL);  // change the free func
@@ -155,7 +163,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // create a vector of open fds
+  // create a set of open fds
   struct vector *pollfds = vector_init(sizeof(struct pollfd));
   if (!pollfds) {
     logger_log(logger, ERROR, "[main] failed to init control-socket fds vector");
@@ -201,11 +209,10 @@ int main(int argc, char *argv[]) {
       char remote_port[NI_MAXSERV] = {0};
 
       if (current->revents & POLLIN) {                  // this fp is ready to poll data from
-        if (current->fd == server_fds.listen_sockfd) {  // the main socket
+        if (current->fd == server_fds.listen_sockfd) {  // the main 'listening' socket
           int remote_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
           if (remote_fd == -1) {
-            // events_count--;  // ?
-            logger_log(logger, ERROR, "[main] accept() failue");
+            logger_log(logger, ERROR, "[main] accept() failue on main listening socket");
             continue;
           }
 
@@ -225,8 +232,11 @@ int main(int argc, char *argv[]) {
 
           struct args args = {.logger = logger, .remote_fd = remote_fd, .session = session, .sessions = sessions};
           thread_pool_add_task(thread_pool, &(struct task){.args = &args, .handle_task = greet});
-        } else if (current->fd == server_fds.event_fd) {  // event fd. update pollfds
-          // add the passive sockfd to pollfds
+        } else if (current->fd == server_fds.event_fd) {  // event fd
+          uint64_t discard = 0;
+          read(current->fd, &discard, sizeof discard);  // consume the value in event_fd
+
+          // update pollfds. add the passive sockfd to pollfds
           size_t size = vector_size(pollfds);
           for (size_t i = 0; i < size; i++) {
             struct session *tmp = vector_at(pollfds, i);
@@ -237,20 +247,60 @@ int main(int argc, char *argv[]) {
             }
           }
         } else {  // any other socket
-          // could be either a control socket or a session::fds::listen_sockfd socket
-          // if its a control socket: get a request
-          // otherwise: accept, update the session::data_fd. invalidate session::fds::listen_sockfd afterwards
-        }
+          /* could be either a control socket or a session::fds::listen_sockfd socket. if its a control socket: get a
+           * request. otherwise: accept, update the session::data_fd. invalidate session::fds::listen_sockfd
+           * afterwards(and remove it from pollfds)*/
+          struct session *session = vector_s_find(sessions, &(struct session){.fds.control_fd = current->fd});
+          if (!session) {
+            logger_log(logger, ERROR, "[main] couldn't find sockfd [%d]", current->fd);
+            continue;
+          }
+
+          if (current->fd == session->fds.control_fd) {  // session::fds::control_fd
+            // get request
+          } else {  // session::fds::listen_sockfd
+            get_ip_and_port(session->fds.control_fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
+            int remote_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
+            if (remote_fd == -1) {
+              logger_log(logger, ERROR, "[main] accept() failue for session [%s:%s]", remote_host, remote_port);
+              continue;
+            }
+
+            logger_log(logger,
+                       INFO,
+                       "[main] established data connection for session [%s:%s]",
+                       remote_host,
+                       remote_port);
+
+            remove_fd(pollfds, current->fd);
+            close(current->fd);
+
+            // replace the old session
+            struct session new_session = {0};
+            memcpy(&new_session, session, sizeof new_session);
+            struct session *old = vector_s_replace(sessions, session, &new_session);
+            if (old != session) {
+              logger_log(logger,
+                         ERROR,
+                         "[main] fatal error: wrong session has been replaced [%s:%s]",
+                         remote_host,
+                         remote_port);
+              cleanup(properties, logger, thread_pool, sessions, pollfds);
+              return 1;
+            }
+          }  // session::fds::listen_sockfd
+          free(session);
+        }                                      // any other socket
       } else if (current->events & POLLHUP) {  // this fp has been closed
         get_ip_and_port(current->fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
         logger_log(logger, INFO, "[main] the a connection [%s:%s] was closed", remote_host, remote_port);
 
         remove_fd(pollfds, current->fd);
-        // close_session(sessions, current->fd);
+        close_session(sessions, current->fd);
       } else if (current->events & (POLLERR | POLLNVAL)) {  // (POLLERR / POLLNVAL)
         logger_log(logger, INFO, "[main] the a connection [%s:%s] was closed", remote_host, remote_port);
         remove_fd(pollfds, current->fd);
-        // close_session(sessions, current->fd);
+        close_session(sessions, current->fd);
       }
     }  // events loop
   }    // main server loop
