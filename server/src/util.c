@@ -167,12 +167,12 @@ void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events) {
 bool construct_session(struct session *session, int remote_fd, const char *path, size_t path_len) {
   if (!session || !path) return false;
 
-  session->control_fd = remote_fd;
-  session->data_fd = -1;
+  session->fds.control_fd = remote_fd;
+  session->fds.data_fd = -1;
   session->data_sock_type = ACTIVE;
+  session->fds.listen_sockfd = -1;
 
   session->context = (struct context){0};
-  session->context.passive_sockfd = -1;
 
   session->context.curr_dir = calloc(path_len + 1, 1);
   if (!session->context.curr_dir) return false;
@@ -185,8 +185,8 @@ bool construct_session(struct session *session, int remote_fd, const char *path,
 void add_session(struct vector_s *sessions, struct logger *logger, struct session *session) {
   if (!sessions) return;
 
-  if (session->control_fd < 0) {
-    if (logger) logger_log(logger, ERROR, "[add_session] invalid fd [%d] recieved", session->control_fd);
+  if (session->fds.control_fd < 0) {
+    if (logger) logger_log(logger, ERROR, "[add_session] invalid fd [%d] recieved", session->fds.control_fd);
     return;
   }
 
@@ -207,8 +207,8 @@ int cmpr_sessions(const void *a, const void *b) {
 
   /* searches for the session by either fds. ignores a::data_fd alltogether. i.e. looks for a session whos either
    * b::control_fd OR b::data_fd equal to a::control_fd*/
-  if (s_a->control_fd == s_b->control_fd || s_a->control_fd == s_b->context.passive_sockfd) return 0;
-  if (s_a->control_fd > s_b->control_fd) return 1;
+  if (s_a->fds.control_fd == s_b->fds.control_fd || s_a->fds.control_fd == s_b->fds.listen_sockfd) return 0;
+  if (s_a->fds.control_fd > s_b->fds.control_fd) return 1;
   return -1;
 }
 
@@ -228,11 +228,12 @@ void remove_fd(struct vector *pollfds, int fd) {
 void close_session(struct vector_s *sessions, int fd) {
   if (!sessions) return;
 
-  struct session *session = vector_s_remove(sessions, &(struct session){.control_fd = fd});
+  struct session *session = vector_s_remove(sessions, &(struct session){.fds.control_fd = fd});
   if (!session) return;
 
-  close(session->control_fd);
-  close(session->data_fd);
+  if (session->fds.control_fd > 0) close(session->fds.control_fd);
+  if (session->fds.data_fd > 0) close(session->fds.data_fd);
+  if (session->fds.listen_sockfd > 0) close(session->fds.listen_sockfd);
   free(session);
 }
 
