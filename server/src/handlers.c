@@ -518,6 +518,26 @@ int list_dir(void *arg) {
   }
   closedir(dir);
 
+  // send EOF
+  data = (struct data_block){.descriptor = DESCPTR_EOF, .length = 0};
+  int err = send_data(&data, session->fds.data_fd, 0);
+  if (err != ERR_SUCCESS) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] failed to send data [%s]",
+               thrd_current(),
+               log_context.func_name,
+               log_context.ip,
+               log_context.port,
+               str_err_code(err));
+    send_reply_wrapper(session->fds.control_fd,
+                       args->logger,
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
+                       "[%d] action incomplete",
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+    successful_trasnfer = false;
+  }
+
   if (successful_trasnfer) {
     logger_log(args->logger,
                INFO,
