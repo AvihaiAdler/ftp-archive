@@ -161,6 +161,9 @@ void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events) {
     return;
   }
 
+  // fd already exists in pollfds
+  if (vector_index_of(pollfds, &(struct pollfd){.fd = fd}, cmpr_pfds) == N_EXISTS) return;
+
   vector_push(pollfds, &(struct pollfd){.fd = fd, .events = events});
 }
 
