@@ -53,3 +53,6 @@ bool get_local_ip(char *ip, size_t ip_size, int inet);
 
 /* establish a signal handler */
 bool create_sig_handler(int signal, void (*handler)(int signal));
+
+/* returns a string literal corespond each errno code */
+const char *strerr_safe(int err);

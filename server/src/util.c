@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 #include "include/util.h"
 #include <arpa/inet.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <ifaddrs.h>
 #include <netdb.h>
@@ -300,4 +301,42 @@ bool create_sig_handler(int signal, void (*handler)(int signal)) {
   sigprocmask(SIG_UNBLOCK, &sigset, NULL);  // unblock 'signal'
 
   return true;
+}
+
+const char *strerr_safe(int err) {
+  switch (err) {
+    case EACCES:
+      return "permission denied";
+    case EBADF:
+      return "bad file descriptor";
+    case EDQUOT:
+      return "EDQUOT";
+    case EEXIST:
+      return "file exists";
+    case EFAULT:
+      return "bad address";
+    case EINVAL:
+      return "invalid argument";
+    case ELOOP:
+      return "too many levels of symbolic links";
+    case EMLINK:
+      return "too many links";
+    case ENAMETOOLONG:
+      return "filename too long";
+    case ENONET:
+      return "no such file or directory";
+    case ENOMEM:
+      return "not enough space";
+    case ENOSPC:
+      return "no space left on device";
+    case ENOTDIR:
+      return "not a directory or a symbolic link to a directory";
+    case EPERM:
+      return "operation not permitted";
+    case EROFS:
+      return "read-only file system";
+    default:
+      return "other";
+  }
+  return NULL;
 }
