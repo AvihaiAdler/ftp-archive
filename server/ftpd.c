@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/eventfd.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include "hash_table.h"
@@ -31,6 +32,11 @@
 #define CONN_Q_SIZE "connection_queue_size"
 #define ROOT_DIR "root_directory"
 #define DEFAULT_ROOT_DIR "/home/ftpd"
+
+struct server_fds {
+  int listen_sockfd;
+  int event_fd;
+};
 
 static atomic_bool terminate;
 
@@ -89,7 +95,7 @@ int main(int argc, char *argv[]) {
     num_of_threads = (uint8_t)tmp;
   }
 
-  // block the signal SIGINT for all threads (including main)
+  // block SIGINT for all threads (including main)
   sigset_t threads_sigset;
   int ret = sigemptyset(&threads_sigset);
   ret |= sigaddset(&threads_sigset, SIGINT);
@@ -109,7 +115,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // unblock SIGINT for main thread (only)
+  // unblock SIGINT for (only) the main thread
   if (pthread_sigmask(SIG_UNBLOCK, &threads_sigset, NULL) != 0) {
     logger_log(logger, ERROR, "[main] failed to establish a signal mask for main");
     cleanup(properties, logger, thread_pool, NULL, NULL);
@@ -127,14 +133,19 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  // holds the fd for the server
+  struct server_fds server_fds = {0};
+
   // create a control socket
-  int server_listening_sockfd =
+  server_fds.listen_sockfd =
     get_server_socket(logger, NULL, table_get(properties, CONTROL_PORT, strlen(CONTROL_PORT)), (int)q_size, AI_PASSIVE);
-  if (server_listening_sockfd == -1) {
+  if (server_fds.listen_sockfd == -1) {
     logger_log(logger, ERROR, "[main] failed to retrieve a control socket");
     cleanup(properties, logger, thread_pool, NULL, NULL);
     return 1;
   }
+
+  server_fds.event_fd = eventfd(0, EFD_NONBLOCK);
 
   // create a vector of sessions
   struct vector_s *sessions = vector_s_init(sizeof(struct session), cmpr_sessions, NULL);  // change the free func
@@ -153,7 +164,8 @@ int main(int argc, char *argv[]) {
   }
 
   // add the main server control sockfd to the list of open fds
-  add_fd(pollfds, logger, server_listening_sockfd, POLLIN);
+  add_fd(pollfds, logger, server_fds.listen_sockfd, POLLIN);
+  add_fd(pollfds, logger, server_fds.event_fd, POLLIN);
 
   // get the root directory. all server files will be uploded there / to a sub dir with it
   const char *root_dir = table_get(properties, ROOT_DIR, strlen(ROOT_DIR));
@@ -188,8 +200,8 @@ int main(int argc, char *argv[]) {
       char remote_host[NI_MAXHOST] = {0};
       char remote_port[NI_MAXSERV] = {0};
 
-      if (current->revents & POLLIN) {                 // this fp is ready to poll data from
-        if (current->fd == server_listening_sockfd) {  // the main socket
+      if (current->revents & POLLIN) {                  // this fp is ready to poll data from
+        if (current->fd == server_fds.listen_sockfd) {  // the main socket
           int remote_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
           if (remote_fd == -1) {
             // events_count--;  // ?
@@ -213,21 +225,32 @@ int main(int argc, char *argv[]) {
 
           struct args args = {.logger = logger, .remote_fd = remote_fd, .session = session, .sessions = sessions};
           thread_pool_add_task(thread_pool, &(struct task){.args = &args, .handle_task = greet});
+        } else if (current->fd == server_fds.event_fd) {  // event fd. update pollfds
+          // add the passive sockfd to pollfds
+          size_t size = vector_size(pollfds);
+          for (size_t i = 0; i < size; i++) {
+            struct session *tmp = vector_at(pollfds, i);
+            if (!tmp) continue;
+
+            if (tmp->data_sock_type == PASSIVE && tmp->fds.listen_sockfd > 0) {
+              add_fd(pollfds, logger, tmp->fds.listen_sockfd, POLLIN);
+            }
+          }
         } else {  // any other socket
-          // could be either a control socket or a session::context::passive_sockfd socket
+          // could be either a control socket or a session::fds::listen_sockfd socket
           // if its a control socket: get a request
-          // otherwise: accept, update the session::data_fd
+          // otherwise: accept, update the session::data_fd. invalidate session::fds::listen_sockfd afterwards
         }
       } else if (current->events & POLLHUP) {  // this fp has been closed
         get_ip_and_port(current->fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
-        logger_log(logger, INFO, "[main] the a connection from [%s:%s] was closed", remote_host, remote_port);
+        logger_log(logger, INFO, "[main] the a connection [%s:%s] was closed", remote_host, remote_port);
 
         remove_fd(pollfds, current->fd);
-        close_session(sessions, current->fd);
+        // close_session(sessions, current->fd);
       } else if (current->events & (POLLERR | POLLNVAL)) {  // (POLLERR / POLLNVAL)
-        logger_log(logger, INFO, "[main] the a connection from [%s:%s] was closed", remote_host, remote_port);
+        logger_log(logger, INFO, "[main] the a connection [%s:%s] was closed", remote_host, remote_port);
         remove_fd(pollfds, current->fd);
-        close_session(sessions, current->fd);
+        // close_session(sessions, current->fd);
       }
     }  // events loop
   }    // main server loop
