@@ -8,6 +8,7 @@
 
 struct args {
   int remote_fd;
+  int event_fd;
   struct session session;
   struct vector_s *sessions;
   struct logger *logger;
