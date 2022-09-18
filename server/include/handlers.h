@@ -1,15 +1,31 @@
 #pragma once
 
+#include "include/payload.h"
 #include "include/session.h"
 #include "logger.h"
 #include "thread_pool.h"
 #include "vector_s.h"
 
-/* creates a new handle_request() task for the thread_pool to handle. used by the main thread */
-void add_request_task(int remote_fd,
-                      struct session *local,
-                      struct vector_s *sessions,
-                      struct thread_pool *thread_pool,
-                      struct logger *logger);
+struct args {
+  int remote_fd;
+  struct session session;
+  struct vector_s *sessions;
+  struct logger *logger;
 
-// TODO: send_file, get_file & list_file should support passive mode
+  union {
+    struct request request;
+    struct thread_pool *thread_pool;
+  };
+};
+
+int greet(void *arg);
+
+int invalid_request(void *arg);
+
+int delete_file(void *arg);
+
+int terminate_session(void *arg);
+
+int list_dir(void *arg);
+
+int (*parse_command(int sockfd, struct logger *logger))(void *);
