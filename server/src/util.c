@@ -9,6 +9,7 @@
 #include <poll.h>
 #include <signal.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -39,6 +40,18 @@ void cleanup(struct hash_table *properties,
 void destroy_task(void *task) {
   struct task *t = task;
   if (t->args) { free(t->args); }
+}
+
+void destroy_session(void *session) {
+  if (!session) return;
+  struct session *s = session;
+
+  if (s->context.curr_dir) free(s->context.curr_dir);
+  if (s->context.session_root_dir) free(s->context.session_root_dir);
+
+  if (s->fds.control_fd > 0) close(s->fds.control_fd);
+  if (s->fds.data_fd > 0) close(s->fds.data_fd);
+  if (s->fds.listen_sockfd > 0) close(s->fds.listen_sockfd);
 }
 
 /* cmpr fds, used internally by remove_fd */
@@ -176,8 +189,13 @@ void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events) {
   vector_push(pollfds, &(struct pollfd){.fd = fd, .events = events});
 }
 
-bool construct_session(struct session *session, int remote_fd, const char *path, size_t path_len) {
-  if (!session || !path) return false;
+bool construct_session(struct session *session,
+                       int remote_fd,
+                       const char *path,
+                       size_t path_len,
+                       char *username,
+                       size_t username_len) {
+  if (!session || !path || !username) return false;
 
   session->fds.control_fd = remote_fd;
   session->fds.data_fd = -1;
@@ -186,10 +204,11 @@ bool construct_session(struct session *session, int remote_fd, const char *path,
 
   session->context = (struct context){.logged_in = true};
 
-  session->context.curr_dir = calloc(path_len + 1, 1);
+  // /home/ftp/username. path = /home/ftp
+  session->context.session_root_dir = calloc(path_len + 1 + username_len + 1, 1);
   if (!session->context.curr_dir) return false;
 
-  memcpy(session->context.curr_dir, path, path_len);
+  sprintf(session->context.session_root_dir, "%s/%s", path, username);
 
   return true;
 }

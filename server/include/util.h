@@ -29,7 +29,12 @@ int get_client_socket(struct logger *logger, const char *host, const char *serv,
 void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events);
 
 /* constructs a session object. returns true on success, false otherwise */
-bool construct_session(struct session *session, int remote_fd, const char *path, size_t path_len);
+bool construct_session(struct session *session,
+                       int remote_fd,
+                       const char *path,
+                       size_t path_len,
+                       char *username,
+                       size_t username_len);
 
 /* adds a pair of control_sockfd, data_sockfd to the vector of these pairs used by the threads */
 void add_session(struct vector_s *sessions, struct logger *logger, struct session *session);
@@ -44,6 +49,8 @@ int cmpr_sessions(const void *a, const void *b);
 void close_session(struct vector_s *sessions, int fd);
 
 void destroy_task(void *task);
+
+void destroy_session(void *session);
 
 /* gets the ip and port associated with a sockfd */
 void get_ip_and_port(int sockfd, char *ip, size_t ip_size, char *port, size_t port_size);
