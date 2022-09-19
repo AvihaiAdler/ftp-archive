@@ -179,7 +179,8 @@ int main(int argc, char *argv[]) {
   }
 
   // create a vector of sessions
-  struct vector_s *sessions = vector_s_init(sizeof(struct session), cmpr_sessions, NULL);  // change the free func
+  struct vector_s *sessions =
+    vector_s_init(sizeof(struct session), cmpr_sessions, destroy_session);  // change the free func
   if (!sessions) {
     logger_log(logger, ERROR, "[main] failed to init session vector");
     cleanup(properties, logger, thread_pool, NULL, NULL);
@@ -240,7 +241,7 @@ int main(int argc, char *argv[]) {
 
           struct session session = {0};
 
-          if (!construct_session(&session, remote_fd, root_dir, strlen(root_dir))) {
+          if (!construct_session(&session, remote_fd, root_dir, strlen(root_dir), "guest", strlen("guest"))) {
             logger_log(logger, ERROR, "[main] falied to construct a session for [%s:%s]", remote_host, remote_port);
             continue;
           }
@@ -288,12 +289,6 @@ int main(int argc, char *argv[]) {
               continue;
             }
 
-            logger_log(logger,
-                       INFO,
-                       "[main] established data connection for session [%s:%s]",
-                       remote_host,
-                       remote_port);
-
             // stop monitor session::fds::listen_sockfd
             remove_fd(pollfds, current->fd);
             // close session::fds::listen_sockfd
@@ -315,6 +310,12 @@ int main(int argc, char *argv[]) {
               cleanup(properties, logger, thread_pool, sessions, pollfds);
               return 1;
             }
+
+            logger_log(logger,
+                       INFO,
+                       "[main] established data connection for session [%s:%s]",
+                       remote_host,
+                       remote_port);
           }  // session::fds::listen_sockfd
           free(session);
         }                                      // any other socket
