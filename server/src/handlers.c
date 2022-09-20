@@ -18,11 +18,7 @@
 #include "include/session.h"
 #include "include/util.h"
 
-// limitation on file sizes the server will accept
-#define LIMIT_FILE_SIZE 0
-#define MB_LIMIT 10
-
-#define REPLY_LEN 1025
+#define MAX_PATH_LEN 256
 
 #define CMD_LEN 4
 
@@ -150,11 +146,11 @@ static int open_data_connection(struct session *remote, struct logger *logger, s
   if (remote->data_sock_type == PASSIVE) {
     if (get_local_ip(ip, sizeof ip, AF_INET) || get_local_ip(ip, sizeof ip, AF_INET6)) {
       // get a socket with some random port number
-      sockfd = get_server_socket(logger, ip, NULL, 1, AI_PASSIVE);
+      sockfd = get_listen_socket(logger, ip, NULL, 1, AI_PASSIVE);
     }
   } else {
     get_ip_and_port(remote->fds.control_fd, ip, sizeof ip, port, sizeof port);
-    sockfd = get_client_socket(logger, ip, port, 0);
+    sockfd = get_connect_socket(logger, ip, port, 0);
   }
 
   if (sockfd == -1) {
@@ -204,19 +200,27 @@ int (*parse_command(int sockfd, struct logger *logger))(void *) {
   memcpy(cmd, (char *)request.request, sizeof cmd - 1);
 
   if (strcmp(cmd, "port") == 0) {
-
+    return port;
   } else if (strcmp(cmd, "pasv") == 0) {
-
+    return passive;
   } else if (strcmp(cmd, "retr") == 0) {
-
+    return retrieve_file;
   } else if (strcmp(cmd, "stor") == 0) {
-
+    return store_file;
   } else if (strcmp(cmd, "dele") == 0) {
     return delete_file;
   } else if (strcmp(cmd, "quit") == 0) {
     return terminate_session;
   } else if (strcmp(cmd, "list") == 0) {
     return list_dir;
+  } else if (strcmp(cmd, "pwd") == 0) {
+    return print_working_dir;
+  } else if (strcmp(cmd, "mkd") == 0) {
+    return make_dir;
+  } else if (strcmp(cmd, "rmd") == 0) {
+    return remove_dir;
+  } else if (strcmp(cmd, "cwd") == 0) {
+    return change_dir;
   }
 
   return invalid_request;
@@ -368,6 +372,93 @@ int greet(void *arg) {
   if (!arg) return 1;
   struct args *args = arg;
 
+  struct log_context log_context = {.func_name = "login"};
+  get_ip_and_port(args->remote_fd, log_context.ip, sizeof log_context.ip, log_context.port, sizeof log_context.port);
+
+  struct session *session = vector_s_find(args->sessions, &(struct session){.fds.control_fd = args->remote_fd});
+  if (!session) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] failed to find session [%d]",
+               thrd_current,
+               log_context.func_name,
+               log_context.ip,
+               log_context.port,
+               args->remote_fd);
+    send_reply_wrapper(args->remote_fd,
+                       args->logger,
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
+                       "%d action incomplete",
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+    return 1;
+  }
+
+  // simulate login
+  session->context.logged_in = true;
+  session->context.curr_dir = calloc(MAX_PATH_LEN + 1, 1);
+  if (!session->context.curr_dir) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] failed allocate memory for session::context::curr_dir",
+               thrd_current,
+               log_context.func_name,
+               log_context.ip,
+               log_context.port);
+    send_reply_wrapper(args->remote_fd,
+                       args->logger,
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
+                       "%d action incomplete",
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+    return 1;
+  }
+
+  // open data_sockfd
+  int sockfd = open_data_connection(session, args->logger, &log_context);
+  if (sockfd == -1) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] failed to establish data connection",
+               thrd_current,
+               log_context.func_name,
+               log_context.ip,
+               log_context.port);
+    send_reply_wrapper(args->remote_fd,
+                       args->logger,
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
+                       "%d action incomplete",
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+    return 1;
+  }
+
+  if (session->data_sock_type == ACTIVE) {
+    session->fds.data_fd = sockfd;
+  } else {  // should never happened
+    session->fds.listen_sockfd = sockfd;
+  }
+
+  bool ret = update_session(args->sessions, args->logger, session);
+  if (!ret) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] failed to update session [%d]",
+               thrd_current,
+               log_context.func_name,
+               log_context.ip,
+               log_context.port,
+               session->fds.control_fd);
+    return 1;
+  }
+
+  logger_log(args->logger,
+             INFO,
+             "[%lu] [%s] [%s:%s] data connection established",
+             thrd_current,
+             log_context.func_name,
+             log_context.ip,
+             log_context.port);
+
+  free(session);
+
   send_reply_wrapper(args->remote_fd, args->logger, RPLY_CMD_OK, "%d ok. service ready", RPLY_CMD_OK);
   return 0;
 }
@@ -427,6 +518,19 @@ int list_dir(void *arg) {
                args->remote_fd,
                args->remote_fd);
     // cannot send a reply here (no matching sessions found)
+    return 1;
+  }
+
+  // check if there's a valid session::fds::data_fd
+  if (session->fds.data_fd < 0) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] invalid data_sockfd",
+               thrd_current,
+               log_context.func_name,
+               log_context.ip,
+               log_context.port);
+    free(session);
     return 1;
   }
 
@@ -615,11 +719,150 @@ int list_dir(void *arg) {
 }
 
 int invalid_request(void *arg) {
-  (void)arg;
+  if (!arg) return 1;
+  struct args *args = arg;
+
+  struct log_context context = {.func_name = "invalid request"};
+
+  struct session *session = vector_s_find(args->sessions, &(struct session){.fds.control_fd = args->remote_fd});
+  if (!session) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] failed to find the session for fd [%d]",
+               thrd_current(),
+               context.func_name,
+               context.ip,
+               context.port,
+               args->remote_fd);
+    send_reply_wrapper(args->remote_fd,
+                       args->logger,
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
+                       "[%d] action incomplete. internal process error",
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+    return 1;
+  }
+
+  send_reply_wrapper(session->fds.control_fd,
+                     args->logger,
+                     RPLY_CMD_SYNTAX_ERR,
+                     "[%d] syntax error",
+                     RPLY_CMD_SYNTAX_ERR);
+  logger_log(args->logger,
+             ERROR,
+             "[%lu] [%s] [%s:%s] executed successfully",
+             thrd_current(),
+             context.func_name,
+             context.ip,
+             context.port);
+
+  free(session);
   return 0;
 }
 
 int delete_file(void *arg) {
+  (void)arg;
+  return 0;
+}
+
+int get_request(void *arg) {
+  (void)arg;
+  return 0;
+}
+
+int port(void *arg) {
+  (void)arg;
+  return 0;
+}
+
+int passive(void *arg) {
+  (void)arg;
+  return 0;
+}
+
+int retrieve_file(void *arg) {
+  (void)arg;
+  return 0;
+}
+
+int store_file(void *arg) {
+  (void)arg;
+  return 0;
+}
+
+int print_working_dir(void *arg) {
+  if (!arg) return 1;
+  struct args *args = arg;
+
+  struct log_context context = {.func_name = "pwd"};
+  get_ip_and_port(args->remote_fd, context.ip, sizeof context.ip, context.port, sizeof context.port);
+
+  struct session *session = vector_s_find(args->sessions, &(struct session){.fds.control_fd = args->remote_fd});
+  if (!session) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] failed to find the session for fd [%d]",
+               thrd_current(),
+               context.func_name,
+               context.ip,
+               context.port,
+               args->remote_fd);
+    send_reply_wrapper(args->remote_fd,
+                       args->logger,
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
+                       "[%d] action incomplete. internal process error",
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+    return 1;
+  }
+  int len = snprintf(NULL, 0, "[%d] %s/%s", RPLY_CMD_OK, session->context.session_root_dir, session->context.curr_dir);
+  if (len >= REPLY_MAX_LEN - 1) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] path exeeds reply length [%d]",
+               thrd_current(),
+               context.func_name,
+               context.ip,
+               context.port,
+               REPLY_MAX_LEN - 1);
+    send_reply_wrapper(args->remote_fd,
+                       args->logger,
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
+                       "[%d] action incomplete. internal process error",
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+    free(session);
+    return 1;
+  }
+
+  send_reply_wrapper(session->fds.control_fd,
+                     args->logger,
+                     RPLY_CMD_OK,
+                     "[%d] %s/%s",
+                     RPLY_CMD_OK,
+                     session->context.session_root_dir,
+                     session->context.curr_dir);
+  logger_log(args->logger,
+             INFO,
+             "[%lu] [%s] [%s:%s] executed successfuly",
+             thrd_current(),
+             context.func_name,
+             context.ip,
+             context.port);
+
+  free(session);
+
+  return 0;
+}
+
+int make_dir(void *arg) {
+  (void)arg;
+  return 0;
+}
+
+int remove_dir(void *arg) {
+  (void)arg;
+  return 0;
+}
+
+int change_dir(void *arg) {
   (void)arg;
   return 0;
 }
