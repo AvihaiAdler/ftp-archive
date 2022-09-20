@@ -80,7 +80,7 @@ static bool validate_path(const char *file_name, struct logger *logger, struct l
   if (!file_name || !context) return false;
 
   // no file name specified
-  if (!*file_name) {
+  if (!file_name) {
     logger_log(logger,
                ERROR,
                "[thread:%lu] [%s] [%s:%s] bad request. no file name specified",
