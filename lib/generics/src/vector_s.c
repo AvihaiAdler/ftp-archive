@@ -1,14 +1,27 @@
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "include/vector_s.h"
+
+struct vector_s {
+  // both size and capacity can never exceed SIZE_MAX / 2
+  size_t size;
+  size_t capacity;
+  size_t data_size;
+  unsigned char *data;
+
+  mtx_t lock;
+  int (*cmpr)(const void *, const void *);
+  void (*destroy_element)(void *);
+};
 
 struct vector_s *vector_s_init(size_t data_size,
                                int (*cmpr)(const void *, const void *),
                                void (*destroy_element)(void *)) {
   // limit check.
   if (data_size == 0) return NULL;
-  if ((SIZE_MAX >> 1) < VECT_INIT_CAPACITY * data_size) return NULL;
+  if ((SIZE_MAX >> 1) / data_size < VECT_INIT_CAPACITY) return NULL;
 
   struct vector_s *vector = calloc(1, sizeof *vector);
   if (!vector) return NULL;
@@ -55,6 +68,10 @@ size_t vector_s_size(struct vector_s *vector) {
   mtx_unlock(&vector->lock);
 
   return size;
+}
+
+size_t vector_s_struct_size(struct vector_s *vector) {
+  return sizeof *vector;
 }
 
 size_t vector_s_capacity(struct vector_s *vector) {
@@ -230,7 +247,7 @@ void *vector_s_remove_at(struct vector_s *vector, size_t pos) {
 void *vector_s_remove(struct vector_s *vector, void *element) {
   mtx_lock(&vector->lock);
   intmax_t pos = vector_s_index_of(vector, element);
-  if (pos == N_EXISTS) {
+  if (pos == GENERICS_EINVAL) {
     mtx_unlock(&vector->lock);
     return NULL;
   }
@@ -247,8 +264,8 @@ void *vector_s_remove(struct vector_s *vector, void *element) {
 
 void *vector_s_replace(struct vector_s *vector, const void *old_elem, const void *new_elem) {
   mtx_lock(&vector->lock);
-  intmax_t pos = vector_s_index_of(vector, old_elem);
-  if (pos == N_EXISTS) {
+  size_t pos = vector_s_index_of(vector, old_elem);
+  if (pos == GENERICS_EINVAL) {
     mtx_unlock(&vector->lock);
     return NULL;
   }
@@ -288,7 +305,7 @@ size_t vector_s_shrink(struct vector_s *vector) {
   return new_capacity;
 }
 
-intmax_t vector_s_index_of(struct vector_s *vector, const void *element) {
+size_t vector_s_index_of(struct vector_s *vector, const void *element) {
   if (!vector) return -1;
 
   mtx_lock(&vector->lock);
@@ -296,14 +313,14 @@ intmax_t vector_s_index_of(struct vector_s *vector, const void *element) {
 
   for (size_t i = 0; i < vector->size * vector->data_size; i += vector->data_size) {
     if (vector->cmpr(element, &vector->data[i]) == 0) {
-      intmax_t index = i / vector->data_size;
+      size_t index = i / vector->data_size;
       mtx_lock(&vector->lock);
-      return (intmax_t)index;
+      return index;
     }
   }
 
   mtx_lock(&vector->lock);
-  return N_EXISTS;
+  return GENERICS_EINVAL;
 }
 
 void vector_s_sort(struct vector_s *vector) {

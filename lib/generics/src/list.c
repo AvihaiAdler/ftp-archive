@@ -1,9 +1,25 @@
 #include "include/list.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-struct list *list_init() {
+/* node object */
+struct node {
+  unsigned char *data;
+  size_t data_size;
+  struct node *next;
+  struct node *prev;
+};
+
+/* doubly linked list object */
+struct list {
+  size_t size;  // can never exceeds SIZE_MAX / 2
+  struct node *head;
+  struct node *tail;
+};
+
+struct list *list_init(void) {
   struct list *list = calloc(1, sizeof *list);
   if (!list) return NULL;
 
@@ -237,16 +253,16 @@ void *list_remove_at(struct list *list, size_t pos) {
   return data;
 }
 
-intmax_t list_index_of(struct list *list, const void *data, int (*cmpr)(const void *, const void *)) {
-  if (!list) return N_EXISTS;
-  if (!cmpr) return N_EXISTS;
-  if (!list->head) return N_EXISTS;
+size_t list_index_of(struct list *list, const void *data, int (*cmpr)(const void *, const void *)) {
+  if (!list) return GENERICS_EINVAL;
+  if (!cmpr) return GENERICS_EINVAL;
+  if (!list->head) return GENERICS_EINVAL;
 
-  intmax_t pos = 0;
+  size_t pos = 0;
   for (struct node *tmp = list->head; tmp; tmp = tmp->next, pos++) {
     if (cmpr(tmp->data, data) == 0) return pos;
   }
-  return N_EXISTS;
+  return GENERICS_EINVAL;
 }
 
 void *list_replace_at(struct list *list, const void *data, size_t data_size, size_t pos) {
@@ -287,10 +303,10 @@ void *list_replace(struct list *list,
                    const void *new_data,
                    size_t new_data_size,
                    int (*cmpr)(const void *, const void *)) {
-  intmax_t pos = list_index_of(list, old_data, cmpr);
+  size_t pos = list_index_of(list, old_data, cmpr);
   if (pos < 0) return NULL;
 
-  return list_replace_at(list, new_data, new_data_size, (size_t)pos);
+  return list_replace_at(list, new_data, new_data_size, pos);
 }
 
 static struct node *list_merge(struct node *front, struct node *back, int (*cmpr)(const void *, const void *)) {

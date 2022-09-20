@@ -2,26 +2,12 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <threads.h>
 
 #include "defines.h"
 
-#define GROWTH_FACTOR 1
-#define VECT_INIT_CAPACITY 16
-
 /* mt-safe vector object */
-struct vector_s {
-  // both size and capacity can never exceed LLONG_MAX
-  size_t size;
-  size_t capacity;
-  size_t data_size;
-  unsigned char *data;
-
-  mtx_t lock;
-  int (*cmpr)(const void *, const void *);
-  void (*destroy_element)(void *);
-};
+struct vector_s;
 
 /* initialize a vector object. returns struct vector * on success, NULL on
  * failure. cmpr and destroy element may be NULL */
@@ -36,6 +22,9 @@ void vector_s_destroy(struct vector_s *vector);
 /* returns the number of elements in the vector. avoid acceessing vector::size
  * directly. use this method instead */
 size_t vector_s_size(struct vector_s *vector);
+
+/* returns the size, in bytes of the vector */
+size_t vector_s_struct_size(struct vector_s *vector);
 
 /* returns the number of elements you can fit in the vector. avoid acceessing
  * vector::capacity directly. use this method instead */
@@ -89,7 +78,7 @@ size_t vector_s_shrink(struct vector_s *vector);
 /* finds and returns the index of the first occurence of an element on the
  * vector. returns its position on success, or N_EXISTS if no such element
  * found */
-intmax_t vector_s_index_of(struct vector_s *vector, const void *element);
+size_t vector_s_index_of(struct vector_s *vector, const void *element);
 
 /* sorts the vector. the compr function should returns an int bigger than 0 if
  * the first element if bigger the second, 0 if both elements are equals or an

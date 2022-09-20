@@ -13,7 +13,7 @@ struct hash_table *table_init(int (*cmpr)(const void *key, const void *other),
   struct hash_table *table = calloc(1, sizeof *table);
   if (!table) return NULL;
 
-  table->entries = vector_init(sizeof *table->entries);
+  table->entries = vector_init(vector_struct_size(table->entries));
   if (!table->entries) {
     free(table);
     return NULL;

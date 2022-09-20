@@ -2,21 +2,10 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 
 #include "defines.h"
 
-#define GROWTH_FACTOR 1
-#define VECT_INIT_CAPACITY 16
-
-/* vector object */
-struct vector {
-  // both size and capacity can never exceed LLONG_MAX
-  size_t size;
-  size_t capacity;
-  size_t data_size;
-  unsigned char *data;
-};
+struct vector;
 
 /* initialize a vector object. returns struct vector * on success, NULL on
  * failure */
@@ -35,6 +24,13 @@ size_t vector_size(struct vector *vector);
 /* returns the number of elements you can fit in the vector. avoid acceessing
  * vector::capacity directly. use this method instead */
 size_t vector_capacity(struct vector *vector);
+
+/* return the underlying array of the vector. this function should be use with care, changing said data may result in
+ * UB */
+void *vector_data(struct vector *vector);
+
+/* returns the size, in bytes of the vector */
+size_t vector_struct_size(struct vector *vector);
 
 /* returns whether vector is emtpy or not. if vector is NULL - returns true */
 bool vector_empty(struct vector *vector);
@@ -86,7 +82,7 @@ size_t vector_shrink(struct vector *vector);
 /* finds and returns the index of the first occurence of an element on the
  * vector. returns its position on success, or N_EXISTS if no such element
  * found */
-intmax_t vector_index_of(struct vector *vector, const void *element, int (*cmpr)(const void *, const void *));
+size_t vector_index_of(struct vector *vector, const void *element, int (*cmpr)(const void *, const void *));
 
 /* sort the vector. the compr function should returns an int bigger than 0 if
  * the first element if bigger the second, 0 if both elements are equals or an

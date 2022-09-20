@@ -1,12 +1,22 @@
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "include/vector.h"
 
+/* vector object */
+struct vector {
+  // both size and capacity can never exceed SIZE_MAX / 2
+  size_t size;
+  size_t capacity;
+  size_t data_size;
+  unsigned char *data;
+};
+
 struct vector *vector_init(size_t data_size) {
   // limit check.
   if (data_size == 0) return NULL;
-  if ((SIZE_MAX >> 1) < VECT_INIT_CAPACITY * data_size) return NULL;
+  if ((SIZE_MAX >> 1) / data_size < VECT_INIT_CAPACITY) return NULL;
 
   struct vector *vector = calloc(1, sizeof *vector);
   if (!vector) return NULL;
@@ -39,9 +49,17 @@ size_t vector_size(struct vector *vector) {
   return vector->size;
 }
 
+size_t vector_struct_size(struct vector *vector) {
+  return sizeof *vector;
+}
+
 size_t vector_capacity(struct vector *vector) {
   if (!vector) return 0;
   return vector->capacity;
+}
+
+void *vector_data(struct vector *vector) {
+  return vector->data;
 }
 
 bool vector_empty(struct vector *vector) {
@@ -77,7 +95,7 @@ static bool vector_resize_internal(struct vector *vector) {
   // limit check. vector::capacity * vector::data_size (the max number of
   // element the vector can hold) cannot exceeds (SIZE_MAX >> 1) / vector::data_size
   // (the number of elements (SIZE_MAX >> 1) can hold)
-  if ((SIZE_MAX >> 1) / vector->data_size < new_capacity * vector->data_size) return false;
+  if ((SIZE_MAX >> 1) / vector->data_size < new_capacity) return false;
 
   unsigned char *tmp = realloc(vector->data, new_capacity * vector->data_size);
   if (!tmp) return false;
@@ -186,7 +204,7 @@ size_t vector_shrink(struct vector *vector) {
   return vector->capacity;
 }
 
-intmax_t vector_index_of(struct vector *vector, const void *element, int (*cmpr)(const void *, const void *)) {
+size_t vector_index_of(struct vector *vector, const void *element, int (*cmpr)(const void *, const void *)) {
   if (!vector) return -1;
   if (!vector->data) return -1;
 
@@ -194,7 +212,7 @@ intmax_t vector_index_of(struct vector *vector, const void *element, int (*cmpr)
     if (cmpr(element, &vector->data[i]) == 0) return i / vector->data_size;
   }
 
-  return N_EXISTS;
+  return GENERICS_EINVAL;
 }
 
 void vector_sort(struct vector *vector, int (*cmpr)(const void *, const void *)) {

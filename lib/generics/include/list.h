@@ -2,29 +2,15 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 
 #include "defines.h"
 
-/* node object */
-struct node {
-  unsigned char *data;
-  size_t data_size;
-  struct node *next;
-  struct node *prev;
-};
-
-/* doubly linked list object */
-struct list {
-  size_t size;  // can never exceeds LLONG_MAX
-  struct node *head;
-  struct node *tail;
-};
+struct list;
 
 /* initialize a heap allocated linked list with a size of 0, where head and tail
  * points to NULL. returns a list on success, NULL on failure
  */
-struct list *list_init();
+struct list *list_init(void);
 
 /* destroy a list 'object'. if destroy isn't NULL, calls it for every
  * node::data. you should only pass in a destroy function if your object
@@ -85,7 +71,7 @@ void *list_remove_at(struct list *list, size_t pos);
 /* finds the first occurence of data and returns its index. the index is
  * calculated from the list's head. returns a positive number as the index on
  * success, negative number on failure */
-intmax_t list_index_of(struct list *list, const void *data, int (*cmpr)(const void *, const void *));
+size_t list_index_of(struct list *list, const void *data, int (*cmpr)(const void *, const void *));
 
 /* replaces an element at position pos. the position is calculated from the
  * list's head. returns a pointer to the replcaed data on success (which has to
