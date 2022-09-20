@@ -161,7 +161,7 @@ int main(int argc, char *argv[]) {
 
   // create a control socket
   server_fds.listen_sockfd =
-    get_server_socket(logger, NULL, table_get(properties, CONTROL_PORT, strlen(CONTROL_PORT)), (int)q_size, AI_PASSIVE);
+    get_listen_socket(logger, NULL, table_get(properties, CONTROL_PORT, strlen(CONTROL_PORT)), (int)q_size, AI_PASSIVE);
   if (server_fds.listen_sockfd == -1) {
     logger_log(logger, ERROR, "[main] failed to retrieve a listen socket");
     cleanup(properties, logger, thread_pool, NULL, NULL);
@@ -241,7 +241,7 @@ int main(int argc, char *argv[]) {
 
           struct session session = {0};
 
-          if (!construct_session(&session, remote_fd, root_dir, strlen(root_dir), "guest", strlen("guest"))) {
+          if (!construct_session(&session, remote_fd, root_dir, strlen(root_dir))) {
             logger_log(logger, ERROR, "[main] falied to construct a session for [%s:%s]", remote_host, remote_port);
             continue;
           }
@@ -300,11 +300,10 @@ int main(int argc, char *argv[]) {
             new_session.fds.data_fd = data_fd;   // the new passive data_fd
             new_session.fds.listen_sockfd = -1;  // invalidate session::fds::listen_sockfd
 
-            struct session *old = vector_s_replace(sessions, session, &new_session);
-            if (old != session) {
+            if (!update_session(sessions, logger, &new_session)) {
               logger_log(logger,
                          ERROR,
-                         "[main] fatal error: wrong session has been replaced [%s:%s]",
+                         "[main] fatal error: failed to update a session for [%s:%s]",
                          remote_host,
                          remote_port);
               cleanup(properties, logger, thread_pool, sessions, pollfds);
