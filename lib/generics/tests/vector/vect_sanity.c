@@ -185,11 +185,11 @@ void vector_index_of_sanity_test(int *arr, size_t arr_size) {
   struct vector *vect = before(arr, arr_size);
 
   // when
-  intmax_t index = vector_index_of(vect, &arr[arr_size / 2], cmpr);
+  size_t index = vector_index_of(vect, &arr[arr_size / 2], cmpr);
 
   // then
-  assert(index >= 0);
-  assert((size_t)index == arr_size / 2);
+  assert(index != GENERICS_EINVAL);
+  assert(index == arr_size / 2);
 
   // cleanup
   after(vect);
