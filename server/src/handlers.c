@@ -18,8 +18,6 @@
 #include "include/session.h"
 #include "include/util.h"
 
-#define MAX_PATH_LEN 256
-
 #define CMD_LEN 4
 
 #define FD_LEN 5

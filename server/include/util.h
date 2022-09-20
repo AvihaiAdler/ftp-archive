@@ -12,6 +12,8 @@
 #include "vector.h"
 #include "vector_s.h"
 
+#define MAX_PATH_LEN 256
+
 void cleanup(struct hash_table *properties,
              struct logger *logger,
              struct thread_pool *thread_pool,
@@ -21,23 +23,21 @@ void cleanup(struct hash_table *properties,
 struct addrinfo *get_addr_info(const char *host, const char *serv, int flags);
 
 /* get a socket. if flags == AI_PASSIVE the socket will listen() for incoming connections */
-int get_server_socket(struct logger *logger, const char *host, const char *serv, int conn_q_size, int flags);
+int get_listen_socket(struct logger *logger, const char *host, const char *serv, int conn_q_size, int flags);
 
-int get_client_socket(struct logger *logger, const char *host, const char *serv, int flags);
+int get_connect_socket(struct logger *logger, const char *host, const char *serv, int flags);
 
 /* adds a sockfd to the vector of sockfd used by poll() */
 void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events);
 
 /* constructs a session object. returns true on success, false otherwise */
-bool construct_session(struct session *session,
-                       int remote_fd,
-                       const char *path,
-                       size_t path_len,
-                       char *username,
-                       size_t username_len);
+bool construct_session(struct session *session, int remote_fd, const char *root, size_t root_len);
 
 /* adds a pair of control_sockfd, data_sockfd to the vector of these pairs used by the threads */
 void add_session(struct vector_s *sessions, struct logger *logger, struct session *session);
+
+/* updates a session */
+bool update_session(struct vector_s *sessions, struct logger *logger, struct session *update);
 
 /* removes a sockfd to the vector of sockfd used by poll() */
 void remove_fd(struct vector *pollfds, int fd);

@@ -73,7 +73,7 @@ struct addrinfo *get_addr_info(const char *host, const char *serv, int flags) {
   return info;
 }
 
-int get_server_socket(struct logger *logger, const char *host, const char *serv, int conn_q_size, int flags) {
+int get_listen_socket(struct logger *logger, const char *host, const char *serv, int conn_q_size, int flags) {
   if (!host && !serv) return -1;
 
   struct addrinfo *info = get_addr_info(host, serv, flags);
@@ -119,7 +119,7 @@ int get_server_socket(struct logger *logger, const char *host, const char *serv,
   return sockfd;
 }
 
-int get_client_socket(struct logger *logger, const char *host, const char *serv, int flags) {
+int get_connect_socket(struct logger *logger, const char *host, const char *serv, int flags) {
   if (!host && !serv) return -1;
 
   struct addrinfo *info = get_addr_info(host, serv, flags);
@@ -189,26 +189,22 @@ void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events) {
   vector_push(pollfds, &(struct pollfd){.fd = fd, .events = events});
 }
 
-bool construct_session(struct session *session,
-                       int remote_fd,
-                       const char *path,
-                       size_t path_len,
-                       char *username,
-                       size_t username_len) {
-  if (!session || !path || !username) return false;
+bool construct_session(struct session *session, int remote_fd, const char *root, size_t root_len) {
+  if (!session || !root) return false;
 
   session->fds.control_fd = remote_fd;
   session->fds.data_fd = -1;
   session->data_sock_type = ACTIVE;
   session->fds.listen_sockfd = -1;
 
-  session->context = (struct context){.logged_in = true};
+  session->context = (struct context){.logged_in = false};
 
-  // /home/ftp/username. path = /home/ftp
-  session->context.session_root_dir = calloc(path_len + 1 + username_len + 1, 1);
+  session->context.session_root_dir = calloc(root_len + 1, 1);
+  if (!session->context.session_root_dir) return false;
+  memcpy(session->context.session_root_dir, root, root_len);
+
+  session->context.curr_dir = calloc(MAX_PATH_LEN, 1);
   if (!session->context.curr_dir) return false;
-
-  sprintf(session->context.session_root_dir, "%s/%s", path, username);
 
   return true;
 }
@@ -222,6 +218,23 @@ void add_session(struct vector_s *sessions, struct logger *logger, struct sessio
   }
 
   vector_s_push(sessions, session);
+}
+
+bool update_session(struct vector_s *sessions, struct logger *logger, struct session *update) {
+  struct session *session = vector_s_find(sessions, &(struct session){.fds.control_fd = update->fds.control_fd});
+  if (!session) {
+    logger_log(logger, ERROR, "[update_session] couldn't find sockfd [%d]", update->fds.control_fd);
+    return false;
+  }
+
+  struct session *old = vector_s_replace(sessions, session, update);
+  if (!old) {
+    logger_log(logger, ERROR, "[update_session] couldn't replace session [%d]", update->fds.control_fd);
+    return false;
+  }
+  free(old);
+  free(session);
+  return true;
 }
 
 int cmpr_sessions(const void *a, const void *b) {
