@@ -11,6 +11,7 @@ add_library(
   src/list.c
   src/hash_table.c
 )
+
 set_target_properties(
   generics PROPERTIES 
   VERSION ${PROJECT_VERSION}
