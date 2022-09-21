@@ -10,7 +10,7 @@ struct vector {
   size_t size;
   size_t capacity;
   size_t data_size;
-  unsigned char *data;
+  void *data;
 };
 
 struct vector *vector_init(size_t data_size) {
@@ -37,7 +37,7 @@ void vector_destroy(struct vector *vector, void (*destroy)(void *element)) {
   if (!vector) return;
   if (vector->data) {
     for (size_t i = 0; i < vector->size * vector->data_size; i += vector->data_size) {
-      if (destroy) { destroy(&vector->data[i]); }
+      if (destroy) { destroy(vector->data + i); }
     }
     free(vector->data);
   }
@@ -72,7 +72,7 @@ void *vector_at(struct vector *vector, size_t pos) {
   if (!vector->data) return NULL;
   if (pos >= vector->size) return NULL;
 
-  return &vector->data[pos * vector->data_size];
+  return vector->data + (pos * vector->data_size);
 }
 
 void *vector_find(struct vector *vector, const void *element, int (*cmpr)(const void *, const void *)) {
@@ -97,7 +97,7 @@ static bool vector_resize_internal(struct vector *vector) {
   // (the number of elements (SIZE_MAX >> 1) can hold)
   if ((SIZE_MAX >> 1) / vector->data_size < new_capacity) return false;
 
-  unsigned char *tmp = realloc(vector->data, new_capacity * vector->data_size);
+  void *tmp = realloc(vector->data, new_capacity * vector->data_size);
   if (!tmp) return false;
 
   memset(tmp + vector->size * vector->data_size,
@@ -114,7 +114,7 @@ size_t vector_reserve(struct vector *vector, size_t size) {
   if (size > (SIZE_MAX >> 1)) return vector->capacity;
   if (size <= vector->capacity) return vector->capacity;
 
-  unsigned char *tmp = realloc(vector->data, size * vector->data_size);
+  void *tmp = realloc(vector->data, size * vector->data_size);
   if (!tmp) return vector->capacity;
 
   memset(tmp + vector->size * vector->data_size, 0, size * vector->data_size - vector->size * vector->data_size);
@@ -150,7 +150,7 @@ bool vector_push(struct vector *vector, const void *element) {
     if (!vector_resize_internal(vector)) return false;
   }
 
-  memcpy(&vector->data[vector->size * vector->data_size], element, vector->data_size);
+  memcpy(vector->data + (vector->size * vector->data_size), element, vector->data_size);
   vector->size++;
   return true;
 }
@@ -158,14 +158,14 @@ bool vector_push(struct vector *vector, const void *element) {
 void *vector_pop(struct vector *vector) {
   if (!vector) return NULL;
   if (!vector->data) return NULL;
-  return &vector->data[--vector->size * vector->data_size];
+  return vector->data + (--vector->size * vector->data_size);
 }
 
 void *vector_remove_at(struct vector *vector, size_t pos) {
   void *tmp = vector_at(vector, pos);
   if (!tmp) return NULL;
 
-  unsigned char *old = calloc(1, vector->data_size);
+  void *old = calloc(1, vector->data_size);
   if (!old) return NULL;
 
   memcpy(old, tmp, vector->data_size);
@@ -182,12 +182,12 @@ void *vector_replace(struct vector *vector, const void *element, size_t pos) {
   void *tmp = vector_at(vector, pos);
   if (!tmp) return NULL;
 
-  unsigned char *old = calloc(vector->data_size, 1);
+  void *old = calloc(vector->data_size, 1);
   if (!old) return NULL;
 
   memcpy(old, tmp, vector->data_size);
 
-  memcpy(&vector->data[pos * vector->data_size], element, vector->data_size);
+  memcpy(vector->data + (pos * vector->data_size), element, vector->data_size);
   return old;
 }
 
@@ -196,7 +196,7 @@ size_t vector_shrink(struct vector *vector) {
   if (!vector->data) return 0;
 
   size_t new_capacity = vector->size;
-  unsigned char *tmp = realloc(vector->data, new_capacity * vector->data_size);
+  void *tmp = realloc(vector->data, new_capacity * vector->data_size);
   if (!tmp) return vector->capacity;
 
   vector->capacity = new_capacity;
@@ -209,7 +209,7 @@ size_t vector_index_of(struct vector *vector, const void *element, int (*cmpr)(c
   if (!vector->data) return -1;
 
   for (size_t i = 0; i < vector->size * vector->data_size; i += vector->data_size) {
-    if (cmpr(element, &vector->data[i]) == 0) return i / vector->data_size;
+    if (cmpr(element, vector->data + i) == 0) return i / vector->data_size;
   }
 
   return GENERICS_EINVAL;

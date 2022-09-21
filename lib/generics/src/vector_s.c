@@ -9,7 +9,7 @@ struct vector_s {
   size_t size;
   size_t capacity;
   size_t data_size;
-  unsigned char *data;
+  void *data;
 
   mtx_t lock;
   int (*cmpr)(const void *, const void *);
@@ -51,7 +51,7 @@ void vector_s_destroy(struct vector_s *vector) {
   if (!vector) return;
   if (vector->data) {
     for (size_t i = 0; i < vector->size * vector->data_size; i += vector->data_size) {
-      if (vector->destroy_element) { vector->destroy_element(&vector->data[i]); }
+      if (vector->destroy_element) { vector->destroy_element(vector->data + i); }
     }
     free(vector->data);
   }
@@ -110,7 +110,7 @@ void *vector_s_find(struct vector_s *vector, const void *element) {
     return NULL;
   }
 
-  unsigned char *found = calloc(1, vector->data_size);
+  void *found = calloc(1, vector->data_size);
   if (!found) {
     mtx_unlock(&vector->lock);
     return NULL;
@@ -133,7 +133,7 @@ static bool vector_resize_internal(struct vector_s *vector) {
   // (the number of elements (SIZE_MAX >> 1) can hold)
   if ((SIZE_MAX >> 1) / vector->data_size < new_capacity * vector->data_size) return false;
 
-  unsigned char *tmp = realloc(vector->data, new_capacity * vector->data_size);
+  void *tmp = realloc(vector->data, new_capacity * vector->data_size);
   if (!tmp) return false;
 
   memset(tmp + vector->size * vector->data_size,
@@ -151,7 +151,7 @@ size_t vector_s_reserve(struct vector_s *vector, size_t size) {
   if (size > (SIZE_MAX >> 1) || size <= capacity) return capacity;
 
   mtx_lock(&vector->lock);
-  unsigned char *tmp = realloc(vector->data, size * vector->data_size);
+  void *tmp = realloc(vector->data, size * vector->data_size);
   if (!tmp) {
     mtx_unlock(&vector->lock);
     return capacity;
@@ -200,7 +200,7 @@ bool vector_s_push(struct vector_s *vector, const void *element) {
     return false;
   }
 
-  memcpy(&vector->data[vector->size * vector->data_size], element, vector->data_size);
+  memcpy(vector->data + (vector->size * vector->data_size), element, vector->data_size);
   vector->size++;
   mtx_unlock(&vector->lock);
   return true;
@@ -216,7 +216,7 @@ static void *vector_at(struct vector_s *vector, size_t pos) {
   if (!vector->data) return NULL;
   if (pos >= vector->size) return NULL;
 
-  return &vector->data[pos * vector->data_size];
+  return vector->data + (pos * vector->data_size);
 }
 
 void *vector_s_remove_at(struct vector_s *vector, size_t pos) {
@@ -227,7 +227,7 @@ void *vector_s_remove_at(struct vector_s *vector, size_t pos) {
     return NULL;
   }
 
-  unsigned char *old = calloc(1, vector->data_size);
+  void *old = calloc(1, vector->data_size);
   if (!old) {
     mtx_unlock(&vector->lock);
     return NULL;
@@ -252,7 +252,7 @@ void *vector_s_remove(struct vector_s *vector, void *element) {
     return NULL;
   }
 
-  unsigned char *old = vector_s_remove_at(vector, pos);
+  void *old = vector_s_remove_at(vector, pos);
   if (!old) {
     mtx_unlock(&vector->lock);
     return NULL;
@@ -270,7 +270,7 @@ void *vector_s_replace(struct vector_s *vector, const void *old_elem, const void
     return NULL;
   }
 
-  unsigned char *old = calloc(1, vector->data_size);
+  void *old = calloc(1, vector->data_size);
   if (!old) {
     mtx_unlock(&vector->lock);
     return NULL;
@@ -278,7 +278,7 @@ void *vector_s_replace(struct vector_s *vector, const void *old_elem, const void
 
   memcpy(old, vector_at(vector, pos), vector->data_size);
 
-  memcpy(&vector->data[pos * vector->data_size], new_elem, vector->data_size);
+  memcpy(vector->data + (pos * vector->data_size), new_elem, vector->data_size);
   mtx_unlock(&vector->lock);
   return old;
 }
@@ -293,7 +293,7 @@ size_t vector_s_shrink(struct vector_s *vector) {
   }
 
   size_t new_capacity = vector->size;
-  unsigned char *tmp = realloc(vector->data, new_capacity * vector->data_size);
+  void *tmp = realloc(vector->data, new_capacity * vector->data_size);
   if (!tmp) {
     mtx_unlock(&vector->lock);
     return vector->capacity;
@@ -312,7 +312,7 @@ size_t vector_s_index_of(struct vector_s *vector, const void *element) {
   if (!vector->data) return -1;
 
   for (size_t i = 0; i < vector->size * vector->data_size; i += vector->data_size) {
-    if (vector->cmpr(element, &vector->data[i]) == 0) {
+    if (vector->cmpr(element, vector->data + i) == 0) {
       size_t index = i / vector->data_size;
       mtx_lock(&vector->lock);
       return index;

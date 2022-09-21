@@ -6,7 +6,7 @@
 
 /* node object */
 struct node {
-  unsigned char *data;
+  void *data;
   size_t data_size;
   struct node *next;
   struct node *prev;
@@ -207,7 +207,7 @@ void *list_remove_first(struct list *list) {
   }
   list->size--;
 
-  unsigned char *data = tmp->data;
+  void *data = tmp->data;
   free(tmp);
   return data;
 }
@@ -227,7 +227,7 @@ void *list_remove_last(struct list *list) {
   }
   list->size--;
 
-  unsigned char *data = tmp->data;
+  void *data = tmp->data;
   free(tmp);
   return data;
 }
@@ -277,13 +277,13 @@ void *list_replace_at(struct list *list, const void *data, size_t data_size, siz
     tmp = tmp->next;
   }
 
-  unsigned char *old_data = calloc(tmp->data_size, 1);
+  void *old_data = calloc(tmp->data_size, 1);
   if (!old_data) return NULL;
 
   memcpy(old_data, tmp->data, tmp->data_size);
 
   if (data_size != tmp->data_size) {
-    unsigned char *tmp_buf = realloc(tmp->data, data_size);
+    void *tmp_buf = realloc(tmp->data, data_size);
     if (!tmp_buf) {
       free(old_data);
       return NULL;

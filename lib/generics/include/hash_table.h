@@ -9,8 +9,8 @@
 
 /* 'bucket' */
 struct node {
-  unsigned char *key;
-  unsigned char *value;
+  void *key;
+  void *value;
 
   // the size of key in bytes
   size_t key_size;
