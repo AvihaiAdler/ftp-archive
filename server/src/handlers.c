@@ -391,8 +391,6 @@ int greet(void *arg) {
     return 1;
   }
 
-  // simulate login
-  session->context.logged_in = true;
   session->context.curr_dir = calloc(MAX_PATH_LEN + 1, 1);
   if (!session->context.curr_dir) {
     logger_log(args->logger,
@@ -532,8 +530,13 @@ int list_dir(void *arg) {
     return 1;
   }
 
-  char const *dir_name = (char *)args->request.request + CMD_LEN + 1;
-  // reply message
+  const char *dir_name = strchr((char *)args->request.request, ' ');
+  if (!dir_name) {
+    dir_name = ".";
+  } else {
+    dir_name++;
+  }
+
   if (!validate_path(dir_name, args->logger, &log_context)) {
     logger_log(args->logger,
                ERROR,
