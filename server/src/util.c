@@ -184,7 +184,7 @@ void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events) {
   }
 
   // fd already exists in pollfds
-  if (vector_index_of(pollfds, &(struct pollfd){.fd = fd}, cmpr_pfds) == N_EXISTS) return;
+  if (vector_index_of(pollfds, &(struct pollfd){.fd = fd}, cmpr_pfds) == GENERICS_EINVAL) return;
 
   vector_push(pollfds, &(struct pollfd){.fd = fd, .events = events});
 }
@@ -251,9 +251,9 @@ int cmpr_sessions(const void *a, const void *b) {
 void remove_fd(struct vector *pollfds, int fd) {
   if (!pollfds) return;
 
-  long long pos = vector_index_of(pollfds, &(struct pollfd){.fd = fd}, cmpr_pfds);
+  size_t pos = vector_index_of(pollfds, &(struct pollfd){.fd = fd}, cmpr_pfds);
 
-  if (pos == N_EXISTS) return;
+  if (pos == GENERICS_EINVAL) return;
 
   struct pollfd *pfd = vector_remove_at(pollfds, pos);
   if (!pfd) return;
