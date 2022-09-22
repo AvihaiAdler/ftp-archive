@@ -10,12 +10,12 @@ struct fds {
 };
 
 struct context {
-  bool logged_in;
+  bool logged_in;  // reserved for future implmentation
 
   // current directory. the current directoy is relational to session_root_dir. i.e. session_root_dir/curr_dir
   char *curr_dir;
 
-  // the sessions root directory. /home/ftp/usename
+  // the sessions root directory. /home/ftp
   char *session_root_dir;
 };
 
