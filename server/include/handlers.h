@@ -1,8 +1,8 @@
 #pragma once
 
-#include "include/payload.h"
-#include "include/session.h"
 #include "logger.h"
+#include "payload.h"
+#include "session.h"
 #include "thread_pool.h"
 #include "vector_s.h"
 
@@ -32,7 +32,7 @@ int terminate_session(void *arg);
 /* returns a stream of file names found in session::context::session_root_dir/session::context::curr_dir/directory_path.
  * if directory_path is NULL (i.e. the client sent LIST followed by a null terminator, directory_path will be set to "."
  * [current directory]) */
-int list_dir(void *arg);
+int list(void *arg);
 
 int get_request(void *arg);
 
@@ -59,7 +59,7 @@ int print_working_dir(void *arg);
 /* creates a new directoy at session::context::session_root_dir/session::context::curr_dir/directory_path */
 int make_dir(void *arg);
 
-/* removes a directory. the directory path will be caluculated from
+/* removes an empty directory. the directory path will be caluculated from
  * session::context::session_root_dir/session::context::curr_dir/directory_path */
 int remove_dir(void *arg);
 

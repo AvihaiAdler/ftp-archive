@@ -1,13 +1,28 @@
 set(
+  HANDLERS
+  src/handlers/cwd_ftp.c
+  src/handlers/delete.c
+  src/handlers/greet.c
+  src/handlers/list.c
+  src/handlers/mkd_ftp.c
+  src/handlers/passive.c
+  src/handlers/port.c
+  src/handlers/pwd_ftp.c
+  src/handlers/quit.c
+  src/handlers/rmd_ftp.c
+  src/handlers/retrieve.c
+  src/handlers/store.c
+  src/handlers/util.c)
+set(
   SERVER 
   ftpd.c
   src/util.c
-  src/payload.c
-  src/handlers.c)
-add_executable(ftpd ${SERVER})
+  src/payload.c)
+add_executable(ftpd ${SERVER} ${HANDLERS})
 target_compile_options(ftpd PRIVATE -Wall -Wextra -pedantic -O3)
 target_link_options(ftpd PRIVATE -fsanitize=address,undefined)
 target_include_directories(ftpd PRIVATE .)
+target_include_directories(ftpd PRIVATE include/handlers)
 
 # import the libraries
 # genereics

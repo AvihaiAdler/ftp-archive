@@ -22,14 +22,19 @@
 
 #define FD_LEN 5
 
-#define TEMP_SYMBOL '@'
-
-#define KILOBYTES 1024.0
+#define KB 1024.0
+#define MB (1024 * KB)
+#define GB (1024 * MB)
 
 struct log_context {
   const char *func_name;
   char ip[NI_MAXHOST];
   char port[NI_MAXSERV];
+};
+
+struct file_size {
+  long double size;
+  const char *units;
 };
 
 static char *tolower_str(char *str, size_t len) {
@@ -74,6 +79,24 @@ static const char *trim_str(const char *str) {
     ptr++;
 
   return ptr;
+}
+
+static struct file_size get_file_size(off_t size_in_bytes) {
+  struct file_size f_size = {0};
+  if (size_in_bytes > GB) {
+    f_size.size = size_in_bytes / GB;
+    f_size.units = "GB";
+  } else if (size_in_bytes > MB) {
+    f_size.size = size_in_bytes / MB;
+    f_size.units = "MB";
+  } else if (size_in_bytes > KB) {
+    f_size.size = size_in_bytes / KB;
+    f_size.units = "KB";
+  } else {
+    f_size.size = (long double)size_in_bytes;
+    f_size.units = "B";
+  }
+  return f_size;
 }
 
 static bool validate_path(const char *file_name, struct logger *logger, struct log_context *context) {
@@ -194,30 +217,27 @@ int (*parse_command(int sockfd, struct logger *logger))(void *) {
                        RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
   }
 
-  char cmd[CMD_LEN + 1] = {0};
-  memcpy(cmd, (char *)request.request, sizeof cmd - 1);
-
-  if (strcmp(cmd, "port") == 0) {
+  if (strncmp((char *)request.request, "port", 4) == 0) {
     return port;
-  } else if (strcmp(cmd, "pasv") == 0) {
+  } else if (strncmp((char *)request.request, "pasv", 4) == 0) {
     return passive;
-  } else if (strcmp(cmd, "retr") == 0) {
+  } else if (strncmp((char *)request.request, "retr", 4) == 0) {
     return retrieve_file;
-  } else if (strcmp(cmd, "stor") == 0) {
+  } else if (strncmp((char *)request.request, "stor", 4) == 0) {
     return store_file;
-  } else if (strcmp(cmd, "dele") == 0) {
+  } else if (strncmp((char *)request.request, "dele", 4) == 0) {
     return delete_file;
-  } else if (strcmp(cmd, "quit") == 0) {
+  } else if (strncmp((char *)request.request, "quit", 4) == 0) {
     return terminate_session;
-  } else if (strcmp(cmd, "list") == 0) {
-    return list_dir;
-  } else if (strcmp(cmd, "pwd") == 0) {
+  } else if (strncmp((char *)request.request, "list", 4) == 0) {
+    return list;
+  } else if (strncmp((char *)request.request, "pwd", 3) == 0) {
     return print_working_dir;
-  } else if (strcmp(cmd, "mkd") == 0) {
+  } else if (strncmp((char *)request.request, "mkd", 3) == 0) {
     return make_dir;
-  } else if (strcmp(cmd, "rmd") == 0) {
+  } else if (strncmp((char *)request.request, "rmd", 3) == 0) {
     return remove_dir;
-  } else if (strcmp(cmd, "cwd") == 0) {
+  } else if (strncmp((char *)request.request, "cwd", 3) == 0) {
     return change_dir;
   }
 
@@ -493,12 +513,12 @@ int terminate_session(void *arg) {
   return 0;
 }
 
-int list_dir(void *arg) {
+int list(void *arg) {
   if (!arg) return 1;
 
   struct args *args = arg;
 
-  struct log_context log_context = {.func_name = "list_dir"};
+  struct log_context log_context = {.func_name = "list"};
   get_ip_and_port(args->remote_fd, log_context.ip, sizeof log_context.ip, log_context.port, sizeof log_context.port);
 
   struct session tmp = {.fds.control_fd = args->remote_fd};
@@ -612,6 +632,7 @@ int list_dir(void *arg) {
   struct data_block data = {0};
   bool successful_trasnfer = true;
   for (struct dirent *dirent = readdir(dir); dirent; dirent = readdir(dir)) {
+    if (*dirent->d_name == '.') continue;  // hide all file names which start with '.'
     strcat(abs_path, "/");
 
     // abs_path + abs_path_len + 1: +1 because of the additional '/'
@@ -632,12 +653,14 @@ int list_dir(void *arg) {
       continue;
     }
 
+    struct file_size file_size = get_file_size(statbuf.st_size);
     int len = snprintf(NULL,
                        0,
-                       "[%c] %s [%.1f KB]",
+                       "[%c] %s [%.1Lf %s]",
                        dirent->d_type == DT_DIR ? 'd' : '-',
                        dirent->d_name,
-                       statbuf.st_size / KILOBYTES);
+                       file_size.size,
+                       file_size.units);
     if (len + 1 >= (int)sizeof data.data - 1) {
       logger_log(args->logger,
                  WARN,
@@ -652,10 +675,11 @@ int list_dir(void *arg) {
 
     snprintf((char *)data.data,
              len + 1,
-             "[%c] %s [%.1f KB]",
+             "[%c] %s [%.1Lf %s]",
              dirent->d_type == DT_DIR ? 'd' : '-',
              dirent->d_name,
-             statbuf.st_size / KILOBYTES);
+             file_size.size,
+             file_size.units);
     data.length = (uint16_t)len + 1;
 
     int err = send_data(&data, session->fds.data_fd, 0);
@@ -814,7 +838,8 @@ int print_working_dir(void *arg) {
                        RPLY_ACTION_INCOMPLETE_LCL_ERROR);
     return 1;
   }
-  int len = snprintf(NULL, 0, "[%d] %s/%s", RPLY_CMD_OK, session->context.session_root_dir, session->context.curr_dir);
+  int len =
+    snprintf(NULL, 0, "[%d] ok. %s/%s", RPLY_CMD_OK, session->context.session_root_dir, session->context.curr_dir);
   if (len >= REPLY_MAX_LEN - 1) {
     logger_log(args->logger,
                ERROR,
@@ -836,7 +861,7 @@ int print_working_dir(void *arg) {
   send_reply_wrapper(session->fds.control_fd,
                      args->logger,
                      RPLY_CMD_OK,
-                     "[%d] %s/%s",
+                     "[%d] ok. %s/%s",
                      RPLY_CMD_OK,
                      session->context.session_root_dir,
                      session->context.curr_dir);
@@ -864,6 +889,155 @@ int remove_dir(void *arg) {
 }
 
 int change_dir(void *arg) {
-  (void)arg;
+  if (!arg) return 1;
+  struct args *args = arg;
+
+  struct log_context context = {.func_name = "cwd"};
+  get_ip_and_port(args->remote_fd, context.ip, sizeof context.ip, context.port, sizeof context.port);
+
+  struct session *tmp_session = vector_s_find(args->sessions, &(struct session){.fds.control_fd = args->remote_fd});
+  if (!tmp_session) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] failed to find the session for fd [%d]",
+               thrd_current(),
+               context.func_name,
+               context.ip,
+               context.port,
+               args->remote_fd);
+    send_reply_wrapper(args->remote_fd,
+                       args->logger,
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
+                       "[%d] action incomplete. internal process error",
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+    return 1;
+  }
+  struct session session = {0};
+  memcpy(&session, tmp_session, sizeof session);
+  free(tmp_session);
+
+  // get the desired directory path
+  const char *desired = strchr((char *)args->request.request, ' ');
+  if (!desired) {  // no such path specified
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] invalid request arguments",
+               thrd_current(),
+               context.func_name,
+               context.ip,
+               context.port);
+    send_reply_wrapper(args->remote_fd,
+                       args->logger,
+                       RPLY_ARGS_SYNTAX_ERR,
+                       "[%d] invalid arguments",
+                       RPLY_ARGS_SYNTAX_ERR);
+    return 1;
+  }
+
+  // try to open the desired directory
+  int len = snprintf(NULL, 0, "%s/%s", session.context.session_root_dir, desired + 1);
+  char tmp_path[MAX_PATH_LEN] = {0};
+
+  // path is too long
+  if ((size_t)len >= sizeof tmp_path - 1) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] path too long",
+               thrd_current(),
+               context.func_name,
+               context.ip,
+               context.port);
+    send_reply_wrapper(args->remote_fd,
+                       args->logger,
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
+                       "[%d] action incomplete. internal process error (path too long)",
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+    return 1;
+  }
+
+  snprintf(tmp_path, sizeof tmp_path, "%s/%s", session.context.session_root_dir, desired + 1);
+  int ret = open(tmp_path, O_RDONLY | O_DIRECTORY);
+  if (ret == -1) {  // desired directory doesn't exist
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] invalid path [%s]",
+               thrd_current(),
+               context.func_name,
+               context.ip,
+               context.port,
+               tmp_path);
+    send_reply_wrapper(args->remote_fd,
+                       args->logger,
+                       RPLY_ARGS_SYNTAX_ERR,
+                       "[%d] action incomplete. internal process error (invalid path)",
+                       RPLY_ARGS_SYNTAX_ERR);
+    return 1;
+  }
+  close(ret);
+
+  // path exceeds reply length
+  if (len >= REPLY_MAX_LEN - 1) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] path exeeds reply length [%d]",
+               thrd_current(),
+               context.func_name,
+               context.ip,
+               context.port,
+               REPLY_MAX_LEN - 1);
+    send_reply_wrapper(args->remote_fd,
+                       args->logger,
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
+                       "[%d] action incomplete. internal process error",
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+    return 1;
+  }
+
+  // replace session::context::curr_dir
+  size_t new_curr_dir_len = strlen(tmp_path);
+  char *tmp_ptr = realloc(session.context.curr_dir, new_curr_dir_len + 1);
+  if (!tmp_ptr) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] memory allocation failure",
+               thrd_current(),
+               context.func_name,
+               context.ip,
+               context.port);
+    send_reply_wrapper(args->remote_fd,
+                       args->logger,
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
+                       "[%d] action incomplete. internal process error",
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+    return 1;
+  }
+  memcpy(tmp_ptr, tmp_path, new_curr_dir_len);
+  session.context.curr_dir = tmp_ptr;
+
+  // replace the session
+  if (!update_session(args->sessions, args->logger, &session)) {
+    send_reply_wrapper(args->remote_fd,
+                       args->logger,
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
+                       "[%d] action incomplete. internal process error",
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+    return 1;
+  }
+
+  send_reply_wrapper(session.fds.control_fd,
+                     args->logger,
+                     RPLY_CMD_OK,
+                     "[%d] ok. %s/%s",
+                     RPLY_CMD_OK,
+                     session.context.session_root_dir,
+                     session.context.curr_dir);
+  logger_log(args->logger,
+             INFO,
+             "[%lu] [%s] [%s:%s] executed successfuly",
+             thrd_current(),
+             context.func_name,
+             context.ip,
+             context.port);
+
   return 0;
 }
