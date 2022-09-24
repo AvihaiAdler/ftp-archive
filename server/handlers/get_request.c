@@ -172,18 +172,6 @@ int get_request(void *arg) {
       close(session.fds.data_fd);  // close data socket
       return 1;
     }
-
-    // update main
-    uint64_t val = 1;
-    if (write(args->event_fd, &val, sizeof val) == -1) {
-      logger_log(args->logger,
-                 ERROR,
-                 "[%lu] [%s] [%s:%s] falied to update main thread [%d]",
-                 thrd_current,
-                 context.func_name,
-                 context.ip,
-                 context.port);
-    }
   }
 
   // create the relevant task
