@@ -1,5 +1,6 @@
 #include "util.h"
 #include <ctype.h>
+#include <errno.h>
 #include <netdb.h>
 #include <stdarg.h>  // vsnprintf()
 #include <stdio.h>
@@ -22,15 +23,20 @@ void send_reply_wrapper(int sockfd, struct logger *logger, enum reply_codes repl
   va_start(args, fmt);
 
   size_t required_size = vsnprintf(NULL, 0, fmt, args);
-  if (required_size < sizeof reply.reply - 1) {
-    vsnprintf((char *)reply.reply, sizeof reply.reply, fmt, args);
-    reply.length = required_size;
+  if (required_size + 1 > REPLY_MAX_LEN - 1) {
+    logger_log(logger, ERROR, "[%lu] [send_reply_wrapper] reply too long", thrd_current());
+    va_end(args);
+    return;
   }
+
+  vsnprintf((char *)reply.reply, required_size + 1, fmt, args);
+  reply.length = required_size + 1;
 
   va_end(args);
 
-  int err = send_reply(&reply, sockfd, 0);
-  if (err != ERR_SUCCESS && logger) {
+  int ret = send_reply(&reply, sockfd, 0);
+  int err = errno;
+  if (ret != ERR_SUCCESS && logger) {
     logger_log(logger,
                ERROR,
                "[%lu] [send_reply_wrapper] [%s] failed to send reply [%s]",
