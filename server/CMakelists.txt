@@ -13,8 +13,7 @@ set(
   handlers/retrieve.c
   handlers/store.c
   handlers/util.c
-  # handlers/get_request.c
-  )
+  handlers/get_request.c)
 set(
   SERVER 
   ftpd.c
