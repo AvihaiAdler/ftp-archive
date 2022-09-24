@@ -46,7 +46,7 @@ int remove_directory(void *arg) {
     return 1;
   }
   int len = snprintf(NULL, 0, "%s/%s", session.context.curr_dir, args->req_args.request_args);
-  if (len < 0 || len > MAX_PATH_LEN - 1) {
+  if (len < 0 || len + 1 > MAX_PATH_LEN - 1) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] path exeeds path length [%d]",

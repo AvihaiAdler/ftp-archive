@@ -48,7 +48,7 @@ int list(void *arg) {
   free(tmp_session);
 
   // check if there's a valid session::fds::data_fd
-  if (session.fds.data_fd < 0) {
+  if (session.fds.data_fd == -1) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] invalid data_sockfd",
@@ -174,7 +174,7 @@ int list(void *arg) {
                        dirent->d_name,
                        file_size.size,
                        file_size.units);
-    if (len > DATA_BLOCK_MAX_LEN - 1) {
+    if (len < 0 || len + 1 > DATA_BLOCK_MAX_LEN - 1) {
       logger_log(args->logger,
                  WARN,
                  "[%lu] [%s] [%s:%s] file name [%s] is too long",

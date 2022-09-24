@@ -59,7 +59,7 @@ int make_directory(void *arg) {
   int len = snprintf(NULL, 0, "%s/%s", session.context.curr_dir, new_dir_name);
 
   // path exceeds reply length
-  if (len < 0 || len > MAX_PATH_LEN - 1) {
+  if (len < 0 || len + 1 > MAX_PATH_LEN - 1) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] path exeeds path length [%d]",
@@ -99,7 +99,7 @@ int make_directory(void *arg) {
   }
 
   len = snprintf(NULL, 0, "[%d] ok. %s/%s", RPLY_CMD_OK, session.context.curr_dir, new_dir_name);
-  if (len >= REPLY_MAX_LEN - 1) {
+  if (len + 1 > REPLY_MAX_LEN - 1) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] path exeeds reply length [%d]",

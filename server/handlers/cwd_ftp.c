@@ -49,7 +49,7 @@ int change_directory(void *arg) {
   int len = snprintf(NULL, 0, "%s", args->req_args.request_args);
 
   // path is too long
-  if (len < 0 || len > MAX_PATH_LEN - 1) {
+  if (len < 0 || len + 1 > MAX_PATH_LEN - 1) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] path too long",
@@ -88,7 +88,7 @@ int change_directory(void *arg) {
 
   // path exceeds reply length
   len = snprintf(NULL, 0, "[%d] ok. %s", RPLY_CMD_OK, args->req_args.request_args);
-  if (len >= REPLY_MAX_LEN - 1) {
+  if (len + 1 > REPLY_MAX_LEN - 1) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] path exeeds reply length [%d]",

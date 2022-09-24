@@ -32,7 +32,7 @@ int print_working_directory(void *arg) {
 
   // get the path
   int len = snprintf(NULL, 0, "[%d] ok. %s", RPLY_CMD_OK, session->context.curr_dir);
-  if (len < 0 || len > REPLY_MAX_LEN - 1) {
+  if (len < 0 || len + 1 > REPLY_MAX_LEN - 1) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] path exeeds reply length [%d]",
