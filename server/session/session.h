@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdbool.h>
-#define FILE_NAME_LEN 128
 
 struct fds {
   int control_fd;
