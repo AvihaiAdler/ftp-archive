@@ -54,7 +54,7 @@ bool validate_path(const char *path, struct logger *logger, struct log_context *
   if (!path || !context) return false;
 
   // no file name specified
-  if (!path) {
+  if (!*path) {
     logger_log(logger,
                ERROR,
                "[thread:%lu] [%s] [%s:%s] invalid path",
