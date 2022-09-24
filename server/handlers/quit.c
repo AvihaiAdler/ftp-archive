@@ -11,7 +11,7 @@ int quit(void *arg) {
   struct log_context log_context = {.func_name = "quit"};
   get_ip_and_port(args->remote_fd, log_context.ip, sizeof log_context.ip, log_context.port, sizeof log_context.port);
 
-  struct session *session = vector_s_find(args->sessions, &(struct session){.fds.control_fd = args->remote_fd});
+  struct session *session = vector_s_find(args->sessions, &args->remote_fd);
   if (!session) {
     logger_log(args->logger,
                ERROR,

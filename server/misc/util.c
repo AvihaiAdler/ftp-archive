@@ -218,7 +218,7 @@ void add_session(struct vector_s *sessions, struct logger *logger, struct sessio
 }
 
 bool update_session(struct vector_s *sessions, struct logger *logger, struct session *update) {
-  struct session *session = vector_s_find(sessions, &(struct session){.fds.control_fd = update->fds.control_fd});
+  struct session *session = vector_s_find(sessions, &update->fds.control_fd);
   if (!session) {
     logger_log(logger, ERROR, "[update_session] couldn't find sockfd [%d]", update->fds.control_fd);
     return false;
@@ -236,12 +236,12 @@ bool update_session(struct vector_s *sessions, struct logger *logger, struct ses
 
 int cmpr_sessions(const void *a, const void *b) {
   const struct session *s_a = a;
-  const struct session *s_b = b;
+  const int *s_b = b;
 
   /* searches for the session by either fds. ignores a::data_fd alltogether. i.e. looks for a session whos either
    * b::control_fd OR b::data_fd equal to a::control_fd*/
-  if (s_a->fds.control_fd == s_b->fds.control_fd || s_a->fds.control_fd == s_b->fds.listen_sockfd) return 0;
-  if (s_a->fds.control_fd > s_b->fds.control_fd) return 1;
+  if (s_a->fds.control_fd == *s_b || s_a->fds.listen_sockfd == *s_b) return 0;
+  if (s_a->fds.control_fd > *s_b) return 1;
   return -1;
 }
 

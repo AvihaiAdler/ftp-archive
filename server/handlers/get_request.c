@@ -69,7 +69,7 @@ int get_request(void *arg) {
   get_ip_and_port(args->remote_fd, context.ip, sizeof context.ip, context.port, sizeof context.port);
 
   // find the session
-  struct session *tmp_session = vector_s_find(args->sessions, &(struct session){.fds.control_fd = args->remote_fd});
+  struct session *tmp_session = vector_s_find(args->sessions, &args->remote_fd);
   if (!tmp_session) {
     logger_log(args->logger,
                ERROR,

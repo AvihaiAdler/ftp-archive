@@ -12,7 +12,7 @@ int print_working_directory(void *arg) {
   get_ip_and_port(args->remote_fd, context.ip, sizeof context.ip, context.port, sizeof context.port);
 
   // find the session
-  struct session *session = vector_s_find(args->sessions, &(struct session){.fds.control_fd = args->remote_fd});
+  struct session *session = vector_s_find(args->sessions, &args->remote_fd);
   if (!session) {
     logger_log(args->logger,
                ERROR,

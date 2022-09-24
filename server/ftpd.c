@@ -276,7 +276,7 @@ int main(int argc, char *argv[]) {
           /* could be either a control socket or a session::fds::listen_sockfd socket. if its a control socket: get a
            * request. otherwise: accept, update the session::data_fd. invalidate session::fds::listen_sockfd
            * afterwards(and remove it from pollfds)*/
-          struct session *session = vector_s_find(sessions, &(struct session){.fds.control_fd = current->fd});
+          struct session *session = vector_s_find(sessions, &current->fd);
           if (!session) {
             logger_log(logger, ERROR, "[main] couldn't find sockfd [%d]", current->fd);
             continue;
