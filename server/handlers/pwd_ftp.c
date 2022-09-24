@@ -28,8 +28,7 @@ int print_working_directory(void *arg) {
                        RPLY_ACTION_INCOMPLETE_LCL_ERROR);
     return 1;
   }
-  int len =
-    snprintf(NULL, 0, "[%d] ok. %s/%s", RPLY_CMD_OK, session->context.session_root_dir, session->context.curr_dir);
+  int len = snprintf(NULL, 0, "[%d] ok. %s", RPLY_CMD_OK, session->context.curr_dir);
   if (len + 1 > REPLY_MAX_LEN) {
     logger_log(args->logger,
                ERROR,
@@ -53,7 +52,6 @@ int print_working_directory(void *arg) {
                      RPLY_CMD_OK,
                      "[%d] ok. %s/%s",
                      RPLY_CMD_OK,
-                     session->context.session_root_dir,
                      session->context.curr_dir);
   logger_log(args->logger,
              INFO,

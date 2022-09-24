@@ -87,6 +87,12 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  if (chdir(root_dir) != 0) {
+    logger_log(logger, ERROR, "falied to chdir to [%s]. reason [%s]", root_dir, strerr_safe(errno));
+    cleanup(properties, logger, NULL, NULL, NULL);
+    return 1;
+  }
+
   // create a signal handler (must be invoked prior to the creation of the thread pool due to the sigprocmask() call)
   if (!create_sig_handler(SIGINT, signal_handler)) {
     logger_log(logger, ERROR, "[main] failed to create a signal handler");
@@ -237,7 +243,7 @@ int main(int argc, char *argv[]) {
 
           struct session session = {0};
 
-          if (!construct_session(&session, remote_fd, root_dir, strlen(root_dir))) {
+          if (!construct_session(&session, remote_fd, NULL, 0)) {
             logger_log(logger, ERROR, "[main] falied to construct a session for [%s:%s]", remote_host, remote_port);
             continue;
           }

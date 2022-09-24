@@ -93,12 +93,11 @@ int list(void *arg) {
     return 1;
   }
 
-  size_t root_dir_len = strlen(session.context.session_root_dir);
   size_t curr_dir_len = strlen(session.context.curr_dir);
   size_t dir_name_len = strlen(dir_name);
 
   // +2 one for an additional '/', one for the null terminator
-  size_t abs_path_size = root_dir_len + 1 + curr_dir_len + 1 + dir_name_len + FILE_NAME_LEN + 1;
+  size_t abs_path_size = curr_dir_len + 1 + dir_name_len + FILE_NAME_LEN + 1;
   char *abs_path = calloc(abs_path_size, 1);
   if (!abs_path) {
     logger_log(args->logger,
@@ -118,8 +117,7 @@ int list(void *arg) {
     return 1;
   }
 
-  int abs_path_len =
-    sprintf(abs_path, "%s/%s/%s", session.context.session_root_dir, session.context.curr_dir, dir_name);
+  int abs_path_len = sprintf(abs_path, "%s/%s", session.context.curr_dir, dir_name);
 
   send_reply_wrapper(session.fds.control_fd, args->logger, RPLY_CMD_OK, "[%d] ok. begin transfer", RPLY_CMD_OK);
 

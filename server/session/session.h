@@ -15,7 +15,7 @@ struct context {
   // current directory. the current directoy is relational to session_root_dir. i.e. session_root_dir/curr_dir
   char *curr_dir;
 
-  // the sessions root directory. /home/ftp
+  // the sessions root directory. reserved for future implmentation
   char *session_root_dir;
 };
 

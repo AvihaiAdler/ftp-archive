@@ -195,11 +195,10 @@ bool construct_session(struct session *session, int remote_fd, const char *root,
   session->data_sock_type = ACTIVE;
   session->fds.listen_sockfd = -1;
 
+  // reserved for future implementation of a login system
   session->context = (struct context){.logged_in = false};
-
-  session->context.session_root_dir = calloc(root_len + 1, 1);
-  if (!session->context.session_root_dir) return false;
-  memcpy(session->context.session_root_dir, root, root_len);
+  (void)root_len;
+  session->context.session_root_dir = NULL;
 
   session->context.curr_dir = calloc(MAX_PATH_LEN, 1);
   if (!session->context.curr_dir) return false;
@@ -347,6 +346,8 @@ const char *strerr_safe(int err) {
       return "bad address";
     case EINVAL:
       return "invalid argument";
+    case EIO:
+      return "an I/O error occurred";
     case ELOOP:
       return "too many levels of symbolic links";
     case EMLINK:

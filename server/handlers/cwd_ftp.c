@@ -45,7 +45,7 @@ int change_directory(void *arg) {
   }
 
   // try to open the desired directory
-  int len = snprintf(NULL, 0, "%s/%s", session.context.session_root_dir, args->req_args.request_args);
+  int len = snprintf(NULL, 0, "%s", args->req_args.request_args);
   char tmp_path[MAX_PATH_LEN] = {0};
 
   // path is too long
@@ -65,7 +65,7 @@ int change_directory(void *arg) {
     return 1;
   }
 
-  snprintf(tmp_path, len + 1, "%s/%s", session.context.session_root_dir, args->req_args.request_args);
+  snprintf(tmp_path, len + 1, "%s", args->req_args.request_args);
   int ret = open(tmp_path, O_RDONLY | O_DIRECTORY);
   if (ret == -1) {  // desired directory doesn't exist
     logger_log(args->logger,
@@ -86,7 +86,7 @@ int change_directory(void *arg) {
   close(ret);
 
   // path exceeds reply length
-  len = snprintf(NULL, 0, "[%d] ok. %s/%s", RPLY_CMD_OK, session.context.session_root_dir, args->req_args.request_args);
+  len = snprintf(NULL, 0, "[%d] ok. %s", RPLY_CMD_OK, args->req_args.request_args);
   if (len >= REPLY_MAX_LEN - 1) {
     logger_log(args->logger,
                ERROR,
@@ -122,7 +122,6 @@ int change_directory(void *arg) {
                      RPLY_CMD_OK,
                      "[%d] ok. %s/%s",
                      RPLY_CMD_OK,
-                     session.context.session_root_dir,
                      session.context.curr_dir);
   logger_log(args->logger,
              INFO,
