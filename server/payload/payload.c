@@ -53,7 +53,7 @@ int recieve_request(struct request *request, int sockfd, int flags) {
   ssize_t ret = 0;
   for (uint16_t recved = 0; recved < request->length; recved += ret) {
     ret = recv(sockfd, request->request + recved, request->length - recved, flags);
-    if (ret == -1) return ERR_SOCKET_TRANSMISSION_ERR;  // error. possibly sockfd was closed
+    if (ret == -1) return ERR_SOCKET_TRANSMISSION_ERR;  // error. sockfd was possibly closed
   }
   return ERR_SUCCESS;
 }

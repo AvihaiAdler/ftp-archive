@@ -6,7 +6,7 @@
 #include "misc/util.h"
 #include "util.h"
 
-int make_dir(void *arg) {
+int make_directory(void *arg) {
   if (!arg) return 1;
   struct args *args = arg;
 
