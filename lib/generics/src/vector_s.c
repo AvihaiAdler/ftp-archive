@@ -100,26 +100,30 @@ void *vector_s_find(struct vector_s *vector, const void *element) {
   }
 
   void *tmp = NULL;
+  bool found = false;
   for (size_t index = 0; index < vector->size; index++) {
     tmp = vector->data + index * vector->data_size;
-    if (vector->cmpr(tmp, element) == 0) break;
+    if (vector->cmpr(tmp, element) == 0) {
+      found = true;
+      break;
+    }
   }
 
-  if (!tmp) {
-    mtx_unlock(&vector->lock);
-    return NULL;
-  }
-
-  void *found = calloc(1, vector->data_size);
   if (!found) {
     mtx_unlock(&vector->lock);
     return NULL;
   }
 
-  memcpy(found, tmp, vector->data_size);
+  void *ret = calloc(1, vector->data_size);
+  if (!ret) {
+    mtx_unlock(&vector->lock);
+    return NULL;
+  }
+
+  memcpy(ret, tmp, vector->data_size);
   mtx_unlock(&vector->lock);
 
-  return found;
+  return ret;
 }
 
 /* used internally to resize the vector by GROWTH_FACTOR */

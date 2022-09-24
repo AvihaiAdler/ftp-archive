@@ -34,7 +34,8 @@ size_t vector_s_capacity(struct vector_s *vector);
 bool vector_s_empty(struct vector_s *vector);
 
 /* searches for an element linearly [O(n)] and returns a copy of it (which must be free'd). returns
- * NULL on failure */
+ * NULL on failure. the search calls the cmpr function with its first argument as an element in the vector and the
+ * second argument as the element element */
 void *vector_s_find(struct vector_s *vector, const void *element);
 
 /* reservse space for size elements. returns the new reserved space
