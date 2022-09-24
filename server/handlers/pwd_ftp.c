@@ -11,6 +11,7 @@ int print_working_directory(void *arg) {
   struct log_context context = {.func_name = "pwd"};
   get_ip_and_port(args->remote_fd, context.ip, sizeof context.ip, context.port, sizeof context.port);
 
+  // find the session
   struct session *session = vector_s_find(args->sessions, &(struct session){.fds.control_fd = args->remote_fd});
   if (!session) {
     logger_log(args->logger,
@@ -28,8 +29,10 @@ int print_working_directory(void *arg) {
                        RPLY_ACTION_INCOMPLETE_LCL_ERROR);
     return 1;
   }
+
+  // get the path
   int len = snprintf(NULL, 0, "[%d] ok. %s", RPLY_CMD_OK, session->context.curr_dir);
-  if (len + 1 > REPLY_MAX_LEN) {
+  if (len < 0 || len > REPLY_MAX_LEN - 1) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] path exeeds reply length [%d]",

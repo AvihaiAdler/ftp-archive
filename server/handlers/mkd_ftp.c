@@ -14,6 +14,7 @@ int make_directory(void *arg) {
   struct log_context context = {.func_name = "mkd"};
   get_ip_and_port(args->remote_fd, context.ip, sizeof context.ip, context.port, sizeof context.port);
 
+  // find the session
   struct session *tmp_session = vector_s_find(args->sessions, &(struct session){.fds.control_fd = args->remote_fd});
   if (!tmp_session) {
     logger_log(args->logger,
@@ -58,7 +59,7 @@ int make_directory(void *arg) {
   int len = snprintf(NULL, 0, "%s/%s", session.context.curr_dir, new_dir_name);
 
   // path exceeds reply length
-  if (len >= MAX_PATH_LEN - 1) {
+  if (len < 0 || len > MAX_PATH_LEN - 1) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] path exeeds path length [%d]",
@@ -79,6 +80,7 @@ int make_directory(void *arg) {
   char path[MAX_PATH_LEN];
   snprintf(path, len + 1, "%s/%s", session.context.curr_dir, new_dir_name);
   if (mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR) != 0) {
+    int err = errno;
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] mkdir failed. reason [%s]",
@@ -86,12 +88,13 @@ int make_directory(void *arg) {
                context.func_name,
                context.ip,
                context.port,
-               strerr_safe(errno));
+               strerr_safe(err));
     send_reply_wrapper(args->remote_fd,
                        args->logger,
                        RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       "[%d] action incomplete. internal process error (%s)",
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
+                       strerr_safe(err));
     return 1;
   }
 

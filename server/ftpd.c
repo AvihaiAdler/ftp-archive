@@ -75,20 +75,22 @@ int main(int argc, char *argv[]) {
 
   // try to create the directory the files will be stored in
   int ret = mkdir(root_dir, S_IRUSR | S_IWUSR | S_IXUSR);
+  int err = errno;
 
   // if mkdir failed but not because the directory already exists:
-  if (ret != 0 && errno != EEXIST) {
+  if (ret != 0 && err != EEXIST) {
     logger_log(logger,
                ERROR,
                "failed to create the directory [%s]. returned with error [%s]",
                root_dir,
-               strerr_safe(errno));
+               strerr_safe(err));
     cleanup(properties, logger, NULL, NULL, NULL);
     return 1;
   }
 
   if (chdir(root_dir) != 0) {
-    logger_log(logger, ERROR, "falied to chdir to [%s]. reason [%s]", root_dir, strerr_safe(errno));
+    err = errno;
+    logger_log(logger, ERROR, "falied to chdir to [%s]. reason [%s]", root_dir, strerr_safe(err));
     cleanup(properties, logger, NULL, NULL, NULL);
     return 1;
   }
