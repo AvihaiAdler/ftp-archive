@@ -20,12 +20,12 @@ static size_t dir_size(DIR *dir) {
 
 int list(void *arg) {
   if (!arg) return 1;
-
   struct args *args = arg;
 
   struct log_context log_context = {.func_name = "list"};
   get_ip_and_port(args->remote_fd, log_context.ip, sizeof log_context.ip, log_context.port, sizeof log_context.port);
 
+  // find the session
   struct session *tmp_session = vector_s_find(args->sessions, &(struct session){.fds.control_fd = args->remote_fd});
   if (!tmp_session) {
     logger_log(args->logger,
@@ -64,6 +64,7 @@ int list(void *arg) {
     return 1;
   }
 
+  // get the directory path
   const char *dir_name = args->req_args.request_args;
   if (!dir_name) dir_name = ".";
 
@@ -95,7 +96,7 @@ int list(void *arg) {
   if (!path) {
     logger_log(args->logger,
                ERROR,
-               "[%lu] [%s] [%s:%s] calloc failure. couldn't allocate space for abs_path",
+               "[%lu] [%s] [%s:%s] calloc failure. couldn't allocate space for path",
                thrd_current,
                log_context.func_name,
                log_context.ip,
@@ -103,9 +104,7 @@ int list(void *arg) {
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                       "[%d] file action incomplete. internal process error [%s]",
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                       dir_name);
+                       "[%d] file action incomplete. internal process error");
 
     return 1;
   }
@@ -115,7 +114,6 @@ int list(void *arg) {
                      RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
                      "[%d] ok. begin transfer",
                      RPLY_DATA_CONN_OPEN_STARTING_TRANSFER);
-  // int path_len = sprintf(path, "%s/%s", session.context.curr_dir, dir_name);
 
   // open the directory
   DIR *dir = opendir(path);
