@@ -1,27 +1,23 @@
-#define _POSIX_C_SOURCE 200112L
-#define _GNU_SOURCE
-
+#define _GNU_SOURCE  // ppoll
 #include <errno.h>
 #include <limits.h>
-#include <netdb.h>
 #include <poll.h>
-#include <signal.h>
+#include <signal.h>  // sigaction
 #include <stdatomic.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/eventfd.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <unistd.h>
+#include <sys/stat.h>  // mkdir
+#include <unistd.h>    // close
+#include "handlers/greet.h"
+#include "handlers/util.h"
 #include "hash_table.h"
-#include "include/handlers.h"
-#include "include/session.h"
-#include "include/util.h"
 #include "logger.h"
+#include "misc/util.h"
 #include "properties_loader.h"
+#include "session/session.h"
 #include "thread_pool.h"
 #include "vector.h"
 #include "vector_s.h"
@@ -209,7 +205,7 @@ int main(int argc, char *argv[]) {
 
   // main server loop
   while (!atomic_load(&terminate)) {
-    int events_count = ppoll((struct pollfd *)pollfds->data, vector_size(pollfds), NULL, &ppoll_sigset);
+    int events_count = ppoll((struct pollfd *)vector_struct_size(pollfds), vector_size(pollfds), NULL, &ppoll_sigset);
     if (events_count == -1) {
       logger_log(logger, ERROR, "[main] poll error");
       break;
@@ -251,7 +247,6 @@ int main(int argc, char *argv[]) {
           struct args args = {.logger = logger,
                               .remote_fd = remote_fd,
                               .event_fd = server_fds.event_fd,
-                              .session = session,
                               .sessions = sessions};
           thread_pool_add_task(thread_pool, &(struct task){.args = &args, .handle_task = greet});
         } else if (current->fd == server_fds.event_fd) {  // event fd

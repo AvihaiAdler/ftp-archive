@@ -1,6 +1,4 @@
-#define _POSIX_C_SOURCE 200112L
-#define _GNU_SOURCE
-#include "include/util.h"
+#include "util.h"
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -15,8 +13,8 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include "include/payload.h"
-#include "include/session.h"
+#include "payload/payload.h"
+#include "session/session.h"
 #include "thread_pool.h"
 
 #define BUF_LEN 1024

@@ -1,11 +1,10 @@
 #include "list.h"
-#include <dirent.h>
+#include <dirent.h>  // opendir, readdir, closedir
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include "include/session.h"
-#include "include/util.h"
+#include <sys/stat.h>  // stat
+#include "misc/util.h"
 #include "util.h"
 
 static struct file_size get_file_size(off_t size_in_bytes) {
@@ -72,7 +71,7 @@ int list(void *arg) {
     return 1;
   }
 
-  const char *dir_name = trim_str(strchr((char *)args->request.request, ' '));
+  const char *dir_name = args->req_args.request_args;
   if (!dir_name) dir_name = ".";
 
   if (!validate_path(dir_name, args->logger, &log_context)) {

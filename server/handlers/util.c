@@ -1,9 +1,10 @@
 #include "util.h"
 #include <ctype.h>
-#include <stdarg.h>
+#include <netdb.h>
+#include <stdarg.h>  // vsnprintf
 #include <stdio.h>
-#include <string.h>
-#include "include/util.h"
+#include <string.h>  //NI_MAXHOST, NI_MAXSERV
+#include "misc/util.h"
 
 char *tolower_str(char *str, size_t len) {
   if (!str || !len) return NULL;

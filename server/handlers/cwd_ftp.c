@@ -1,10 +1,10 @@
 #include "cwd_ftp.h"
-#include <fcntl.h>
+#include <fcntl.h>  // open
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include "include/util.h"
+#include <unistd.h>  // close
+#include "misc/util.h"
 #include "util.h"
 
 int change_directory(void *arg) {
@@ -35,25 +35,7 @@ int change_directory(void *arg) {
   memcpy(&session, tmp_session, sizeof session);
   free(tmp_session);
 
-  // get the desired directory path
-  const char *desired = trim_str(strchr((char *)args->request.request, ' '));
-  if (!desired) {  // no such path specified
-    logger_log(args->logger,
-               ERROR,
-               "[%lu] [%s] [%s:%s] invalid request arguments",
-               thrd_current(),
-               context.func_name,
-               context.ip,
-               context.port);
-    send_reply_wrapper(args->remote_fd,
-                       args->logger,
-                       RPLY_ARGS_SYNTAX_ERR,
-                       "[%d] invalid arguments",
-                       RPLY_ARGS_SYNTAX_ERR);
-    return 1;
-  }
-
-  if (!validate_path(desired, args->logger, &context)) {
+  if (!validate_path(args->req_args.request_args, args->logger, &context)) {
     send_reply_wrapper(args->remote_fd,
                        args->logger,
                        RPLY_ARGS_SYNTAX_ERR,
@@ -63,8 +45,8 @@ int change_directory(void *arg) {
   }
 
   // try to open the desired directory
-  int len = snprintf(NULL, 0, "%s/%s", session.context.session_root_dir, desired);
-  char tmp_path[MAX_PATH_LEN + 1] = {0};
+  int len = snprintf(NULL, 0, "%s/%s", session.context.session_root_dir, args->req_args.request_args);
+  char tmp_path[MAX_PATH_LEN] = {0};
 
   // path is too long
   if ((size_t)len >= sizeof tmp_path - 1) {
@@ -83,7 +65,7 @@ int change_directory(void *arg) {
     return 1;
   }
 
-  snprintf(tmp_path, sizeof tmp_path, "%s/%s", session.context.session_root_dir, desired + 1);
+  snprintf(tmp_path, len + 1, "%s/%s", session.context.session_root_dir, args->req_args.request_args);
   int ret = open(tmp_path, O_RDONLY | O_DIRECTORY);
   if (ret == -1) {  // desired directory doesn't exist
     logger_log(args->logger,
@@ -104,6 +86,7 @@ int change_directory(void *arg) {
   close(ret);
 
   // path exceeds reply length
+  len = snprintf(NULL, 0, "[%d] ok. %s/%s", RPLY_CMD_OK, session.context.session_root_dir, args->req_args.request_args);
   if (len >= REPLY_MAX_LEN - 1) {
     logger_log(args->logger,
                ERROR,
@@ -143,11 +126,12 @@ int change_directory(void *arg) {
                      session.context.curr_dir);
   logger_log(args->logger,
              INFO,
-             "[%lu] [%s] [%s:%s] executed successfuly",
+             "[%lu] [%s] [%s:%s] executed successfuly. working directory changed to [%s]",
              thrd_current(),
              context.func_name,
              context.ip,
-             context.port);
+             context.port,
+             tmp_path);
 
   return 0;
 }

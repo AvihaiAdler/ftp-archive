@@ -1,9 +1,9 @@
-#include "include/payload.h"
-#include <byteswap.h>
+#include "payload/payload.h"
+#include <byteswap.h>  // bswap16
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <sys/socket.h>
+#include <sys/socket.h>  // send, recv
 
 static bool is_big_endian(void) {
   unsigned int one = 0x1;

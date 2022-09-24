@@ -1,18 +1,16 @@
 #pragma once
 
-#include <netdb.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include "hash_table.h"
-#include "include/payload.h"
-#include "include/session.h"
 #include "logger.h"
-#include "session.h"
+#include "payload/payload.h"
+#include "session/session.h"
 #include "thread_pool.h"
 #include "vector.h"
 #include "vector_s.h"
 
-#define MAX_PATH_LEN 256
+#define MAX_PATH_LEN 512
 
 void cleanup(struct hash_table *properties,
              struct logger *logger,

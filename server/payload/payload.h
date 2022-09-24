@@ -1,10 +1,10 @@
 #pragma once
 
 #include <stdint.h>
-#include <sys/types.h>
+#include <sys/types.h>  // ssize_t
 
-#define REQUEST_MAX_LEN 64
-#define REPLY_MAX_LEN 513
+#define REQUEST_MAX_LEN 256
+#define REPLY_MAX_LEN 512
 #define DATA_BLOCK_MAX_LEN 2048
 
 enum err_codes {
@@ -34,6 +34,20 @@ enum reply_codes {
 
 enum descriptor_codes {
   DESCPTR_EOF = 0x40,  // 64. specify EOF for the last block of a file
+};
+
+enum request_type {
+  REQ_PWD,
+  REQ_CWD,
+  REQ_MKD,
+  REQ_RMD,
+  REQ_PORT,
+  REQ_PASV,
+  REQ_DELE,
+  REQ_LIST,
+  REQ_RETR,
+  REQ_STOR,
+  REQ_QUIT,
 };
 
 struct reply {

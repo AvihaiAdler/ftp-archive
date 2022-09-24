@@ -1,6 +1,6 @@
 #include "quit.h"
 #include <stdlib.h>
-#include "include/util.h"
+#include "misc/util.h"
 #include "util.h"
 
 int quit(void *arg) {

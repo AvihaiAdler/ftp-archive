@@ -1,5 +1,5 @@
 #include "passive.h"
-#include "include/util.h"
+#include "misc/util.h"
 #include "util.h"
 
 int passive(void *arg) {

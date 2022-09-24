@@ -1,15 +1,19 @@
 #pragma once
-#define _GNU_SOURCE
 #include <netdb.h>
-#include "include/payload.h"
-#include "include/session.h"
 #include "logger.h"
+#include "payload/payload.h"
+#include "session/session.h"
 #include "thread_pool.h"
 #include "vector_s.h"
 
 #define KB 1024.0
 #define MB (1024 * KB)
 #define GB (1024 * MB)
+
+struct request_args {
+  enum request_type type;
+  char request_args[REQUEST_MAX_LEN];
+};
 
 struct args {
   int remote_fd;
@@ -18,7 +22,7 @@ struct args {
   struct logger *logger;
 
   union {
-    struct request request;
+    struct request_args req_args;
     struct thread_pool *thread_pool;
   };
 };

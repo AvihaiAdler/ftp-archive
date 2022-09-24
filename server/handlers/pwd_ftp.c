@@ -1,7 +1,7 @@
 #include "pwd_ftp.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include "include/util.h"
+#include "misc/util.h"
 #include "util.h"
 
 int print_working_directory(void *arg) {
