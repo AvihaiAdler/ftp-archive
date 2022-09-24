@@ -1,28 +1,21 @@
 #include "list.h"
-#include <dirent.h>  // opendir, readdir, closedir
+#include <dirent.h>  // opendir(), readdir(), closedir()
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>  // stat
+#include <sys/stat.h>  // stat()
 #include "misc/util.h"
 #include "util.h"
 
-static struct file_size get_file_size(off_t size_in_bytes) {
-  struct file_size f_size = {0};
-  if (size_in_bytes > GB) {
-    f_size.size = size_in_bytes / GB;
-    f_size.units = "GB";
-  } else if (size_in_bytes > MB) {
-    f_size.size = size_in_bytes / MB;
-    f_size.units = "MB";
-  } else if (size_in_bytes > KB) {
-    f_size.size = size_in_bytes / KB;
-    f_size.units = "KB";
-  } else {
-    f_size.size = (long double)size_in_bytes;
-    f_size.units = "B";
+static size_t dir_size(DIR *dir) {
+  if (!dir) return 0;
+
+  size_t count = 0;
+  for (struct dirent *dirent = readdir(dir); dirent; dirent = readdir(dir)) {
+    count++;
   }
-  return f_size;
+  rewinddir(dir);
+  return count;
 }
 
 int list(void *arg) {
@@ -97,9 +90,9 @@ int list(void *arg) {
   size_t dir_name_len = strlen(dir_name);
 
   // +2 one for an additional '/', one for the null terminator
-  size_t abs_path_size = curr_dir_len + 1 + dir_name_len + FILE_NAME_LEN + 1;
-  char *abs_path = calloc(abs_path_size, 1);
-  if (!abs_path) {
+  size_t path_size = curr_dir_len + 1 + dir_name_len + 1;
+  char *path = calloc(path_size, 1);
+  if (!path) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] calloc failure. couldn't allocate space for abs_path",
@@ -117,11 +110,15 @@ int list(void *arg) {
     return 1;
   }
 
-  int abs_path_len = sprintf(abs_path, "%s/%s", session.context.curr_dir, dir_name);
+  send_reply_wrapper(session.fds.control_fd,
+                     args->logger,
+                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
+                     "[%d] ok. begin transfer",
+                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER);
+  // int path_len = sprintf(path, "%s/%s", session.context.curr_dir, dir_name);
 
-  send_reply_wrapper(session.fds.control_fd, args->logger, RPLY_CMD_OK, "[%d] ok. begin transfer", RPLY_CMD_OK);
-
-  DIR *dir = opendir(abs_path);
+  // open the directory
+  DIR *dir = opendir(path);
 
   // can't open directory
   if (!dir) {
@@ -139,22 +136,24 @@ int list(void *arg) {
                        "[%d] invalid path [%s]",
                        RPLY_ARGS_SYNTAX_ERR,
                        dir_name);
-    free(abs_path);
+    free(path);
     return 1;
   }
 
+  // get the fd of the directory
+  int dir_fd = dirfd(dir);
+
+  // get the number of files in the directory
+  size_t num_of_files = dir_size(dir);
+  size_t counter = 0;  // counts the number of files read from dir
+
   struct data_block data = {0};
   bool successful_trasnfer = true;
-  for (struct dirent *dirent = readdir(dir); dirent; dirent = readdir(dir)) {
+  for (struct dirent *dirent = readdir(dir); dirent; dirent = readdir(dir), counter++) {
     if (*dirent->d_name == '.') continue;  // hide all file names which start with '.'
-    strcat(abs_path, "/");
-
-    // abs_path + abs_path_len + 1: +1 because of the additional '/'
-    // abs_path_size - (abs_path_len + 2): +2, 1 for the additional '/', 1 for the null terminator
-    strncpy(abs_path + abs_path_len + 1, dirent->d_name, abs_path_size - (abs_path_len + 2));
-
+    // get the file size
     struct stat statbuf = {0};
-    int ret = stat(abs_path, &statbuf);
+    int ret = fstatat(dir_fd, dirent->d_name, &statbuf, 0);
     if (ret == -1) {
       logger_log(args->logger,
                  WARN,
@@ -163,7 +162,7 @@ int list(void *arg) {
                  log_context.func_name,
                  log_context.ip,
                  log_context.port,
-                 abs_path);
+                 abs);
       continue;
     }
 
@@ -175,7 +174,7 @@ int list(void *arg) {
                        dirent->d_name,
                        file_size.size,
                        file_size.units);
-    if (len + 1 > DATA_BLOCK_MAX_LEN) {
+    if (len > DATA_BLOCK_MAX_LEN - 1) {
       logger_log(args->logger,
                  WARN,
                  "[%lu] [%s] [%s:%s] file name [%s] is too long",
@@ -195,6 +194,9 @@ int list(void *arg) {
              file_size.size,
              file_size.units);
     data.length = (uint16_t)len + 1;
+
+    // check for the last file in the directory
+    if (counter == num_of_files - 1) data.descriptor = DESCPTR_EOF;
 
     int err = send_data(&data, session.fds.data_fd, 0);
     if (err != ERR_SUCCESS) {
@@ -217,26 +219,6 @@ int list(void *arg) {
   }
   closedir(dir);
 
-  // send EOF
-  data = (struct data_block){.descriptor = DESCPTR_EOF, .length = 0};
-  int err = send_data(&data, session.fds.data_fd, 0);
-  if (err != ERR_SUCCESS) {
-    logger_log(args->logger,
-               ERROR,
-               "[%lu] [%s] [%s:%s] failed to send data [%s]",
-               thrd_current(),
-               log_context.func_name,
-               log_context.ip,
-               log_context.port,
-               str_err_code(err));
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                       "[%d] action incomplete",
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
-    successful_trasnfer = false;
-  }
-
   if (successful_trasnfer) {
     logger_log(args->logger,
                INFO,
@@ -252,6 +234,6 @@ int list(void *arg) {
                        RPLY_FILE_ACTION_COMPLETE);
   }
 
-  free(abs_path);
+  free(path);
   return 0;
 }

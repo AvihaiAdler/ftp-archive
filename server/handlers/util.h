@@ -1,5 +1,6 @@
 #pragma once
 #include <netdb.h>
+#include <sys/types.h>  // off_t
 #include "logger.h"
 #include "payload/payload.h"
 #include "session/session.h"
@@ -47,3 +48,5 @@ void send_reply_wrapper(int sockfd, struct logger *logger, enum reply_codes repl
 char *tolower_str(char *str, size_t len);
 
 int open_data_connection(struct session *remote, struct logger *logger, struct log_context *context);
+
+struct file_size get_file_size(off_t size_in_bytes);
