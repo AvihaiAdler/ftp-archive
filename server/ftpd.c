@@ -1,16 +1,16 @@
-#define _GNU_SOURCE  // ppoll
+#define _GNU_SOURCE  // ppoll()
 #include <errno.h>
 #include <limits.h>
 #include <poll.h>
-#include <signal.h>  // sigaction
+#include <signal.h>  // sigaction()
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/eventfd.h>
-#include <sys/stat.h>  // mkdir
-#include <unistd.h>    // close
+#include <sys/stat.h>  // mkdir()
+#include <unistd.h>    // close(), read()
 #include "handlers/greet.h"
 #include "handlers/util.h"
 #include "hash_table.h"
