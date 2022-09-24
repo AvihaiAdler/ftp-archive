@@ -1,9 +1,9 @@
 #include "cwd_ftp.h"
-#include <fcntl.h>  // open
+#include <fcntl.h>  // open()
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>  // close
+#include <unistd.h>  // close()
 #include "misc/util.h"
 #include "util.h"
 

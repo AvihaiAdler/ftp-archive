@@ -1,7 +1,7 @@
 #include "util.h"
 #include <ctype.h>
 #include <netdb.h>
-#include <stdarg.h>  // vsnprintf
+#include <stdarg.h>  // vsnprintf()
 #include <stdio.h>
 #include <string.h>  //NI_MAXHOST, NI_MAXSERV
 #include "misc/util.h"

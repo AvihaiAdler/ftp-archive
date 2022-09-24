@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>  // mkdir
+#include <sys/stat.h>  // mkdir()
 #include "misc/util.h"
 #include "util.h"
 
