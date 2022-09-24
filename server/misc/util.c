@@ -338,6 +338,8 @@ const char *strerr_safe(int err) {
       return "permission denied";
     case EBADF:
       return "bad file descriptor";
+    case EBUSY:
+      return "device or resource busy";
     case EDQUOT:
       return "EDQUOT";
     case EEXIST:
@@ -346,6 +348,8 @@ const char *strerr_safe(int err) {
       return "bad address";
     case EINVAL:
       return "invalid argument";
+    case EISDIR:
+      return "is a directory";
     case EIO:
       return "an I/O error occurred";
     case ELOOP:
