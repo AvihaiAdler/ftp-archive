@@ -45,7 +45,8 @@ int remove_directory(void *arg) {
                        RPLY_ARGS_SYNTAX_ERR);
     return 1;
   }
-  int len = snprintf(NULL, 0, "%s/%s", session.context.curr_dir, args->req_args.request_args);
+  int len =
+    snprintf(NULL, 0, "%s/%s", *session.context.curr_dir ? session.context.curr_dir : ".", args->req_args.request_args);
   if (len < 0 || len + 1 > MAX_PATH_LEN - 1) {
     logger_log(args->logger,
                ERROR,
@@ -64,7 +65,11 @@ int remove_directory(void *arg) {
   }
 
   char removed_dir_path[MAX_PATH_LEN] = {0};
-  snprintf(removed_dir_path, len + 1, "%s/%s", session.context.curr_dir, args->req_args.request_args);
+  snprintf(removed_dir_path,
+           len + 1,
+           "%s/%s",
+           *session.context.curr_dir ? session.context.curr_dir : ".",
+           args->req_args.request_args);
 
   // delete the directory
   if (rmdir(removed_dir_path) != 0) {

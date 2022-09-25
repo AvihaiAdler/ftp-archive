@@ -52,7 +52,7 @@ int retrieve_file(void *arg) {
   }
 
   // validate the file path
-  if (!validate_path(args->req_args.request_args, args->logger, &context) || *args->req_args.request_args == '.') {
+  if (!validate_path(args->req_args.request_args, args->logger, &context)) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] invalid path [%s]",
@@ -72,7 +72,8 @@ int retrieve_file(void *arg) {
   }
 
   // get the file path
-  int len = snprintf(NULL, 0, "%s/%s", session.context.curr_dir, args->req_args.request_args);
+  int len =
+    snprintf(NULL, 0, "%s/%s", *session.context.curr_dir ? session.context.curr_dir : ".", args->req_args.request_args);
   if (len < 0 || len + 1 > MAX_PATH_LEN - 1) {
     logger_log(args->logger,
                ERROR,
@@ -91,7 +92,11 @@ int retrieve_file(void *arg) {
   }
 
   char path[MAX_PATH_LEN];
-  snprintf(path, len + 1, "%s/%s", session.context.curr_dir, args->req_args.request_args);
+  snprintf(path,
+           len + 1,
+           "%s/%s",
+           *session.context.curr_dir ? session.context.curr_dir : ".",
+           args->req_args.request_args);
 
   // open the file
   FILE *fp = fopen(path, "r");
@@ -119,7 +124,7 @@ int retrieve_file(void *arg) {
   bool successful_transfer = true;
   bool done = false;
   do {
-    size_t bytes_read = fread((char *)data.data, sizeof *data.data, DATA_BLOCK_MAX_LEN, fp);
+    size_t bytes_read = fread(data.data, sizeof *data.data, DATA_BLOCK_MAX_LEN, fp);
     data.length = (uint16_t)bytes_read;
 
     if (bytes_read < DATA_BLOCK_MAX_LEN) {
@@ -146,7 +151,7 @@ int retrieve_file(void *arg) {
   if (successful_transfer) {
     logger_log(args->logger,
                ERROR,
-               "[%lu] [%s] [%s:%s] the file [%s] duccessfully transfered",
+               "[%lu] [%s] [%s:%s] the file [%s] successfully transfered",
                thrd_current(),
                context.func_name,
                context.ip,

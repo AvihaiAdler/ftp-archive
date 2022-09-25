@@ -38,8 +38,7 @@ int make_directory(void *arg) {
 
   // get the desired directory path
   const char *new_dir_name = args->req_args.request_args;
-  if (!validate_path(new_dir_name, args->logger, &context) || !strchr(new_dir_name, '/') ||
-      *new_dir_name == '.') {  // no such path specified or dir name starts with a .
+  if (!validate_path(new_dir_name, args->logger, &context) || !strchr(new_dir_name, '/')) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] invalid request arguments",
@@ -56,7 +55,7 @@ int make_directory(void *arg) {
   }
 
   // get the new directory path
-  int len = snprintf(NULL, 0, "%s/%s", session.context.curr_dir, new_dir_name);
+  int len = snprintf(NULL, 0, "%s/%s", *session.context.curr_dir ? session.context.curr_dir : ".", new_dir_name);
 
   // path exceeds reply length
   if (len < 0 || len + 1 > MAX_PATH_LEN - 1) {
@@ -78,7 +77,7 @@ int make_directory(void *arg) {
 
   // create the new directory
   char path[MAX_PATH_LEN];
-  snprintf(path, len + 1, "%s/%s", session.context.curr_dir, new_dir_name);
+  snprintf(path, len + 1, "%s/%s", *session.context.curr_dir ? session.context.curr_dir : ".", new_dir_name);
   if (mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR) != 0) {
     int err = errno;
     logger_log(args->logger,
@@ -98,7 +97,12 @@ int make_directory(void *arg) {
     return 1;
   }
 
-  len = snprintf(NULL, 0, "[%d] ok. %s/%s", RPLY_CMD_OK, session.context.curr_dir, new_dir_name);
+  len = snprintf(NULL,
+                 0,
+                 "[%d] ok. %s/%s",
+                 RPLY_CMD_OK,
+                 *session.context.curr_dir ? session.context.curr_dir : ".",
+                 new_dir_name);
   if (len + 1 > REPLY_MAX_LEN - 1) {
     logger_log(args->logger,
                ERROR,
