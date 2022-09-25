@@ -84,7 +84,20 @@ bool validate_path(const char *path, struct logger *logger, struct log_context *
     return false;
   }
 
-  // file name contains a ../
+  // path contains a . or starts with a /
+  if (strchr(path, '.') || *path == '/') {
+    logger_log(logger,
+               ERROR,
+               "[thread:%lu] [%s] [%s:%s] bad request. path [%s] not allowed",
+               thrd_current(),
+               context->func_name,
+               context->ip,
+               context->port,
+               path);
+    return false;
+  }
+
+  // path contains a ../
   if (strstr(path, "../")) {
     logger_log(logger,
                ERROR,
