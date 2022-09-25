@@ -27,7 +27,7 @@ struct vector_s *vector_s_init(size_t data_size,
   if (!vector) return NULL;
 
   vector->data_size = data_size;
-  vector->data = calloc(VECT_INIT_CAPACITY * vector->data_size, 1);
+  vector->data = malloc(VECT_INIT_CAPACITY * vector->data_size);
   if (!vector->data) {
     free(vector);
     return NULL;
@@ -114,7 +114,7 @@ void *vector_s_find(struct vector_s *vector, const void *element) {
     return NULL;
   }
 
-  void *ret = calloc(1, vector->data_size);
+  void *ret = malloc(vector->data_size);
   if (!ret) {
     mtx_unlock(&vector->lock);
     return NULL;
@@ -231,7 +231,7 @@ void *vector_s_remove_at(struct vector_s *vector, size_t pos) {
     return NULL;
   }
 
-  void *old = calloc(1, vector->data_size);
+  void *old = malloc(vector->data_size);
   if (!old) {
     mtx_unlock(&vector->lock);
     return NULL;
@@ -274,7 +274,7 @@ void *vector_s_replace(struct vector_s *vector, const void *old_elem, const void
     return NULL;
   }
 
-  void *old = calloc(1, vector->data_size);
+  void *old = malloc(vector->data_size);
   if (!old) {
     mtx_unlock(&vector->lock);
     return NULL;
