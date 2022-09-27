@@ -51,7 +51,7 @@ void vector_s_destroy(struct vector_s *vector) {
   if (!vector) return;
   if (vector->data) {
     for (size_t i = 0; i < vector->size * vector->data_size; i += vector->data_size) {
-      if (vector->destroy_element) { vector->destroy_element(vector->data + i); }
+      if (vector->destroy_element) { vector->destroy_element((unsigned char *)vector->data + i); }
     }
     free(vector->data);
   }
@@ -102,7 +102,7 @@ void *vector_s_find(struct vector_s *vector, const void *element) {
   void *tmp = NULL;
   bool found = false;
   for (size_t index = 0; index < vector->size; index++) {
-    tmp = vector->data + index * vector->data_size;
+    tmp = (unsigned char *)vector->data + index * vector->data_size;
     if (vector->cmpr(tmp, element) == 0) {
       found = true;
       break;
@@ -174,7 +174,7 @@ size_t vector_s_resize(struct vector_s *vector, size_t size) {
 
   mtx_lock(&vector->lock);
   if (size >= vector->size && size <= vector->capacity) {
-    memset(vector->data + vector->size * vector->data_size,
+    memset((unsigned char *)vector->data + vector->size * vector->data_size,
            0,
            size * vector->data_size - vector->size * vector->data_size);
   } else if (size > vector->capacity) {
@@ -204,7 +204,7 @@ bool vector_s_push(struct vector_s *vector, const void *element) {
     return false;
   }
 
-  memcpy(vector->data + (vector->size * vector->data_size), element, vector->data_size);
+  memcpy((unsigned char *)vector->data + (vector->size * vector->data_size), element, vector->data_size);
   vector->size++;
   mtx_unlock(&vector->lock);
   return true;
@@ -220,7 +220,7 @@ static void *vector_at(struct vector_s *vector, size_t pos) {
   if (!vector->data) return NULL;
   if (pos >= vector->size) return NULL;
 
-  return vector->data + (pos * vector->data_size);
+  return (unsigned char *)vector->data + (pos * vector->data_size);
 }
 
 void *vector_s_remove_at(struct vector_s *vector, size_t pos) {
@@ -240,8 +240,8 @@ void *vector_s_remove_at(struct vector_s *vector, size_t pos) {
   memcpy(old, tmp, vector->data_size);
 
   size_t factored_pos = pos * vector->data_size;
-  memmove(vector->data + factored_pos,
-          vector->data + factored_pos + 1 * vector->data_size,
+  memmove((unsigned char *)vector->data + factored_pos,
+          (unsigned char *)vector->data + factored_pos + 1 * vector->data_size,
           (vector->size - pos - 1) * vector->data_size);
   vector->size--;
   mtx_unlock(&vector->lock);
@@ -316,7 +316,7 @@ size_t vector_s_index_of(struct vector_s *vector, const void *element) {
   if (!vector->data) return -1;
 
   for (size_t i = 0; i < vector->size * vector->data_size; i += vector->data_size) {
-    if (vector->cmpr(element, vector->data + i) == 0) {
+    if (vector->cmpr(element, (unsigned char *)vector->data + i) == 0) {
       size_t index = i / vector->data_size;
       mtx_lock(&vector->lock);
       return index;

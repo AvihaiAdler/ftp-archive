@@ -120,7 +120,7 @@ bool list_insert_at(struct list *list, const void *data, size_t data_size, size_
   if (!new_node) return false;
 
   struct node *tmp = list->head;
-  for (unsigned long i = 0; i < pos - 1; i++) {
+  for (size_t i = 0; i < pos - 1; i++) {
     tmp = tmp->next;
   }
 
@@ -240,7 +240,7 @@ void *list_remove_at(struct list *list, size_t pos) {
   if (pos == list->size - 1) return list_remove_last(list);
 
   struct node *tmp = list->head;
-  for (unsigned long i = 0; i < pos; i++) {
+  for (size_t i = 0; i < pos; i++) {
     tmp = tmp->next;
   }
 
@@ -273,7 +273,7 @@ void *list_replace_at(struct list *list, const void *data, size_t data_size, siz
   if (data_size == 0) return NULL;
 
   struct node *tmp = list->head;
-  for (unsigned long i = 0; i < pos; i++) {
+  for (size_t i = 0; i < pos; i++) {
     tmp = tmp->next;
   }
 
