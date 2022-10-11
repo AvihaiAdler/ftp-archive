@@ -63,9 +63,7 @@ int list(void *arg) {
 
   // get the directory path
   const char *dir_name = args->req_args.request_args;
-  if (!dir_name) dir_name = ".";
-
-  if (!validate_path(dir_name, args->logger)) {
+  if (dir_name && !validate_path(dir_name, args->logger)) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] invalid path [%s]",
@@ -83,6 +81,8 @@ int list(void *arg) {
 
     return 1;
   }
+
+  if (!dir_name) dir_name = ".";
 
   // get file path
   char path[MAX_PATH_LEN];
