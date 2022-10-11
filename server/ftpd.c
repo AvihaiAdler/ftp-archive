@@ -66,7 +66,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // get the root directory. all server files will be uploded there / to a sub dir with it
+  // get the root directory. all server files will be uploded there
   const char *root_dir = table_get(properties, ROOT_DIR, strlen(ROOT_DIR));
   if (!root_dir) {
     logger_log(logger, ERROR, "[main] unsupplied root_directory. using the default [%s]", DEFAULT_ROOT_DIR);
@@ -183,8 +183,7 @@ int main(int argc, char *argv[]) {
   }
 
   // create a vector of sessions
-  struct vector_s *sessions =
-    vector_s_init(sizeof(struct session), cmpr_sessions, destroy_session);  // change the free func
+  struct vector_s *sessions = vector_s_init(sizeof(struct session), cmpr_sessions, destroy_session);
   if (!sessions) {
     logger_log(logger, ERROR, "[main] failed to init session vector");
     cleanup(properties, logger, thread_pool, NULL, NULL);
@@ -245,7 +244,7 @@ int main(int argc, char *argv[]) {
 
           struct session session = {0};
 
-          if (!construct_session(&session, remote_fd, NULL, 0)) {
+          if (!construct_session(&session, remote_fd)) {
             logger_log(logger, ERROR, "[main] falied to construct a session for [%s:%s]", remote_host, remote_port);
             continue;
           }
