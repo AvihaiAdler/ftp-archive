@@ -11,11 +11,14 @@ struct fds {
 struct context {
   bool logged_in;  // reserved for future implmentation
 
-  // current directory. the current directoy is relational to session_root_dir. i.e. session_root_dir/curr_dir
+  // current directory. the current directoy is relative to the process root directory
   char *curr_dir;
 
-  // the sessions root directory. reserved for future implmentation
-  char *session_root_dir;
+  // the sessions root directory. reserved for future impelmentation
+  char *root_dir;
+
+  char *ip;
+  char *port;
 };
 
 struct session {
