@@ -10,7 +10,7 @@
 #include "vector.h"
 #include "vector_s.h"
 
-#define MAX_PATH_LEN 512
+#define MAX_PATH_LEN 4096
 
 void cleanup(struct hash_table *properties,
              struct logger *logger,
@@ -29,7 +29,7 @@ int get_connect_socket(struct logger *logger, const char *host, const char *serv
 void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events);
 
 /* constructs a session object. returns true on success, false otherwise */
-bool construct_session(struct session *session, int remote_fd, const char *root, size_t root_len);
+bool construct_session(struct session *session, int remote_fd);
 
 /* adds a pair of control_sockfd, data_sockfd to the vector of these pairs used by the threads */
 void add_session(struct vector_s *sessions, struct logger *logger, struct session *session);
