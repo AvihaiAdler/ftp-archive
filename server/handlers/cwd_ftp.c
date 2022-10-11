@@ -103,7 +103,6 @@ int change_directory(void *arg) {
   }
 
   // replace session::context::curr_dir
-  // curr_dir shouldn't contain root_dir
   strcpy(session.context.curr_dir, tmp_path + strlen(session.context.root_dir) + 1);
 
   // replace the session
