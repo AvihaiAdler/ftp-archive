@@ -45,7 +45,7 @@ void signal_handler(int signum) {
 
 int main(int argc, char *argv[]) {
   if (argc != 2) {
-    fprintf(stderr, "[main] %s [path to properties file]\n", argv[0]);
+    fprintf(stderr, "[%s] %s [path to properties file]\n", __func__, argv[0]);
     return 1;
   }
 
@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
   // load properties
   struct hash_table *properties = get_properties(argv[1]);
   if (!properties) {
-    fprintf(stderr, "[main] properties file doens't exists or isn't valid\n");
+    fprintf(stderr, "[%s] properties file doens't exists or isn't valid\n", __func__);
     return 1;
   }
 
@@ -62,14 +62,14 @@ int main(int argc, char *argv[]) {
   struct logger *logger = logger_init(table_get(properties, LOG_FILE, strlen(LOG_FILE)));
   if (!logger) {
     cleanup(properties, NULL, NULL, NULL, NULL);
-    fprintf(stderr, "[main] failed to init logger\n");
+    fprintf(stderr, "[%s] failed to init logger\n", __func__);
     return 1;
   }
 
   // get the root directory. all server files will be uploded there
   const char *root_dir = table_get(properties, ROOT_DIR, strlen(ROOT_DIR));
   if (!root_dir) {
-    logger_log(logger, ERROR, "[main] unsupplied root_directory. using the default [%s]", DEFAULT_ROOT_DIR);
+    logger_log(logger, ERROR, "[%s] unsupplied root_directory. using the default [%s]", __func__, DEFAULT_ROOT_DIR);
     root_dir = DEFAULT_ROOT_DIR;
   }
 
@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
 
   // create a signal handler (must be invoked prior to the creation of the thread pool due to the sigprocmask() call)
   if (!create_sig_handler(SIGINT, signal_handler)) {
-    logger_log(logger, ERROR, "[main] failed to create a signal handler");
+    logger_log(logger, ERROR, "[%s] failed to create a signal handler", __func__);
     cleanup(properties, logger, NULL, NULL, NULL);
     return 1;
   }
@@ -109,13 +109,13 @@ int main(int argc, char *argv[]) {
     char *endptr;
     long tmp = strtol(num_of_threads_str, &endptr, 10);
     if (endptr == num_of_threads_str) {
-      logger_log(logger, ERROR, "[main] invalid [%s]: [%s]", NUM_OF_THREADS, num_of_threads_str);
+      logger_log(logger, ERROR, "[%s] invalid [%s]: [%s]", __func__, NUM_OF_THREADS, num_of_threads_str);
       cleanup(properties, logger, NULL, NULL, NULL);
       return 1;
     }
 
     if (tmp > UINT8_MAX) {
-      logger_log(logger, ERROR, "[main] invalid [%s]: [%s]", NUM_OF_THREADS, num_of_threads_str);
+      logger_log(logger, ERROR, "[%s] invalid [%s]: [%s]", __func__, NUM_OF_THREADS, num_of_threads_str);
       cleanup(properties, logger, NULL, NULL, NULL);
       return 1;
     }
@@ -129,7 +129,7 @@ int main(int argc, char *argv[]) {
   ret |= sigprocmask(SIG_BLOCK, &threads_sigset, NULL);
 
   if (ret) {
-    logger_log(logger, ERROR, "[main] failed to establish a signal mask for all threads");
+    logger_log(logger, ERROR, "[%s] failed to establish a signal mask for all threads", __func__);
     cleanup(properties, logger, NULL, NULL, NULL);
     return 1;
   }
@@ -137,14 +137,14 @@ int main(int argc, char *argv[]) {
   // create threads
   struct thread_pool *thread_pool = thread_pool_init(num_of_threads, destroy_task);
   if (!thread_pool) {
-    logger_log(logger, ERROR, "[main] failed to init thread pool");
+    logger_log(logger, ERROR, "[%s] failed to init thread pool", __func__);
     cleanup(properties, logger, NULL, NULL, NULL);
     return 1;
   }
 
   // unblock SIGINT for (only) the main thread
   if (pthread_sigmask(SIG_UNBLOCK, &threads_sigset, NULL) != 0) {
-    logger_log(logger, ERROR, "[main] failed to establish a signal mask for main");
+    logger_log(logger, ERROR, "[%s] failed to establish a signal mask for main", __func__);
     cleanup(properties, logger, thread_pool, NULL, NULL);
     return 1;
   }
@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
   char *conn_q_size = table_get(properties, CONN_Q_SIZE, strlen(CONN_Q_SIZE));
   long q_size = strtol(conn_q_size, &endptr, 10);
   if (conn_q_size == endptr || q_size > INT_MAX) {
-    logger_log(logger, ERROR, "[main] invalid connection queue agrument [%s]", CONN_Q_SIZE);
+    logger_log(logger, ERROR, "[%s] invalid connection queue agrument [%s]", __func__, CONN_Q_SIZE);
     cleanup(properties, logger, thread_pool, NULL, NULL);
     return 1;
   }
@@ -167,7 +167,7 @@ int main(int argc, char *argv[]) {
   server_fds.listen_sockfd =
     get_listen_socket(logger, NULL, table_get(properties, CONTROL_PORT, strlen(CONTROL_PORT)), (int)q_size, AI_PASSIVE);
   if (server_fds.listen_sockfd == -1) {
-    logger_log(logger, ERROR, "[main] failed to retrieve a listen socket");
+    logger_log(logger, ERROR, "[%s] failed to retrieve a listen socket", __func__);
     cleanup(properties, logger, thread_pool, NULL, NULL);
     return 1;
   }
@@ -177,7 +177,7 @@ int main(int argc, char *argv[]) {
    * add the new socket to pollfds */
   server_fds.event_fd = eventfd(0, EFD_NONBLOCK);
   if (server_fds.event_fd == -1) {
-    logger_log(logger, ERROR, "[main] failed to retrieve an event fd");
+    logger_log(logger, ERROR, "[%s] failed to retrieve an event fd", __func__);
     cleanup(properties, logger, thread_pool, NULL, NULL);
     return 1;
   }
@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
   // create a vector of sessions
   struct vector_s *sessions = vector_s_init(sizeof(struct session), cmpr_sessions, destroy_session);
   if (!sessions) {
-    logger_log(logger, ERROR, "[main] failed to init session vector");
+    logger_log(logger, ERROR, "[%s] failed to init session vector", __func__);
     cleanup(properties, logger, thread_pool, NULL, NULL);
     return 1;
   }
@@ -193,7 +193,7 @@ int main(int argc, char *argv[]) {
   // create a set of open fds
   struct vector *pollfds = vector_init(sizeof(struct pollfd));
   if (!pollfds) {
-    logger_log(logger, ERROR, "[main] failed to init control-socket fds vector");
+    logger_log(logger, ERROR, "[%s] failed to init control-socket fds vector", __func__);
     cleanup(properties, logger, thread_pool, sessions, NULL);
     return 1;
   }
@@ -205,7 +205,7 @@ int main(int argc, char *argv[]) {
   // for ppoll
   sigset_t ppoll_sigset;
   if (sigemptyset(&ppoll_sigset) != 0) {
-    logger_log(logger, ERROR, "[main] falied to init sigset_t for ppoll");
+    logger_log(logger, ERROR, "[%s] falied to init sigset_t for ppoll", __func__);
     cleanup(properties, logger, thread_pool, sessions, pollfds);
     return 1;
   }
@@ -214,7 +214,7 @@ int main(int argc, char *argv[]) {
   while (!atomic_load(&terminate)) {
     int events_count = ppoll((struct pollfd *)vector_struct_size(pollfds), vector_size(pollfds), NULL, &ppoll_sigset);
     if (events_count == -1) {
-      logger_log(logger, ERROR, "[main] poll error");
+      logger_log(logger, ERROR, "[%s] poll error", __func__);
       break;
     }
 
@@ -233,19 +233,24 @@ int main(int argc, char *argv[]) {
         if (current->fd == server_fds.listen_sockfd) {  // the main 'listening' socket
           int remote_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
           if (remote_fd == -1) {
-            logger_log(logger, ERROR, "[main] accept() failue on main listening socket");
+            logger_log(logger, ERROR, "[%s] accept() failue on main listening socket", __func__);
             continue;
           }
 
           get_ip_and_port(remote_fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
-          logger_log(logger, INFO, "[main] recieved a connection from [%s:%s]", remote_host, remote_port);
+          logger_log(logger, INFO, "[%s] recieved a connection from [%s:%s]", __func__, remote_host, remote_port);
 
           add_fd(pollfds, logger, remote_fd, POLLIN);
 
           struct session session = {0};
 
           if (!construct_session(&session, remote_fd)) {
-            logger_log(logger, ERROR, "[main] falied to construct a session for [%s:%s]", remote_host, remote_port);
+            logger_log(logger,
+                       ERROR,
+                       "[%s] falied to construct a session for [%s:%s]",
+                       __func__,
+                       remote_host,
+                       remote_port);
             continue;
           }
 
@@ -259,7 +264,7 @@ int main(int argc, char *argv[]) {
         } else if (current->fd == server_fds.event_fd) {  // event fd
           uint64_t discard = 0;
           ssize_t ret = read(current->fd, &discard, sizeof discard);  // consume the value in event_fd
-          if (ret == -1) { logger_log(logger, INFO, "[main] failed to consume the value of event_fd"); }
+          if (ret == -1) { logger_log(logger, INFO, "[%s] failed to consume the value of event_fd", __func__); }
 
           // update pollfds. add the passive sockfd to pollfds
           size_t size = vector_size(pollfds);
@@ -269,6 +274,8 @@ int main(int argc, char *argv[]) {
 
             if (tmp->data_sock_type == PASSIVE && tmp->fds.listen_sockfd > 0) {
               add_fd(pollfds, logger, tmp->fds.listen_sockfd, POLLIN);
+            } else if (tmp->data_sock_type == ACTIVE) {
+              remove_fd(pollfds, tmp->fds.listen_sockfd);
             }
           }
         } else {  // any other socket
@@ -277,17 +284,21 @@ int main(int argc, char *argv[]) {
            * afterwards(and remove it from pollfds)*/
           struct session *session = vector_s_find(sessions, &current->fd);
           if (!session) {
-            logger_log(logger, ERROR, "[main] couldn't find sockfd [%d]", current->fd);
+            logger_log(logger, ERROR, "[%s] couldn't find sockfd [%d]", __func__, current->fd);
             continue;
           }
 
           if (current->fd == session->fds.control_fd) {  // session::fds::control_fd
             // get request
           } else {  // session::fds::listen_sockfd. will only happened as a result of a PASV command
-            get_ip_and_port(session->fds.control_fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
             int data_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
             if (data_fd == -1) {
-              logger_log(logger, ERROR, "[main] accept() failue for session [%s:%s]", remote_host, remote_port);
+              logger_log(logger,
+                         ERROR,
+                         "[%s] accept() failue for session [%s:%s]",
+                         __func__,
+                         session->context.ip,
+                         session->context.port);
               continue;
             }
 
@@ -305,7 +316,8 @@ int main(int argc, char *argv[]) {
             if (!update_session(sessions, logger, &new_session)) {
               logger_log(logger,
                          ERROR,
-                         "[main] fatal error: failed to update a session for [%s:%s]",
+                         "[%s] fatal error: failed to update a session for [%s:%s]",
+                         __func__,
                          remote_host,
                          remote_port);
               cleanup(properties, logger, thread_pool, sessions, pollfds);
@@ -314,27 +326,43 @@ int main(int argc, char *argv[]) {
 
             logger_log(logger,
                        INFO,
-                       "[main] established data connection for session [%s:%s]",
+                       "[%s] established data connection for session [%s:%s]",
+                       __func__,
                        remote_host,
                        remote_port);
           }  // session::fds::listen_sockfd
           free(session);
         }                                      // any other socket
       } else if (current->events & POLLHUP) {  // this fp has been closed
-        get_ip_and_port(current->fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
-        logger_log(logger, INFO, "[main] the a connection [%s:%s] was closed", remote_host, remote_port);
+        // get the corresponding session which the fd 'tied' to
+        struct session *session = vector_s_find(sessions, &current->fd);
+        if (!session) {
+          logger_log(logger, ERROR, "[%s] failed to fined the session for fd [%d]", __func__, current->fd);
+          continue;
+        }
 
         remove_fd(pollfds, current->fd);
-        close_session(sessions, current->fd);
+
+        // the client closed its control_fd - close the entire session
+        if (current->fd == session->fds.control_fd) { close_session(sessions, current->fd); }
+
+        logger_log(logger,
+                   INFO,
+                   "[%s] the a connection [%s:%s] was closed",
+                   __func__,
+                   session->context.ip,
+                   session->context.port);
+
+        free(session);
       } else if (current->events & (POLLERR | POLLNVAL)) {  // (POLLERR / POLLNVAL)
-        logger_log(logger, INFO, "[main] the a connection [%s:%s] was closed", remote_host, remote_port);
+        logger_log(logger, INFO, "[%s] the a connection [%s:%s] was closed", __func__, remote_host, remote_port);
         remove_fd(pollfds, current->fd);
         close_session(sessions, current->fd);
       }
     }  // events loop
   }    // main server loop
 
-  logger_log(logger, INFO, "[main] shutting down");
+  logger_log(logger, INFO, "[%s] shutting down", __func__);
   close(server_fds.listen_sockfd);
   close(server_fds.event_fd);
   cleanup(properties, logger, thread_pool, sessions, pollfds);
