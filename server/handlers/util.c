@@ -73,17 +73,6 @@ bool validate_path(const char *path, struct logger *logger) {
     return false;
   }
 
-  // path contains a . or starts with a /
-  if (strchr(path, '.') || *path == '/') {
-    logger_log(logger,
-               ERROR,
-               "[thread:%lu] [%s] [%s:%s] bad request. path [%s] not allowed",
-               thrd_current(),
-               __func__,
-               path);
-    return false;
-  }
-
   // path contains a ../
   if (strstr(path, "../")) {
     logger_log(logger,
@@ -102,7 +91,6 @@ int open_data_connection(struct session *remote, struct logger *logger) {
   if (!logger) return -1;
 
   char ip[NI_MAXHOST] = {0};
-  char port[NI_MAXSERV] = {0};
 
   int sockfd = -1;
   if (remote->data_sock_type == PASSIVE) {
@@ -154,13 +142,16 @@ bool get_path(struct session *session, char *path, size_t path_size) {
   if (!ptr) return false;
 
   size_t path_len = strlen(path);  // length so far
+  size_t root_dir_len = strlen(session->context.root_dir);
   size_t curr_dir_len = strlen(session->context.curr_dir);
 
-  if (path_len + curr_dir_len + 1 >= path_size - 1) return false;  // path too long
+  if (path_len + root_dir_len + 1 + curr_dir_len + 1 >= path_size - 1) return false;  // path too long
 
   if (curr_dir_len) {
     strcat(path, "/");
-    strcat(path, session->context.curr_dir);
+    strcat(path, session->context.root_dir);
+    strcat(path, "/");
+    strcat(path, *session->context.curr_dir ? session->context.curr_dir : ".");
   }
 
   return true;
