@@ -22,9 +22,6 @@ int list(void *arg) {
   if (!arg) return 1;
   struct args *args = arg;
 
-  struct log_context log_context = {.func_name = "list"};
-  get_ip_and_port(args->remote_fd, log_context.ip, sizeof log_context.ip, log_context.port, sizeof log_context.port);
-
   // find the session
   struct session *tmp_session = vector_s_find(args->sessions, &args->remote_fd);
   if (!tmp_session) {
@@ -32,9 +29,9 @@ int list(void *arg) {
                ERROR,
                "[%lu] [%s] [%s:%s] failed to find the session for fd [%d]",
                thrd_current(),
-               log_context.func_name,
-               log_context.ip,
-               log_context.port,
+               __func__,
+               tmp_session->context.ip,
+               tmp_session->context.port,
                args->remote_fd);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
@@ -53,9 +50,9 @@ int list(void *arg) {
                ERROR,
                "[%lu] [%s] [%s:%s] invalid data_sockfd",
                thrd_current,
-               log_context.func_name,
-               log_context.ip,
-               log_context.port);
+               __func__,
+               session.context.ip,
+               session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_DATA_CONN_CLOSED,
@@ -68,14 +65,14 @@ int list(void *arg) {
   const char *dir_name = args->req_args.request_args;
   if (!dir_name) dir_name = ".";
 
-  if (!validate_path(dir_name, args->logger, &log_context)) {
+  if (!validate_path(dir_name, args->logger)) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] invalid path [%s]",
                thrd_current,
-               log_context.func_name,
-               log_context.ip,
-               log_context.port,
+               __func__,
+               session.context.ip,
+               session.context.port,
                dir_name);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
@@ -87,20 +84,21 @@ int list(void *arg) {
     return 1;
   }
 
+  size_t root_dir_len = strlen(session.context.root_dir);
   size_t curr_dir_len = strlen(session.context.curr_dir);
   size_t dir_name_len = strlen(dir_name);
 
   // +2 one for an additional '/', one for the null terminator
-  size_t path_size = curr_dir_len + 1 + dir_name_len + 1;
+  size_t path_size = root_dir_len + 1 + curr_dir_len + 1 + dir_name_len + 1;
   char *path = calloc(path_size, 1);
   if (!path) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] calloc failure. couldn't allocate space for path",
                thrd_current,
-               log_context.func_name,
-               log_context.ip,
-               log_context.port);
+               __func__,
+               session.context.ip,
+               session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
@@ -115,6 +113,8 @@ int list(void *arg) {
                      "[%d] ok. begin transfer",
                      RPLY_DATA_CONN_OPEN_STARTING_TRANSFER);
 
+  snprintf(path, path_size + 1, "%s/%s/%s", session.context.root_dir, session.context.curr_dir, dir_name);
+
   // open the directory
   DIR *dir = opendir(path);
 
@@ -124,9 +124,9 @@ int list(void *arg) {
                ERROR,
                "[%lu] [%s] [%s:%s] invalid path [%s]",
                thrd_current,
-               log_context.func_name,
-               log_context.ip,
-               log_context.port,
+               __func__,
+               session.context.ip,
+               session.context.port,
                dir_name);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
@@ -157,9 +157,9 @@ int list(void *arg) {
                  WARN,
                  "[%lu] [%s] [%s:%s] invalid file [%s]",
                  thrd_current(),
-                 log_context.func_name,
-                 log_context.ip,
-                 log_context.port,
+                 __func__,
+                 session.context.ip,
+                 session.context.port,
                  abs);
       continue;
     }
@@ -177,9 +177,9 @@ int list(void *arg) {
                  WARN,
                  "[%lu] [%s] [%s:%s] file name [%s] is too long",
                  thrd_current(),
-                 log_context.func_name,
-                 log_context.ip,
-                 log_context.port,
+                 __func__,
+                 session.context.ip,
+                 session.context.port,
                  dirent->d_name);
       continue;
     }
@@ -202,9 +202,9 @@ int list(void *arg) {
                  ERROR,
                  "[%lu] [%s] [%s:%s] failed to send data [%s]",
                  thrd_current(),
-                 log_context.func_name,
-                 log_context.ip,
-                 log_context.port,
+                 __func__,
+                 session.context.ip,
+                 session.context.port,
                  str_err_code(err));
       send_reply_wrapper(session.fds.control_fd,
                          args->logger,
@@ -222,9 +222,9 @@ int list(void *arg) {
                INFO,
                "[%lu] [%s] [%s:%s] file action complete. successful transfer",
                thrd_current(),
-               log_context.func_name,
-               log_context.ip,
-               log_context.port);
+               __func__,
+               session.context.ip,
+               session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_FILE_ACTION_COMPLETE,

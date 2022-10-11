@@ -5,11 +5,7 @@
 
 int quit(void *arg) {
   if (!arg) return 1;
-
   struct args *args = arg;
-
-  struct log_context log_context = {.func_name = "quit"};
-  get_ip_and_port(args->remote_fd, log_context.ip, sizeof log_context.ip, log_context.port, sizeof log_context.port);
 
   struct session *session = vector_s_find(args->sessions, &args->remote_fd);
   if (!session) {
@@ -17,7 +13,7 @@ int quit(void *arg) {
                ERROR,
                "[%lu] [%s] falied to close session [%s:%s], session doesn't exists",
                thrd_current(),
-               log_context.func_name,
+               __func__,
                args->remote_fd,
                args->remote_fd);
     return 1;
@@ -27,9 +23,9 @@ int quit(void *arg) {
              INFO,
              "[%lu] [%s] [%s:%s] closing session [%s:%s]",
              thrd_current(),
-             log_context.func_name,
-             log_context.ip,
-             log_context.port,
+             __func__,
+             session->context.ip,
+             session->context.port,
              session->fds.control_fd,
              session->fds.data_fd);
   close_session(args->sessions, args->remote_fd);

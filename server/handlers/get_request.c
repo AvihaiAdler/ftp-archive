@@ -65,9 +65,6 @@ int get_request(void *arg) {
   if (!arg) return 1;
   struct args *args = arg;
 
-  struct log_context context = {.func_name = "get_request"};
-  get_ip_and_port(args->remote_fd, context.ip, sizeof context.ip, context.port, sizeof context.port);
-
   // find the session
   struct session *tmp_session = vector_s_find(args->sessions, &args->remote_fd);
   if (!tmp_session) {
@@ -75,9 +72,9 @@ int get_request(void *arg) {
                ERROR,
                "[%lu] [%s] [%s:%s] failed to find the session for fd [%d]",
                thrd_current(),
-               context.func_name,
-               context.ip,
-               context.port,
+               __func__,
+               tmp_session->context.ip,
+               tmp_session->context.port,
                args->remote_fd);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
@@ -99,9 +96,9 @@ int get_request(void *arg) {
                ERROR,
                "[%lu] [%s] [%s:%s] failed to recieve a request",
                thrd_current(),
-               context.func_name,
-               context.ip,
-               context.port);
+               __func__,
+               session.context.ip,
+               session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_ACTION_INCOMPLETE_LCL_ERROR,
@@ -118,9 +115,9 @@ int get_request(void *arg) {
                ERROR,
                "[%lu] [%s] [%s:%s] invalid request [%hu : %s]",
                thrd_current(),
-               context.func_name,
-               context.ip,
-               context.port,
+               __func__,
+               session.context.ip,
+               session.context.port,
                request.length,
                (char *)request.request);
     send_reply_wrapper(session.fds.control_fd,
@@ -139,9 +136,9 @@ int get_request(void *arg) {
                  ERROR,
                  "[%lu] [%s] [%s:%s] data connection closed",
                  thrd_current(),
-                 context.func_name,
-                 context.ip,
-                 context.port);
+                 __func__,
+                 session.context.ip,
+                 session.context.port);
       send_reply_wrapper(session.fds.control_fd,
                          args->logger,
                          RPLY_DATA_CONN_CLOSED,
@@ -149,7 +146,7 @@ int get_request(void *arg) {
                          RPLY_DATA_CONN_CLOSED);
       return 1;
     }
-    int sockfd = open_data_connection(&session, args->logger, &context);
+    int sockfd = open_data_connection(&session, args->logger);
     if (sockfd == -1) return 1;
 
     session.fds.data_fd = sockfd;
@@ -160,9 +157,9 @@ int get_request(void *arg) {
                  ERROR,
                  "[%lu] [%s] [%s:%s] failed to update session [%d]",
                  thrd_current,
-                 context.func_name,
-                 context.ip,
-                 context.port,
+                 __func__,
+                 session.context.ip,
+                 session.context.port,
                  session.fds.control_fd);
       send_reply_wrapper(session.fds.control_fd,
                          args->logger,
@@ -181,9 +178,9 @@ int get_request(void *arg) {
                ERROR,
                "[%lu] [%s] [%s:%s] memory allocation failue",
                thrd_current(),
-               context.func_name,
-               context.ip,
-               context.port);
+               __func__,
+               session.context.ip,
+               session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_ACTION_INCOMPLETE_LCL_ERROR,

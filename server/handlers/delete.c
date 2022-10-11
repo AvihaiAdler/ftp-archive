@@ -1,5 +1,6 @@
 #include "delete.h"
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>  // unlink()
@@ -10,9 +11,6 @@ int delete_file(void *arg) {
   if (!arg) return 1;
   struct args *args = args;
 
-  struct log_context context = {.func_name = "delete_file"};
-  get_ip_and_port(args->remote_fd, context.ip, sizeof context.ip, context.port, sizeof context.port);
-
   // find the session
   struct session *tmp_session = vector_s_find(args->sessions, &args->remote_fd);
   if (!tmp_session) {
@@ -20,9 +18,9 @@ int delete_file(void *arg) {
                ERROR,
                "[%lu] [%s] [%s:%s] failed to find the session for fd [%d]",
                thrd_current(),
-               context.func_name,
-               context.ip,
-               context.port,
+               __func__,
+               tmp_session->context.ip,
+               tmp_session->context.port,
                args->remote_fd);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
@@ -36,7 +34,7 @@ int delete_file(void *arg) {
   free(tmp_session);
 
   // validate file path
-  if (!validate_path(args->req_args.request_args, args->logger, &context)) {
+  if (!validate_path(args->req_args.request_args, args->logger)) {
     send_reply_wrapper(args->remote_fd,
                        args->logger,
                        RPLY_ARGS_SYNTAX_ERR,
@@ -46,20 +44,21 @@ int delete_file(void *arg) {
   }
 
   // get file path
+  size_t root_dir_len = strlen(session.context.root_dir);
   size_t curr_dir_len = strlen(session.context.curr_dir);
   size_t dir_name_len = strlen(args->req_args.request_args);
 
   // +2 one for an additional '/', one for the null terminator
-  size_t path_size = curr_dir_len + 1 + dir_name_len + 1;
+  size_t path_size = root_dir_len + 1 + curr_dir_len + 1 + dir_name_len + 1;
   char *path = calloc(path_size, 1);
   if (!path) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] calloc failure. couldn't allocate space for path",
                thrd_current,
-               context.func_name,
-               context.ip,
-               context.port);
+               __func__,
+               session.context.ip,
+               session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
@@ -69,6 +68,13 @@ int delete_file(void *arg) {
     return 1;
   }
 
+  snprintf(path,
+           path_size + 1,
+           "%s/%s/%s",
+           session.context.root_dir,
+           session.context.curr_dir,
+           args->req_args.request_args);
+
   // delete the file
   int ret = unlink(path);
   if (ret != 0) {
@@ -77,9 +83,9 @@ int delete_file(void *arg) {
                ERROR,
                "[%lu] [%s] [%s:%s] failed to delete the file [%s]. reason [%s]",
                thrd_current(),
-               context.func_name,
-               context.ip,
-               context.port,
+               __func__,
+               session.context.ip,
+               session.context.port,
                path,
                strerr_safe(err));
     send_reply_wrapper(session.fds.control_fd,
@@ -95,9 +101,9 @@ int delete_file(void *arg) {
              INFO,
              "[%lu] [%s] [%s:%s] the file [%s] has beed deleted",
              thrd_current(),
-             context.func_name,
-             context.ip,
-             context.port,
+             __func__,
+             session.context.ip,
+             session.context.port,
              path);
   send_reply_wrapper(session.fds.control_fd,
                      args->logger,

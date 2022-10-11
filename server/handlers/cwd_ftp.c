@@ -11,9 +11,6 @@ int change_directory(void *arg) {
   if (!arg) return 1;
   struct args *args = arg;
 
-  struct log_context context = {.func_name = "cwd"};
-  get_ip_and_port(args->remote_fd, context.ip, sizeof context.ip, context.port, sizeof context.port);
-
   // find the session
   struct session *tmp_session = vector_s_find(args->sessions, &args->remote_fd);
   if (!tmp_session) {
@@ -21,9 +18,9 @@ int change_directory(void *arg) {
                ERROR,
                "[%lu] [%s] [%s:%s] failed to find the session for fd [%d]",
                thrd_current(),
-               context.func_name,
-               context.ip,
-               context.port,
+               __func__,
+               tmp_session->context.ip,
+               tmp_session->context.port,
                args->remote_fd);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
@@ -36,7 +33,7 @@ int change_directory(void *arg) {
   memcpy(&session, tmp_session, sizeof session);
   free(tmp_session);
 
-  if (!validate_path(args->req_args.request_args, args->logger, &context)) {
+  if (!validate_path(args->req_args.request_args, args->logger)) {
     send_reply_wrapper(args->remote_fd,
                        args->logger,
                        RPLY_ARGS_SYNTAX_ERR,
@@ -46,7 +43,7 @@ int change_directory(void *arg) {
   }
 
   // try to open the desired directory
-  int len = snprintf(NULL, 0, "%s", args->req_args.request_args);
+  int len = snprintf(NULL, 0, "%s/%s", session.context.root_dir, args->req_args.request_args);
 
   // path is too long
   if (len < 0 || len + 1 > MAX_PATH_LEN - 1) {
@@ -54,9 +51,9 @@ int change_directory(void *arg) {
                ERROR,
                "[%lu] [%s] [%s:%s] path too long",
                thrd_current(),
-               context.func_name,
-               context.ip,
-               context.port);
+               __func__,
+               session.context.ip,
+               session.context.port);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
                        RPLY_ACTION_INCOMPLETE_LCL_ERROR,
@@ -66,16 +63,16 @@ int change_directory(void *arg) {
   }
 
   char tmp_path[MAX_PATH_LEN] = {0};
-  snprintf(tmp_path, len + 1, "%s", args->req_args.request_args);
+  snprintf(tmp_path, len + 1, "%s/%s", session.context.root_dir, args->req_args.request_args);
   int ret = open(tmp_path, O_RDONLY | O_DIRECTORY);
   if (ret == -1) {  // desired directory doesn't exist
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] invalid path [%s]",
                thrd_current(),
-               context.func_name,
-               context.ip,
-               context.port,
+               __func__,
+               session.context.ip,
+               session.context.port,
                tmp_path);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
@@ -93,9 +90,9 @@ int change_directory(void *arg) {
                ERROR,
                "[%lu] [%s] [%s:%s] path exeeds reply length [%d]",
                thrd_current(),
-               context.func_name,
-               context.ip,
-               context.port,
+               __func__,
+               session.context.ip,
+               session.context.port,
                REPLY_MAX_LEN - 1);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
@@ -106,7 +103,8 @@ int change_directory(void *arg) {
   }
 
   // replace session::context::curr_dir
-  strcpy(session.context.curr_dir, tmp_path);
+  // curr_dir shouldn't contain root_dir
+  strcpy(session.context.curr_dir, tmp_path + strlen(session.context.root_dir) + 1);
 
   // replace the session
   if (!update_session(args->sessions, args->logger, &session)) {
@@ -128,9 +126,9 @@ int change_directory(void *arg) {
              INFO,
              "[%lu] [%s] [%s:%s] executed successfuly. working directory changed to [%s]",
              thrd_current(),
-             context.func_name,
-             context.ip,
-             context.port,
+             __func__,
+             session.context.ip,
+             session.context.port,
              tmp_path);
 
   return 0;
