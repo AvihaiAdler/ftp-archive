@@ -79,11 +79,7 @@ int get_listen_socket(struct logger *logger, const char *host, const char *serv,
 
   struct addrinfo *info = get_addr_info(host, serv, flags);
   if (!info) {
-    logger_log(logger,
-               ERROR,
-               "[get_server_socket] no available addresses for %s:%s",
-               host ? host : "",
-               serv ? serv : "");
+    logger_log(logger, ERROR, "[%s] no available addresses for %s:%s", __func__, host ? host : "", serv ? serv : "");
     return -1;
   }
 
@@ -109,11 +105,7 @@ int get_listen_socket(struct logger *logger, const char *host, const char *serv,
   // failed to listen()/bind()
   if (!success) {
     close(sockfd);
-    logger_log(logger,
-               ERROR,
-               "[get_server_socket] couldn't get a socket for %s:%s",
-               host ? host : "",
-               serv ? serv : "");
+    logger_log(logger, ERROR, "[%s] couldn't get a socket for %s:%s", __func__, host ? host : "", serv ? serv : "");
     return -1;
   }
 
@@ -125,11 +117,7 @@ int get_connect_socket(struct logger *logger, const char *host, const char *serv
 
   struct addrinfo *info = get_addr_info(host, serv, flags);
   if (!info) {
-    logger_log(logger,
-               ERROR,
-               "[get_client_socket] no available addresses for %s:%s",
-               host ? host : "",
-               serv ? serv : "");
+    logger_log(logger, ERROR, "[%s] no available addresses for %s:%s", __func__, host ? host : "", serv ? serv : "");
     return -1;
   }
 
@@ -142,7 +130,7 @@ int get_connect_socket(struct logger *logger, const char *host, const char *serv
     inet_pton(AF_INET6, local_ip, &local_addr);
   } else {
     freeaddrinfo(info);
-    logger_log(logger, ERROR, "[get_client_socket] failed to fetch local ip");
+    logger_log(logger, ERROR, "[%s] failed to fetch local ip", __func__);
     return -1;
   }
 
@@ -165,11 +153,7 @@ int get_connect_socket(struct logger *logger, const char *host, const char *serv
   // failed to listen()/bind()
   if (!success) {
     close(sockfd);
-    logger_log(logger,
-               ERROR,
-               "[get_client_socket] couldn't get a socket for %s:%s",
-               host ? host : "",
-               serv ? serv : "");
+    logger_log(logger, ERROR, "[%s] couldn't get a socket for %s:%s", __func__, host ? host : "", serv ? serv : "");
     return -1;
   }
 
@@ -185,7 +169,7 @@ void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events) {
   }
 
   // fd already exists in pollfds
-  if (vector_index_of(pollfds, &(struct pollfd){.fd = fd}, cmpr_pfds) == GENERICS_EINVAL) return;
+  if (vector_index_of(pollfds, &(struct pollfd){.fd = fd}, cmpr_pfds) != GENERICS_EINVAL) return;
 
   vector_push(pollfds, &(struct pollfd){.fd = fd, .events = events});
 }
@@ -247,13 +231,13 @@ void add_session(struct vector_s *sessions, struct logger *logger, struct sessio
 bool update_session(struct vector_s *sessions, struct logger *logger, struct session *update) {
   struct session *session = vector_s_find(sessions, &update->fds.control_fd);
   if (!session) {
-    logger_log(logger, ERROR, "[update_session] couldn't find sockfd [%d]", update->fds.control_fd);
+    logger_log(logger, ERROR, "[%s] couldn't find sockfd [%d]", __func__, update->fds.control_fd);
     return false;
   }
 
   struct session *old = vector_s_replace(sessions, session, update);
   if (!old) {
-    logger_log(logger, ERROR, "[update_session] couldn't replace session [%d]", update->fds.control_fd);
+    logger_log(logger, ERROR, "[%s] couldn't replace session [%d]", __func__, update->fds.control_fd);
     return false;
   }
   free(old);
