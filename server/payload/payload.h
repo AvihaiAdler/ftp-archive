@@ -3,8 +3,8 @@
 #include <stdint.h>
 #include <sys/types.h>  // ssize_t
 
-#define REQUEST_MAX_LEN 256
-#define REPLY_MAX_LEN 512
+#define REQUEST_MAX_LEN 512
+#define REPLY_MAX_LEN 4096
 #define DATA_BLOCK_MAX_LEN 2048
 
 enum err_codes {
