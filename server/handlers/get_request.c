@@ -128,7 +128,7 @@ int get_request(void *arg) {
     return 1;
   }
 
-  // open a data connection
+  // open a default (active) data connection
   if ((req_args.type == REQ_LIST || req_args.type == REQ_RETR || req_args.type == REQ_STOR) &&
       session.fds.data_fd == -1) {
     if (session.data_sock_type == PASSIVE) {
