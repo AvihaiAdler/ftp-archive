@@ -226,8 +226,6 @@ int main(int argc, char *argv[]) {
       // used to accept() new connections / get the ip:port of a socket
       struct sockaddr_storage remote_addr = {0};
       socklen_t remote_addrlen = sizeof remote_addr;
-      char remote_host[NI_MAXHOST] = {0};
-      char remote_port[NI_MAXSERV] = {0};
 
       if (current->revents & POLLIN) {                  // this fp is ready to poll data from
         if (current->fd == server_fds.listen_sockfd) {  // the main 'listening' socket
@@ -237,24 +235,22 @@ int main(int argc, char *argv[]) {
             continue;
           }
 
-          get_ip_and_port(remote_fd, remote_host, sizeof remote_host, remote_port, sizeof remote_port);
-          logger_log(logger, INFO, "[%s] recieved a connection from [%s:%s]", __func__, remote_host, remote_port);
-
           add_fd(pollfds, logger, remote_fd, POLLIN);
 
           struct session session = {0};
 
           if (!construct_session(&session, remote_fd)) {
-            logger_log(logger,
-                       ERROR,
-                       "[%s] falied to construct a session for [%s:%s]",
-                       __func__,
-                       remote_host,
-                       remote_port);
+            logger_log(logger, ERROR, "[%s] falied to construct a session for fd [%d]", __func__, remote_fd);
             continue;
           }
 
           add_session(sessions, logger, &session);
+          logger_log(logger,
+                     INFO,
+                     "[%s] recieved a connection from [%s:%s]",
+                     __func__,
+                     session.context.ip,
+                     session.context.port);
 
           struct args args = {.logger = logger,
                               .remote_fd = remote_fd,
@@ -318,8 +314,8 @@ int main(int argc, char *argv[]) {
                          ERROR,
                          "[%s] fatal error: failed to update a session for [%s:%s]",
                          __func__,
-                         remote_host,
-                         remote_port);
+                         session->context.ip,
+                         session->context.port);
               cleanup(properties, logger, thread_pool, sessions, pollfds);
               return 1;
             }
@@ -328,8 +324,8 @@ int main(int argc, char *argv[]) {
                        INFO,
                        "[%s] established data connection for session [%s:%s]",
                        __func__,
-                       remote_host,
-                       remote_port);
+                       session->context.ip,
+                       session->context.port);
           }  // session::fds::listen_sockfd
           free(session);
         }                                      // any other socket
@@ -355,9 +351,22 @@ int main(int argc, char *argv[]) {
 
         free(session);
       } else if (current->events & (POLLERR | POLLNVAL)) {  // (POLLERR / POLLNVAL)
-        logger_log(logger, INFO, "[%s] the a connection [%s:%s] was closed", __func__, remote_host, remote_port);
+        // get the corresponding session to which the fd 'tied' to
+        struct session *session = vector_s_find(sessions, &current->fd);
+        if (!session) {
+          logger_log(logger, ERROR, "[%s] failed to fined the session for fd [%d]", __func__, current->fd);
+          continue;
+        }
+        logger_log(logger,
+                   INFO,
+                   "[%s] the a connection [%s:%s] encountered an error",
+                   __func__,
+                   session->context.ip,
+                   session->context.port);
         remove_fd(pollfds, current->fd);
         close_session(sessions, current->fd);
+
+        free(session);
       }
     }  // events loop
   }    // main server loop
