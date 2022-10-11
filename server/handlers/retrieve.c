@@ -2,15 +2,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>  // stat
 #include "misc/util.h"
 #include "util.h"
 
 int retrieve_file(void *arg) {
   if (!arg) return 1;
   struct args *args = arg;
-
-  struct log_context context = {.func_name = "retrieve_file"};
-  get_ip_and_port(args->remote_fd, context.ip, sizeof context.ip, context.port, sizeof context.port);
 
   // find the session
   struct session *tmp_session = vector_s_find(args->sessions, &args->remote_fd);
@@ -19,9 +17,9 @@ int retrieve_file(void *arg) {
                ERROR,
                "[%lu] [%s] [%s:%s] failed to find the session for fd [%d]",
                thrd_current(),
-               context.func_name,
-               context.ip,
-               context.port,
+               __func__,
+               tmp_session->context.ip,
+               tmp_session->context.port,
                args->remote_fd);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
@@ -39,10 +37,10 @@ int retrieve_file(void *arg) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] invalid data_sockfd",
-               thrd_current,
-               context.func_name,
-               context.ip,
-               context.port);
+               thrd_current(),
+               __func__,
+               session.context.ip,
+               session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_DATA_CONN_CLOSED,
@@ -52,14 +50,14 @@ int retrieve_file(void *arg) {
   }
 
   // validate the file path
-  if (!validate_path(args->req_args.request_args, args->logger, &context)) {
+  if (!validate_path(args->req_args.request_args, args->logger)) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] invalid path [%s]",
-               thrd_current,
-               context.func_name,
-               context.ip,
-               context.port,
+               thrd_current(),
+               __func__,
+               session.context.ip,
+               session.context.port,
                args->req_args.request_args);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
@@ -72,16 +70,20 @@ int retrieve_file(void *arg) {
   }
 
   // get the file path
-  int len =
-    snprintf(NULL, 0, "%s/%s", *session.context.curr_dir ? session.context.curr_dir : ".", args->req_args.request_args);
+  int len = snprintf(NULL,
+                     0,
+                     "%s/%s/%s",
+                     session.context.root_dir,
+                     *session.context.curr_dir ? session.context.curr_dir : ".",
+                     args->req_args.request_args);
   if (len < 0 || len + 1 > MAX_PATH_LEN - 1) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] snprintf error",
-               thrd_current,
-               context.func_name,
-               context.ip,
-               context.port);
+               thrd_current(),
+               __func__,
+               session.context.ip,
+               session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_ACTION_INCOMPLETE_LCL_ERROR,
@@ -94,9 +96,33 @@ int retrieve_file(void *arg) {
   char path[MAX_PATH_LEN];
   snprintf(path,
            len + 1,
-           "%s/%s",
+           "%s/%s/%s",
+           session.context.root_dir,
            *session.context.curr_dir ? session.context.curr_dir : ".",
            args->req_args.request_args);
+
+  struct stat statbuf = {0};
+  int ret = stat(path, &statbuf);
+  if (ret == -1) {
+    logger_log(args->logger,
+               WARN,
+               "[%lu] [%s] [%s:%s] invalid file [%s]",
+               thrd_current(),
+               __func__,
+               session.context.ip,
+               session.context.port,
+               path + strlen(session.context.root_dir) + 1);
+    return 1;
+  }
+
+  struct file_size file_size = get_file_size(statbuf.st_size);
+  send_reply_wrapper(session.fds.control_fd,
+                     args->logger,
+                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
+                     "[%d] data connection open. starting transfer of %Lf %s",
+                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
+                     file_size.size,
+                     file_size.units);
 
   // open the file
   FILE *fp = fopen(path, "r");
@@ -104,10 +130,10 @@ int retrieve_file(void *arg) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] invalid path or file doesn't exists [%s]",
-               thrd_current,
-               context.func_name,
-               context.ip,
-               context.port,
+               thrd_current(),
+               __func__,
+               session.context.ip,
+               session.context.port,
                path);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
@@ -153,10 +179,10 @@ int retrieve_file(void *arg) {
                ERROR,
                "[%lu] [%s] [%s:%s] the file [%s] successfully transfered",
                thrd_current(),
-               context.func_name,
-               context.ip,
-               context.port,
-               path);
+               __func__,
+               session.context.ip,
+               session.context.port,
+               path + strlen(session.context.root_dir) + 1);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_FILE_ACTION_COMPLETE,
@@ -167,9 +193,9 @@ int retrieve_file(void *arg) {
                ERROR,
                "[%lu] [%s] [%s:%s] process error",
                thrd_current(),
-               context.func_name,
-               context.ip,
-               context.port);
+               __func__,
+               session.context.ip,
+               session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
