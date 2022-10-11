@@ -35,7 +35,7 @@ int make_directory(void *arg) {
 
   // get the desired directory path
   const char *new_dir_name = args->req_args.request_args;
-  if (!validate_path(new_dir_name, args->logger) || !strchr(new_dir_name, '/')) {
+  if (!validate_path(new_dir_name, args->logger)) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] invalid request arguments",
@@ -52,39 +52,49 @@ int make_directory(void *arg) {
   }
 
   // get the new directory path
-  int len = snprintf(NULL,
-                     0,
-                     "%s/%s/%s",
-                     session.context.root_dir,
-                     *session.context.curr_dir ? session.context.curr_dir : ".",
-                     new_dir_name);
-
-  // path exceeds reply length
-  if (len < 0 || len + 1 > MAX_PATH_LEN - 1) {
+  char path[MAX_PATH_LEN];
+  bool ret = get_path(&session, path, sizeof path);
+  if (!ret) {
     logger_log(args->logger,
                ERROR,
-               "[%lu] [%s] [%s:%s] path exeeds path length [%d]",
-               thrd_current(),
+               "[%lu] [%s] [%s:%s] get_path() failure",
+               thrd_current,
                __func__,
                session.context.ip,
-               session.context.port,
-               MAX_PATH_LEN - 1);
-    send_reply_wrapper(args->remote_fd,
+               session.context.port);
+    send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error (path too long)",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
+                       "[%d] file action incomplete. internal process error",
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+
     return 1;
   }
 
-  // create the new directory
-  char path[MAX_PATH_LEN];
-  snprintf(path,
-           len + 1,
-           "%s/%s/%s",
-           session.context.root_dir,
-           *session.context.curr_dir ? session.context.curr_dir : ".",
-           new_dir_name);
+  size_t args_len = strlen(args->req_args.request_args);
+
+  // path too long
+  if (strlen(path) + 1 + args_len + 1 > MAX_PATH_LEN - 1) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] path too long",
+               thrd_current,
+               __func__,
+               session.context.ip,
+               session.context.port);
+    send_reply_wrapper(session.fds.control_fd,
+                       args->logger,
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
+                       "[%d] file action incomplete. internal process error",
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+
+    return 1;
+  }
+
+  strcat(path, "/");
+  strcat(path, args->req_args.request_args);
+
+  // create the directory
   if (mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR) != 0) {
     int err = errno;
     logger_log(args->logger,
@@ -104,35 +114,6 @@ int make_directory(void *arg) {
     return 1;
   }
 
-  len = snprintf(NULL,
-                 0,
-                 "[%d] ok. %s/%s",
-                 RPLY_CMD_OK,
-                 *session.context.curr_dir ? session.context.curr_dir : ".",
-                 new_dir_name);
-  if (len + 1 > REPLY_MAX_LEN - 1) {
-    logger_log(args->logger,
-               ERROR,
-               "[%lu] [%s] [%s:%s] path exeeds reply length [%d]",
-               thrd_current(),
-               __func__,
-               session.context.ip,
-               session.context.port,
-               REPLY_MAX_LEN - 1);
-    send_reply_wrapper(args->remote_fd,
-                       args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error (path too long)",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
-    return 1;
-  }
-
-  send_reply_wrapper(session.fds.control_fd,
-                     args->logger,
-                     RPLY_CMD_OK,
-                     "[%d] ok. %s",
-                     RPLY_CMD_OK,
-                     path + strlen(session.context.root_dir) + 1);
   logger_log(args->logger,
              INFO,
              "[%lu] [%s] [%s:%s] executed successfuly. created directory [%s]",
@@ -140,7 +121,15 @@ int make_directory(void *arg) {
              __func__,
              session.context.ip,
              session.context.port,
-             path + strlen(session.context.root_dir) + 1);
+             path);
+
+  // there shouldn't be a possibilty for strstr to return NULL
+  send_reply_wrapper(session.fds.control_fd,
+                     args->logger,
+                     RPLY_CMD_OK,
+                     "[%d] ok. the directory [%s] has been created",
+                     RPLY_CMD_OK,
+                     args->req_args.request_args);
 
   return 0;
 }

@@ -84,17 +84,13 @@ int list(void *arg) {
     return 1;
   }
 
-  size_t root_dir_len = strlen(session.context.root_dir);
-  size_t curr_dir_len = strlen(session.context.curr_dir);
-  size_t dir_name_len = strlen(dir_name);
-
-  // +2 one for an additional '/', one for the null terminator
-  size_t path_size = root_dir_len + 1 + curr_dir_len + 1 + dir_name_len + 1;
-  char *path = calloc(path_size, 1);
-  if (!path) {
+  // get file path
+  char path[MAX_PATH_LEN];
+  bool ret = get_path(&session, path, sizeof path);
+  if (!ret) {
     logger_log(args->logger,
                ERROR,
-               "[%lu] [%s] [%s:%s] calloc failure. couldn't allocate space for path",
+               "[%lu] [%s] [%s:%s] get_path() failure",
                thrd_current,
                __func__,
                session.context.ip,
@@ -102,18 +98,40 @@ int list(void *arg) {
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                       "[%d] file action incomplete. internal process error");
+                       "[%d] file action incomplete. internal process error",
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
 
     return 1;
   }
+
+  size_t args_len = strlen(args->req_args.request_args);
+
+  // path too long
+  if (strlen(path) + 1 + args_len + 1 > MAX_PATH_LEN - 1) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] path too long",
+               thrd_current,
+               __func__,
+               session.context.ip,
+               session.context.port);
+    send_reply_wrapper(session.fds.control_fd,
+                       args->logger,
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
+                       "[%d] file action incomplete. internal process error",
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+
+    return 1;
+  }
+
+  strcat(path, "/");
+  strcat(path, dir_name);
 
   send_reply_wrapper(session.fds.control_fd,
                      args->logger,
                      RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
                      "[%d] ok. begin transfer",
                      RPLY_DATA_CONN_OPEN_STARTING_TRANSFER);
-
-  snprintf(path, path_size + 1, "%s/%s/%s", session.context.root_dir, session.context.curr_dir, dir_name);
 
   // open the directory
   DIR *dir = opendir(path);
@@ -134,7 +152,6 @@ int list(void *arg) {
                        "[%d] invalid path [%s]",
                        RPLY_ARGS_SYNTAX_ERR,
                        dir_name);
-    free(path);
     return 1;
   }
 
@@ -232,6 +249,5 @@ int list(void *arg) {
                        RPLY_FILE_ACTION_COMPLETE);
   }
 
-  free(path);
   return 0;
 }

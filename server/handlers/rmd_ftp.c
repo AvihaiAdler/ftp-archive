@@ -42,39 +42,52 @@ int remove_directory(void *arg) {
                        RPLY_ARGS_SYNTAX_ERR);
     return 1;
   }
-  int len = snprintf(NULL,
-                     0,
-                     "%s/%s/%s",
-                     session.context.root_dir,
-                     *session.context.curr_dir ? session.context.curr_dir : ".",
-                     args->req_args.request_args);
-  if (len < 0 || len + 1 > MAX_PATH_LEN - 1) {
+
+  // get file path
+  char path[MAX_PATH_LEN];
+  bool ret = get_path(&session, path, sizeof path);
+  if (!ret) {
     logger_log(args->logger,
                ERROR,
-               "[%lu] [%s] [%s:%s] path exeeds path length [%d]",
-               thrd_current(),
+               "[%lu] [%s] [%s:%s] get_path() failure",
+               thrd_current,
                __func__,
                session.context.ip,
-               session.context.port,
-               MAX_PATH_LEN - 1);
-    send_reply_wrapper(args->remote_fd,
+               session.context.port);
+    send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error (path too long)",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
+                       "[%d] file action incomplete. internal process error",
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+
     return 1;
   }
 
-  char removed_dir_path[MAX_PATH_LEN] = {0};
-  snprintf(removed_dir_path,
-           len + 1,
-           "%s/%s/%s",
-           session.context.root_dir,
-           *session.context.curr_dir ? session.context.curr_dir : ".",
-           args->req_args.request_args);
+  size_t args_len = strlen(args->req_args.request_args);
+
+  // path too long
+  if (strlen(path) + 1 + args_len + 1 > MAX_PATH_LEN - 1) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] path too long",
+               thrd_current,
+               __func__,
+               session.context.ip,
+               session.context.port);
+    send_reply_wrapper(session.fds.control_fd,
+                       args->logger,
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
+                       "[%d] file action incomplete. internal process error",
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+
+    return 1;
+  }
+
+  strcat(path, "/");
+  strcat(path, args->req_args.request_args);
 
   // delete the directory
-  if (rmdir(removed_dir_path) != 0) {
+  if (rmdir(path) != 0) {
     int err = errno;
     logger_log(args->logger,
                ERROR,
@@ -97,17 +110,18 @@ int remove_directory(void *arg) {
   send_reply_wrapper(session.fds.control_fd,
                      args->logger,
                      RPLY_CMD_OK,
-                     "[%d] ok. removed the directory [%s]",
+                     "[%d] ok. the directory [%s] has been removed",
                      RPLY_CMD_OK,
-                     removed_dir_path + strlen(session.context.root_dir));
+                     args->req_args.request_args);
+
   logger_log(args->logger,
              INFO,
-             "[%lu] [%s] [%s:%s] executed successfuly. removed the directory [%s]",
+             "[%lu] [%s] [%s:%s] executed successfuly. the directory [%s] has been removed",
              thrd_current(),
              __func__,
              session.context.ip,
              session.context.port,
-             removed_dir_path);
+             path);
 
   return 0;
 }

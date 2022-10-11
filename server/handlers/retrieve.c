@@ -69,64 +69,53 @@ int retrieve_file(void *arg) {
     return 1;
   }
 
-  // get the file path
-  int len = snprintf(NULL,
-                     0,
-                     "%s/%s/%s",
-                     session.context.root_dir,
-                     *session.context.curr_dir ? session.context.curr_dir : ".",
-                     args->req_args.request_args);
-  if (len < 0 || len + 1 > MAX_PATH_LEN - 1) {
+  // get file path
+  char path[MAX_PATH_LEN];
+  bool path_ret = get_path(&session, path, sizeof path);
+  if (!path_ret) {
     logger_log(args->logger,
                ERROR,
-               "[%lu] [%s] [%s:%s] snprintf error",
-               thrd_current(),
+               "[%lu] [%s] [%s:%s] get_path() failure",
+               thrd_current,
                __func__,
                session.context.ip,
                session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
+                       "[%d] file action incomplete. internal process error",
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
 
     return 1;
   }
 
-  char path[MAX_PATH_LEN];
-  snprintf(path,
-           len + 1,
-           "%s/%s/%s",
-           session.context.root_dir,
-           *session.context.curr_dir ? session.context.curr_dir : ".",
-           args->req_args.request_args);
+  size_t args_len = strlen(args->req_args.request_args);
 
-  struct stat statbuf = {0};
-  int ret = stat(path, &statbuf);
-  if (ret == -1) {
+  // path too long
+  if (strlen(path) + 1 + args_len + 1 > MAX_PATH_LEN - 1) {
     logger_log(args->logger,
-               WARN,
-               "[%lu] [%s] [%s:%s] invalid file [%s]",
-               thrd_current(),
+               ERROR,
+               "[%lu] [%s] [%s:%s] path too long",
+               thrd_current,
                __func__,
                session.context.ip,
-               session.context.port,
-               path + strlen(session.context.root_dir) + 1);
+               session.context.port);
+    send_reply_wrapper(session.fds.control_fd,
+                       args->logger,
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
+                       "[%d] file action incomplete. internal process error",
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+
     return 1;
   }
 
-  struct file_size file_size = get_file_size(statbuf.st_size);
-  send_reply_wrapper(session.fds.control_fd,
-                     args->logger,
-                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
-                     "[%d] data connection open. starting transfer of %Lf %s",
-                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
-                     file_size.size,
-                     file_size.units);
+  strcat(path, "/");
+  strcat(path, args->req_args.request_args);
 
   // open the file
   FILE *fp = fopen(path, "r");
-  if (!fp) {
+  int fp_fd = fileno(fp);
+  if (!fp || fp_fd == -1) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] invalid path or file doesn't exists [%s]",
@@ -144,6 +133,34 @@ int retrieve_file(void *arg) {
 
     return 1;
   }
+
+  struct stat statbuf = {0};
+  int ret = fstat(fp_fd, &statbuf);
+  if (ret == -1) {
+    logger_log(args->logger,
+               WARN,
+               "[%lu] [%s] [%s:%s] invalid file descriptor [%s]",
+               thrd_current(),
+               __func__,
+               session.context.ip,
+               session.context.port,
+               path);
+    send_reply_wrapper(session.fds.control_fd,
+                       args->logger,
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
+                       "[%d] file action incomplete. internal process error",
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+    return 1;
+  }
+
+  struct file_size file_size = get_file_size(statbuf.st_size);
+  send_reply_wrapper(session.fds.control_fd,
+                     args->logger,
+                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
+                     "[%d] data connection open. starting transfer of %Lf %s",
+                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
+                     file_size.size,
+                     file_size.units);
 
   // read the file and send it
   struct data_block data = {0};

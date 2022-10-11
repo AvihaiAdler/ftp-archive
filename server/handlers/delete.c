@@ -44,17 +44,12 @@ int delete_file(void *arg) {
   }
 
   // get file path
-  size_t root_dir_len = strlen(session.context.root_dir);
-  size_t curr_dir_len = strlen(session.context.curr_dir);
-  size_t dir_name_len = strlen(args->req_args.request_args);
-
-  // +2 one for an additional '/', one for the null terminator
-  size_t path_size = root_dir_len + 1 + curr_dir_len + 1 + dir_name_len + 1;
-  char *path = calloc(path_size, 1);
-  if (!path) {
+  char path[MAX_PATH_LEN];
+  bool path_ret = get_path(&session, path, sizeof path);
+  if (!path_ret) {
     logger_log(args->logger,
                ERROR,
-               "[%lu] [%s] [%s:%s] calloc failure. couldn't allocate space for path",
+               "[%lu] [%s] [%s:%s] get_path() failure",
                thrd_current,
                __func__,
                session.context.ip,
@@ -68,12 +63,28 @@ int delete_file(void *arg) {
     return 1;
   }
 
-  snprintf(path,
-           path_size + 1,
-           "%s/%s/%s",
-           session.context.root_dir,
-           session.context.curr_dir,
-           args->req_args.request_args);
+  size_t args_len = strlen(args->req_args.request_args);
+
+  // path too long
+  if (strlen(path) + 1 + args_len + 1 > MAX_PATH_LEN - 1) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] path too long",
+               thrd_current,
+               __func__,
+               session.context.ip,
+               session.context.port);
+    send_reply_wrapper(session.fds.control_fd,
+                       args->logger,
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
+                       "[%d] file action incomplete. internal process error",
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+
+    return 1;
+  }
+
+  strcat(path, "/");
+  strcat(path, args->req_args.request_args);
 
   // delete the file
   int ret = unlink(path);
@@ -93,7 +104,6 @@ int delete_file(void *arg) {
                        RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
                        "[%d] file action incomplete. internal process error",
                        RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
-    free(path);
   }
 
   // send feedback
@@ -111,7 +121,6 @@ int delete_file(void *arg) {
                      "[%d] file action complete. [%s] has been deleted",
                      RPLY_FILE_ACTION_COMPLETE,
                      args->req_args.request_args);
-  free(path);
 
   return 0;
 }
