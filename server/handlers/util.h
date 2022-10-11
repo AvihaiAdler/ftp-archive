@@ -28,18 +28,12 @@ struct args {
   };
 };
 
-struct log_context {
-  const char *func_name;
-  char ip[NI_MAXHOST];
-  char port[NI_MAXSERV];
-};
-
 struct file_size {
   long double size;
   const char *units;
 };
 
-bool validate_path(const char *file_name, struct logger *logger, struct log_context *context);
+bool validate_path(const char *file_name, struct logger *logger);
 
 const char *trim_str(const char *str);
 
@@ -47,6 +41,8 @@ void send_reply_wrapper(int sockfd, struct logger *logger, enum reply_codes repl
 
 char *tolower_str(char *str, size_t len);
 
-int open_data_connection(struct session *remote, struct logger *logger, struct log_context *context);
+int open_data_connection(struct session *remote, struct logger *logger);
 
 struct file_size get_file_size(off_t size_in_bytes);
+
+bool get_path(struct session *session, char *path, size_t path_size);

@@ -5,6 +5,7 @@
 #include <stdarg.h>  // vsnprintf()
 #include <stdio.h>
 #include <string.h>  //NI_MAXHOST, NI_MAXSERV
+#include <unistd.h>  // getcwd()
 #include "misc/util.h"
 
 char *tolower_str(char *str, size_t len) {
@@ -56,31 +57,19 @@ const char *trim_str(const char *str) {
   return ptr;
 }
 
-bool validate_path(const char *path, struct logger *logger, struct log_context *context) {
-  if (!path || !context) return false;
+bool validate_path(const char *path, struct logger *logger) {
+  if (!path) return false;
 
   // no file name specified
   if (!*path) {
-    logger_log(logger,
-               ERROR,
-               "[thread:%lu] [%s] [%s:%s] invalid path",
-               thrd_current(),
-               context->func_name,
-               context->ip,
-               context->port);
+    logger_log(logger, ERROR, "[thread:%lu] [%s] invalid path", thrd_current(), __func__);
     return false;
   }
 
   // path contains only space chars
   path = trim_str(path);
   if (!*path) {
-    logger_log(logger,
-               ERROR,
-               "[thread:%lu] [%s] [%s:%s] invalid path",
-               thrd_current(),
-               context->func_name,
-               context->ip,
-               context->port);
+    logger_log(logger, ERROR, "[thread:%lu] [%s] invalid path", thrd_current(), __func__);
     return false;
   }
 
@@ -90,9 +79,7 @@ bool validate_path(const char *path, struct logger *logger, struct log_context *
                ERROR,
                "[thread:%lu] [%s] [%s:%s] bad request. path [%s] not allowed",
                thrd_current(),
-               context->func_name,
-               context->ip,
-               context->port,
+               __func__,
                path);
     return false;
   }
@@ -103,9 +90,7 @@ bool validate_path(const char *path, struct logger *logger, struct log_context *
                ERROR,
                "[thread:%lu] [%s] [%s:%s] bad request. path [%s] not allowed",
                thrd_current(),
-               context->func_name,
-               context->ip,
-               context->port,
+               __func__,
                path);
     return false;
   }
@@ -113,8 +98,8 @@ bool validate_path(const char *path, struct logger *logger, struct log_context *
   return true;
 }
 
-int open_data_connection(struct session *remote, struct logger *logger, struct log_context *context) {
-  if (!logger || !context) return -1;
+int open_data_connection(struct session *remote, struct logger *logger) {
+  if (!logger) return -1;
 
   char ip[NI_MAXHOST] = {0};
   char port[NI_MAXSERV] = {0};
@@ -126,18 +111,17 @@ int open_data_connection(struct session *remote, struct logger *logger, struct l
       sockfd = get_listen_socket(logger, ip, NULL, 1, AI_PASSIVE);
     }
   } else {
-    get_ip_and_port(remote->fds.control_fd, ip, sizeof ip, port, sizeof port);
-    sockfd = get_connect_socket(logger, ip, port, 0);
+    sockfd = get_connect_socket(logger, remote->context.ip, remote->context.port, 0);
   }
 
   if (sockfd == -1) {
     logger_log(logger,
                ERROR,
                "[%s] [%lu] [%s:%s] failed to open active data connection",
-               context->func_name,
+               "open_data_connection",
                thrd_current(),
-               context->ip,
-               context->port);
+               remote->context.ip,
+               remote->context.port);
 
     send_reply_wrapper(remote->fds.control_fd, logger, RPLY_CANNOT_OPEN_DATA_CONN, "data connection cannot be open");
   }
@@ -161,4 +145,23 @@ struct file_size get_file_size(off_t size_in_bytes) {
     f_size.units = "B";
   }
   return f_size;
+}
+
+bool get_path(struct session *session, char *path, size_t path_size) {
+  if (!path) return false;
+
+  char *ptr = getcwd(path, path_size);
+  if (!ptr) return false;
+
+  size_t path_len = strlen(path);  // length so far
+  size_t curr_dir_len = strlen(session->context.curr_dir);
+
+  if (path_len + curr_dir_len + 1 >= path_size - 1) return false;  // path too long
+
+  if (curr_dir_len) {
+    strcat(path, "/");
+    strcat(path, session->context.curr_dir);
+  }
+
+  return true;
 }
