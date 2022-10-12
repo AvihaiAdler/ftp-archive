@@ -304,12 +304,11 @@ int main(int argc, char *argv[]) {
             close(current->fd);
 
             // replace the old session
-            struct session new_session = {0};
-            memcpy(&new_session, session, sizeof new_session);
-            new_session.fds.data_fd = data_fd;   // the new passive data_fd
-            new_session.fds.listen_sockfd = -1;  // invalidate session::fds::listen_sockfd
+            // the new passive data_fd. session::fds::data_fd is guaranteed to be closed and invalidated
+            session->fds.data_fd = data_fd;
+            session->fds.listen_sockfd = -1;  // invalidate session::fds::listen_sockfd
 
-            if (!update_session(sessions, logger, &new_session)) {
+            if (!update_session(sessions, logger, session)) {
               logger_log(logger,
                          ERROR,
                          "[%s] fatal error: failed to update a session for [%s:%s]",
