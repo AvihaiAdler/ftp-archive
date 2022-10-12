@@ -12,8 +12,6 @@
 #include "vector.h"
 #include "vector_s.h"
 
-#define MAX_PATH_LEN 4096
-
 struct ip {
   int family;
   char addr[INET6_ADDRSTRLEN];

@@ -18,7 +18,6 @@
 #include "thread_pool.h"
 
 #define BUF_LEN 1024
-#define ROOT_DIR_LEN 2
 
 void cleanup(struct hash_table *properties,
              struct logger *logger,
@@ -44,11 +43,6 @@ void destroy_task(void *task) {
 void destroy_session(void *session) {
   if (!session) return;
   struct session *s = session;
-
-  if (s->context.root_dir) free(s->context.root_dir);
-  if (s->context.curr_dir) free(s->context.curr_dir);
-  if (s->context.ip) free(s->context.ip);
-  if (s->context.port) free(s->context.port);
 
   if (s->fds.control_fd > 0) close(s->fds.control_fd);
   if (s->fds.data_fd > 0) close(s->fds.data_fd);
@@ -195,35 +189,11 @@ bool construct_session(struct session *session, int remote_fd) {
 
   // reserved for future implementation of a login system
   session->context = (struct context){.logged_in = false};
-  // session->context.session_root_dir = NULL;
-
-  session->context.root_dir = calloc(ROOT_DIR_LEN + 1, 1);
-  if (!session->context.root_dir) return false;
-
-  session->context.curr_dir = calloc(MAX_PATH_LEN, 1);
-  if (!session->context.curr_dir) {
-    free(session->context.root_dir);
-    return false;
-  }
 
   strcpy(session->context.root_dir, ".");
+  *session->context.curr_dir = 0;
 
-  session->context.ip = calloc(NI_MAXHOST, 1);
-  if (!session->context.ip) {
-    free(session->context.root_dir);
-    free(session->context.curr_dir);
-    return false;
-  }
-
-  session->context.port = calloc(NI_MAXSERV, 1);
-  if (!session->context.port) {
-    free(session->context.root_dir);
-    free(session->context.curr_dir);
-    free(session->context.ip);
-    return false;
-  }
-
-  get_ip_and_port(remote_fd, session->context.ip, NI_MAXHOST, session->context.port, NI_MAXSERV);
+  get_ip_and_port(remote_fd, session->context.ip, INET6_ADDRSTRLEN, session->context.port, NI_MAXSERV);
 
   return true;
 }
