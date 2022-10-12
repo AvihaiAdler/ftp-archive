@@ -146,7 +146,7 @@ int get_request(void *arg) {
                          RPLY_DATA_CONN_CLOSED);
       return 1;
     }
-    int sockfd = open_data_connection(&session, args->logger);
+    int sockfd = get_connect_socket(args->logger, session.context.ip, session.context.port, 0);
     if (sockfd == -1) return 1;
 
     session.fds.data_fd = sockfd;

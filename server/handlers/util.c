@@ -4,7 +4,7 @@
 #include <netdb.h>
 #include <stdarg.h>  // vsnprintf()
 #include <stdio.h>
-#include <string.h>  //NI_MAXHOST, NI_MAXSERV
+#include <string.h>
 #include <unistd.h>  // getcwd()
 #include "misc/util.h"
 
@@ -96,41 +96,6 @@ bool validate_path(const char *path, struct logger *logger) {
   }
 
   return true;
-}
-
-int open_data_connection(struct session *remote, struct logger *logger) {
-  if (!logger) return -1;
-
-  int sockfd = -1;
-  if (remote->data_sock_type == PASSIVE) {
-    struct list *ips = get_local_ip();
-    if (ips) {
-      for (size_t i = 0; i < list_size(ips); i++) {
-        struct ip *ip = list_at(ips, i);
-        if (!ip) continue;
-        // get a socket with some random port number
-        sockfd = get_listen_socket(logger, ip->addr, NULL, 1, AI_PASSIVE);
-        if (sockfd != -1) break;
-      }
-      list_destroy(ips, NULL);
-    }
-  } else {
-    sockfd = get_connect_socket(logger, remote->context.ip, remote->context.port, 0);
-  }
-
-  if (sockfd == -1) {
-    logger_log(logger,
-               ERROR,
-               "[%s] [%lu] [%s:%s] failed to open active data connection",
-               "open_data_connection",
-               thrd_current(),
-               remote->context.ip,
-               remote->context.port);
-
-    send_reply_wrapper(remote->fds.control_fd, logger, RPLY_CANNOT_OPEN_DATA_CONN, "data connection cannot be open");
-  }
-
-  return sockfd;
 }
 
 struct file_size get_file_size(off_t size_in_bytes) {

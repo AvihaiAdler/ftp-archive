@@ -41,8 +41,6 @@ void send_reply_wrapper(int sockfd, struct logger *logger, enum reply_codes repl
 
 char *tolower_str(char *str, size_t len);
 
-int open_data_connection(struct session *remote, struct logger *logger);
-
 struct file_size get_file_size(off_t size_in_bytes);
 
 bool get_path(struct session *session, char *path, size_t path_size);
