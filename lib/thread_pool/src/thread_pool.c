@@ -18,7 +18,7 @@ static int thread_func_wrapper(void *arg) {
     mtx_unlock(thread_args->tasks_mtx);  // assumes never fails
 
     // handle the task
-    // as long as task is valid as the thread shouldn't stop
+    // as long as task is valid the thread shouldn't stop
     if (task && !atomic_load(&thread_args->self->terminate)) {
       thread_args->args = task->args;
 
