@@ -182,7 +182,7 @@ int retrieve_file(void *arg) {
     }
 
     // failed to send a data block
-    if (send_data(&data, session.fds.data_fd, 0) != 0) {
+    if (send_data(&data, session.fds.data_fd, 0) != ERR_SUCCESS) {
       successful_transfer = false;
       break;
     }

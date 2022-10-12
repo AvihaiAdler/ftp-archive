@@ -182,8 +182,8 @@ int store_file(void *arg) {
   bool successful_transfer = true;
   bool done = false;
   do {
-    // failed to send a data block
-    if (receive_data(&data, session.fds.data_fd, 0) != 0) {
+    // failed to recv a data block
+    if (receive_data(&data, session.fds.data_fd, 0) != ERR_SUCCESS) {
       successful_transfer = false;
       break;
     }
