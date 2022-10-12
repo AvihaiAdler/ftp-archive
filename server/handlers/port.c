@@ -1,4 +1,5 @@
 #include "port.h"
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>  // close()
 #include "misc/util.h"
