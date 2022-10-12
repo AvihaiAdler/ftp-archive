@@ -101,13 +101,18 @@ bool validate_path(const char *path, struct logger *logger) {
 int open_data_connection(struct session *remote, struct logger *logger) {
   if (!logger) return -1;
 
-  char ip[NI_MAXHOST] = {0};
-
   int sockfd = -1;
   if (remote->data_sock_type == PASSIVE) {
-    if (get_local_ip(ip, sizeof ip, AF_INET) || get_local_ip(ip, sizeof ip, AF_INET6)) {
-      // get a socket with some random port number
-      sockfd = get_listen_socket(logger, ip, NULL, 1, AI_PASSIVE);
+    struct list *ips = get_local_ip();
+    if (ips) {
+      for (size_t i = 0; i < list_size(ips); i++) {
+        struct ip *ip = list_at(ips, i);
+        if (!ip) continue;
+        // get a socket with some random port number
+        sockfd = get_listen_socket(logger, ip->addr, NULL, 1, AI_PASSIVE);
+        if (sockfd != -1) break;
+      }
+      list_destroy(ips, NULL);
     }
   } else {
     sockfd = get_connect_socket(logger, remote->context.ip, remote->context.port, 0);

@@ -121,15 +121,8 @@ int get_connect_socket(struct logger *logger, const char *host, const char *serv
     return -1;
   }
 
-  char local_ip[INET6_ADDRSTRLEN] = {0};
-  struct sockaddr_storage local_addr = {0};
-  socklen_t local_addr_len = sizeof local_addr;
-  if (get_local_ip(local_ip, sizeof local_ip, AF_INET)) {
-    inet_pton(AF_INET, local_ip, &local_addr);
-  } else if (get_local_ip(local_ip, sizeof local_ip, AF_INET6)) {
-    inet_pton(AF_INET6, local_ip, &local_addr);
-  } else {
-    freeaddrinfo(info);
+  struct list *ips = get_local_ip();
+  if (!ips || list_empty(ips)) {
     logger_log(logger, ERROR, "[%s] failed to fetch local ip", __func__);
     return -1;
   }
@@ -143,12 +136,30 @@ int get_connect_socket(struct logger *logger, const char *host, const char *serv
     // int val = 1;
     // if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof val) == -1) continue;
 
-    if (bind(sockfd, (struct sockaddr *)&local_addr, local_addr_len) == -1) continue;
+    // iterate over each local ip and try to bind() it to the socket - may no be needed?
+    bool bind_succeeded = false;
+    for (size_t i = 0; i < list_size(ips) && !bind_succeeded; i++) {
+      struct ip *ip = list_at(ips, i);
+      if (!ip) continue;
 
-    if (connect(sockfd, available->ai_addr, available->ai_addrlen) == 0) { success = true; }
+      if (available->ai_family == AF_INET) {
+        struct sockaddr_in ipv4 = {.sin_family = ip->family};
+        inet_pton(ip->family, ip->addr, &ipv4.sin_addr);
+
+        if (bind(sockfd, (struct sockaddr *)&ipv4, sizeof ipv4) == 0) bind_succeeded = true;
+      } else if (available->ai_family == AF_INET6) {
+        struct sockaddr_in6 ipv6 = {.sin6_family = ip->family};
+        inet_pton(ip->family, ip->addr, &ipv6.sin6_addr);
+
+        if (bind(sockfd, (struct sockaddr *)&ipv6, sizeof ipv6) == 0) bind_succeeded = true;
+      }
+    }
+
+    if (bind_succeeded && connect(sockfd, available->ai_addr, available->ai_addrlen) == 0) { success = true; }
   }
 
   freeaddrinfo(info);
+  list_destroy(ips, NULL);
 
   // failed to listen()/bind()
   if (!success) {
@@ -291,38 +302,39 @@ void get_ip_and_port(int sockfd, char *ip, size_t ip_size, char *port, size_t po
   }
 }
 
-bool get_local_ip(char *ip, size_t ip_size, int inet) {
-  if (ip_size < INET6_ADDRSTRLEN) return false;
-  if (inet != AF_INET && inet != AF_INET6) return false;
+struct list *get_local_ip() {
+
+  struct list *ips = list_init();
+  if (!ips) return NULL;
 
   struct ifaddrs *ifaddrs = NULL;
-
   getifaddrs(&ifaddrs);
 
   for (struct ifaddrs *ifa = ifaddrs; ifa; ifa = ifa->ifa_next) {
+    struct ip ip = {0};
     if (!ifa->ifa_addr) continue;
 
-    if (ifa->ifa_addr->sa_family == inet) {  // IPv4
+    if (ifa->ifa_addr->sa_family == AF_INET) {  // IPv4
       struct sockaddr_in addr = {0};
       memcpy(&addr, ifa->ifa_addr, sizeof addr);
 
-      if (strcmp(ifa->ifa_name, "eth0") == 0) {
-        inet_ntop(AF_INET, &addr.sin_addr, ip, ip_size);
-        break;
-      }
-    } else if (ifa->ifa_addr->sa_family == inet) {  // IPv6
+      ip.family = AF_INET;
+      if (strcmp(ifa->ifa_name, "eth0") == 0) { inet_ntop(AF_INET, &addr.sin_addr, ip.addr, sizeof ip.addr); }
+    } else if (ifa->ifa_addr->sa_family == AF_INET6) {  // IPv6
       struct sockaddr_in6 addr = {0};
       memcpy(&addr, ifa->ifa_addr, sizeof addr);
 
-      if (strcmp(ifa->ifa_name, "eth0") == 0) {
-        inet_ntop(AF_INET6, &addr.sin6_addr, ip, ip_size);
-        break;
-      }
+      ip.family = AF_INET6;
+      if (strcmp(ifa->ifa_name, "eth0") == 0) { inet_ntop(AF_INET6, &addr.sin6_addr, ip.addr, sizeof ip.addr); }
+    } else {
+      continue;
     }
+
+    list_append(ips, &ip, sizeof ip);
   }
 
   if (ifaddrs) freeifaddrs(ifaddrs);
-  return true;
+  return ips;
 }
 
 bool create_sig_handler(int signal, void (*handler)(int signal)) {

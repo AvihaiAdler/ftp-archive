@@ -1,8 +1,10 @@
 #pragma once
 
+#include <arpa/inet.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include "hash_table.h"
+#include "list.h"
 #include "logger.h"
 #include "payload/payload.h"
 #include "session/session.h"
@@ -11,6 +13,11 @@
 #include "vector_s.h"
 
 #define MAX_PATH_LEN 4096
+
+struct ip {
+  int family;
+  char addr[INET6_ADDRSTRLEN];
+};
 
 void cleanup(struct hash_table *properties,
              struct logger *logger,
@@ -60,8 +67,8 @@ void destroy_session(void *session);
 /* gets the ip and port associated with a sockfd */
 void get_ip_and_port(int sockfd, char *ip, size_t ip_size, char *port, size_t port_size);
 
-/* get the (first listed) local ip of the machine */
-bool get_local_ip(char *ip, size_t ip_size, int inet);
+/* get a list of local ips of the machine */
+struct list *get_local_ip(void);
 
 /* establish a signal handler */
 bool create_sig_handler(int signal, void (*handler)(int signal));
