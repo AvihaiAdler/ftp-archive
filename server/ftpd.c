@@ -67,6 +67,8 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  logger_log(logger, INFO, "[%s] logger initiated successfuly", __func__);
+
   // get the root directory. all server files will be uploded there
   const char *root_dir = table_get(properties, ROOT_DIR, strlen(ROOT_DIR));
   if (!root_dir) {
@@ -95,6 +97,8 @@ int main(int argc, char *argv[]) {
     cleanup(properties, logger, NULL, NULL, NULL);
     return 1;
   }
+
+  logger_log(logger, INFO, "[%s] server root directory obtained", __func__);
 
   // create a signal handler (must be invoked prior to the creation of the thread pool due to the sigprocmask() call)
   if (!create_sig_handler(SIGINT, signal_handler)) {
@@ -143,6 +147,8 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  logger_log(logger, INFO, "[%s] thread pool created successfully", __func__);
+
   // unblock SIGINT for (only) the main thread
   if (pthread_sigmask(SIG_UNBLOCK, &threads_sigset, NULL) != 0) {
     logger_log(logger, ERROR, "[%s] failed to establish a signal mask for main", __func__);
@@ -183,6 +189,8 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  logger_log(logger, INFO, "[%s] server fds obtained successfully", __func__);
+
   // create a vector of sessions
   struct vector_s *sessions = vector_s_init(sizeof(struct session), cmpr_sessions, destroy_session);
   if (!sessions) {
@@ -191,6 +199,8 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  logger_log(logger, INFO, "[%s] sessions initiated successfully", __func__);
+
   // create a set of open fds
   struct vector *pollfds = vector_init(sizeof(struct pollfd));
   if (!pollfds) {
@@ -198,6 +208,8 @@ int main(int argc, char *argv[]) {
     cleanup(properties, logger, thread_pool, sessions, NULL);
     return 1;
   }
+
+  logger_log(logger, INFO, "[%s] pollfds initiated successfully", __func__);
 
   // add the main server control sockfd to the list of open fds
   add_fd(pollfds, logger, server_fds.listen_sockfd, POLLIN);
@@ -212,10 +224,12 @@ int main(int argc, char *argv[]) {
   }
 
   // main server loop
+  logger_log(logger, INFO, "[%s] started listening on fd [%d]", __func__, server_fds.listen_sockfd);
   while (!atomic_load(&terminate)) {
-    int events_count = ppoll((struct pollfd *)vector_struct_size(pollfds), vector_size(pollfds), NULL, &ppoll_sigset);
+    int events_count = ppoll((struct pollfd *)vector_data(pollfds), vector_size(pollfds), NULL, &ppoll_sigset);
+    int err = errno;
     if (events_count == -1) {
-      logger_log(logger, ERROR, "[%s] poll error", __func__);
+      logger_log(logger, ERROR, "[%s] poll error [%s]", __func__, strerr_safe(err));
       break;
     }
 
