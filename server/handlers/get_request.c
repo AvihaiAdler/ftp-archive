@@ -146,7 +146,7 @@ int get_request(void *arg) {
                          RPLY_DATA_CONN_CLOSED);
       return 1;
     }
-    int sockfd = get_connect_socket(args->logger, session.context.ip, session.context.port, 0);
+    int sockfd = get_connect_socket(args->logger, args->server_data_port, session.context.ip, session.context.port, 0);
     if (sockfd == -1) return 1;
 
     session.fds.data_fd = sockfd;
@@ -190,6 +190,7 @@ int get_request(void *arg) {
   }
 
   task_args->remote_fd = args->remote_fd;
+  task_args->server_data_port = args->server_data_port;
   task_args->event_fd = args->event_fd;
   task_args->logger = args->logger;
   task_args->sessions = args->sessions;
