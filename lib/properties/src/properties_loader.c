@@ -69,6 +69,9 @@ struct hash_table *get_properties(const char *path) {
   do {
     if (!fgets(buffer, sizeof buffer, fp)) { break; }
 
+    // skip comments
+    if (*buffer == '#') continue;
+
     if (!validate_key_value_pair(buffer)) {
       cleanup(properties);
       return NULL;
