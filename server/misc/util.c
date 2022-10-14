@@ -24,15 +24,31 @@ void cleanup(struct hash_table *properties,
              struct thread_pool *thread_pool,
              struct vector_s *sessions,
              struct vector *pollfds) {
-  if (properties) table_destroy(properties);
 
-  if (logger) logger_destroy(logger);
+  if (properties) {
+    logger_log(logger, INFO, "[%s] destroying properties", __func__);
+    table_destroy(properties);
+  }
 
-  if (thread_pool) thread_pool_destroy(thread_pool);
+  if (thread_pool) {
+    logger_log(logger, INFO, "[%s] destroying thread_pool", __func__);
+    thread_pool_destroy(thread_pool);
+  }
 
-  if (sessions) vector_s_destroy(sessions);
+  if (sessions) {
+    logger_log(logger, INFO, "[%s] destroying sessions", __func__);
+    vector_s_destroy(sessions);
+  }
 
-  if (pollfds) vector_destroy(pollfds, NULL);
+  if (pollfds) {
+    logger_log(logger, INFO, "[%s] destroying pollfds", __func__);
+    vector_destroy(pollfds, NULL);
+  }
+
+  if (logger) {
+    logger_log(logger, INFO, "[%s] destroying logger", __func__);
+    logger_destroy(logger);
+  }
 }
 
 void destroy_task(void *task) {
@@ -326,45 +342,68 @@ bool create_sig_handler(int signal, void (*handler)(int signal)) {
 }
 
 const char *strerr_safe(int err) {
+  const char *err_str = NULL;
   switch (err) {
     case EACCES:
-      return "permission denied";
+      err_str = "permission denied";
+      break;
     case EBADF:
-      return "bad file descriptor";
+      err_str = "bad file descriptor";
+      break;
     case EBUSY:
-      return "device or resource busy";
+      err_str = "device or resource busy";
+      break;
     case EDQUOT:
-      return "EDQUOT";
+      err_str = "EDQUOT";
+      break;
     case EEXIST:
-      return "file exists";
+      err_str = "file exists";
+      break;
     case EFAULT:
-      return "bad address";
+      err_str = "bad address";
+      break;
     case EINVAL:
-      return "invalid argument";
+      err_str = "invalid argument";
+      break;
+    case EINTR:
+      err_str = "signal recieved before requested event";
+      break;
     case EISDIR:
-      return "is a directory";
+      err_str = "is a directory";
+      break;
     case EIO:
-      return "an I/O error occurred";
+      err_str = "an I/O error occurred";
+      break;
     case ELOOP:
-      return "too many levels of symbolic links";
+      err_str = "too many levels of symbolic links";
+      break;
     case EMLINK:
-      return "too many links";
+      err_str = "too many links";
+      break;
     case ENAMETOOLONG:
-      return "filename too long";
+      err_str = "filename too long";
+      break;
     case ENONET:
-      return "no such file or directory";
+      err_str = "no such file or directory";
+      break;
     case ENOMEM:
-      return "not enough space";
+      err_str = "not enough space";
+      break;
     case ENOSPC:
-      return "no space left on device";
+      err_str = "no space left on device";
+      break;
     case ENOTDIR:
-      return "not a directory or a symbolic link to a directory";
+      err_str = "not a directory or a symbolic link to a directory";
+      break;
     case EPERM:
-      return "operation not permitted";
+      err_str = "operation not permitted";
+      break;
     case EROFS:
-      return "read-only file system";
+      err_str = "read-only file system";
+      break;
     default:
-      return "other";
+      err_str = "other";
+      break;
   }
-  return NULL;
+  return err_str;
 }
