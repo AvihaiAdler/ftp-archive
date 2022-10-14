@@ -29,7 +29,11 @@ struct addrinfo *get_addr_info(const char *host, const char *serv, int flags);
 int get_listen_socket(struct logger *logger, const char *host, const char *serv, int conn_q_size, int flags);
 
 /* opens an 'active' socket with connect(). returns the socket fd on success, -1 on failure */
-int get_connect_socket(struct logger *logger, const char *host, const char *serv, int flags);
+int get_connect_socket(struct logger *logger,
+                       const char *local_port,
+                       const char *remote_host,
+                       const char *remote_serv,
+                       int flags);
 
 /* adds a sockfd to the vector of sockfd used by poll() */
 void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events);
