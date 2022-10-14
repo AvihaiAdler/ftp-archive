@@ -36,7 +36,7 @@ int passive(void *arg) {
   struct list *ips = get_local_ip();
   int pasv_fd = -1;
   for (size_t i = 0; i < list_size(ips); i++) {
-    pasv_fd = get_listen_socket(args->logger, (const char *)list_at(ips, i), NULL, 1, AI_PASSIVE);
+    pasv_fd = get_passive_socket(args->logger, (const char *)list_at(ips, i), NULL, 1, AI_PASSIVE);
 
     if (pasv_fd != -1) break;  // successfuly got a passive socket
   }

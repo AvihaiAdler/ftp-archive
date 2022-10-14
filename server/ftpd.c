@@ -177,8 +177,11 @@ int main(int argc, char *argv[]) {
   struct server_fds server_fds = {0};
 
   // create a control socket
-  server_fds.listen_sockfd =
-    get_listen_socket(logger, NULL, table_get(properties, CONTROL_PORT, strlen(CONTROL_PORT)), (int)q_size, AI_PASSIVE);
+  server_fds.listen_sockfd = get_passive_socket(logger,
+                                                NULL,
+                                                table_get(properties, CONTROL_PORT, strlen(CONTROL_PORT)),
+                                                (int)q_size,
+                                                AI_PASSIVE);
   if (server_fds.listen_sockfd == -1) {
     logger_log(logger, ERROR, "[%s] failed to retrieve a listen socket", __func__);
     cleanup(properties, logger, thread_pool, NULL, NULL);

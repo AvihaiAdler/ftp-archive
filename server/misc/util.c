@@ -84,7 +84,7 @@ struct addrinfo *get_addr_info(const char *host, const char *serv, int flags) {
   return info;
 }
 
-int get_listen_socket(struct logger *logger, const char *host, const char *serv, int conn_q_size, int flags) {
+int get_passive_socket(struct logger *logger, const char *host, const char *serv, int conn_q_size, int flags) {
   if (!host && !serv) return -1;
 
   struct addrinfo *info = get_addr_info(host, serv, flags);
@@ -122,11 +122,11 @@ int get_listen_socket(struct logger *logger, const char *host, const char *serv,
   return sockfd;
 }
 
-int get_connect_socket(struct logger *logger,
-                       const char *local_port,
-                       const char *remote_host,
-                       const char *remote_serv,
-                       int flags) {
+int get_active_socket(struct logger *logger,
+                      const char *local_port,
+                      const char *remote_host,
+                      const char *remote_serv,
+                      int flags) {
   if (!local_port) return -1;
   if (!remote_host && !remote_serv) return -1;
 

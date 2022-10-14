@@ -59,7 +59,7 @@ int port(void *arg) {
   char port[NI_MAXSERV] = {0};
   strcpy(port, comma);
 
-  int data_fd = get_connect_socket(args->logger, args->server_data_port, ip, port, 0);
+  int data_fd = get_active_socket(args->logger, args->server_data_port, ip, port, 0);
 
   if (data_fd == -1) {
     logger_log(args->logger,
