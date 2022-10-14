@@ -12,11 +12,6 @@
 #include "vector.h"
 #include "vector_s.h"
 
-struct ip {
-  int family;
-  char addr[INET6_ADDRSTRLEN];
-};
-
 void cleanup(struct hash_table *properties,
              struct logger *logger,
              struct thread_pool *thread_pool,
