@@ -69,10 +69,16 @@ int main(int argc, char *argv[]) {
 
   logger_log(logger, INFO, "[%s] logger initiated successfuly", __func__);
 
+  const char *data_port = table_get(properties, DATA_PORT, strlen(DATA_PORT));
+  if (!data_port) {
+    logger_log(logger, ERROR, "[%s] unsupplied data_port", __func__);
+    cleanup(properties, logger, NULL, NULL, NULL);
+  }
+
   // get the root directory. all server files will be uploded there
   const char *root_dir = table_get(properties, ROOT_DIR, strlen(ROOT_DIR));
   if (!root_dir) {
-    logger_log(logger, ERROR, "[%s] unsupplied root_directory. using the default [%s]", __func__, DEFAULT_ROOT_DIR);
+    logger_log(logger, WARN, "[%s] unsupplied root_directory. using the default [%s]", __func__, DEFAULT_ROOT_DIR);
     root_dir = DEFAULT_ROOT_DIR;
   }
 
@@ -281,6 +287,7 @@ int main(int argc, char *argv[]) {
           args->event_fd = server_fds.event_fd;
           args->logger = logger;
           args->remote_fd = remote_fd;
+          args->server_data_port = data_port;
           args->sessions = sessions;
 
           thread_pool_add_task(thread_pool, &(struct task){.args = args, .handle_task = greet});
@@ -327,6 +334,7 @@ int main(int argc, char *argv[]) {
             args->event_fd = server_fds.event_fd;
             args->logger = logger;
             args->remote_fd = current->fd;
+            args->server_data_port = data_port;
             args->sessions = sessions;
             args->thread_pool = thread_pool;
 
