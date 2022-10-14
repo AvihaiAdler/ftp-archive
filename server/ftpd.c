@@ -11,6 +11,7 @@
 #include <sys/eventfd.h>
 #include <sys/stat.h>  // mkdir()
 #include <unistd.h>    // close(), read()
+#include "handlers/get_request.h"
 #include "handlers/greet.h"
 #include "handlers/util.h"
 #include "hash_table.h"
@@ -252,11 +253,23 @@ int main(int argc, char *argv[]) {
                      session.context.ip,
                      session.context.port);
 
-          struct args args = {.logger = logger,
-                              .remote_fd = remote_fd,
-                              .event_fd = server_fds.event_fd,
-                              .sessions = sessions};
-          thread_pool_add_task(thread_pool, &(struct task){.args = &args, .handle_task = greet});
+          struct args *args = malloc(sizeof *args);
+          if (!args) {
+            logger_log(logger,
+                       ERROR,
+                       "[%s] memory allocation failure for thread args for [%s:%s]",
+                       __func__,
+                       session.context.ip,
+                       session.context.port);
+            continue;
+          }
+
+          args->event_fd = server_fds.event_fd;
+          args->logger = logger;
+          args->remote_fd = remote_fd;
+          args->sessions = sessions;
+
+          thread_pool_add_task(thread_pool, &(struct task){.args = args, .handle_task = greet});
         } else if (current->fd == server_fds.event_fd) {  // event fd
           uint64_t discard = 0;
           ssize_t ret = read(current->fd, &discard, sizeof discard);  // consume the value in event_fd
@@ -285,7 +298,25 @@ int main(int argc, char *argv[]) {
           }
 
           if (current->fd == session->fds.control_fd) {  // session::fds::control_fd
-            // get request
+            // consruct the args for get_request
+            struct args *args = malloc(sizeof *args);
+            if (!args) {
+              logger_log(logger,
+                         ERROR,
+                         "[%s] memory allocation failure for thread args for [%s:%s]",
+                         __func__,
+                         session->context.ip,
+                         session->context.port);
+              continue;
+            }
+
+            args->event_fd = server_fds.event_fd;
+            args->logger = logger;
+            args->remote_fd = current->fd;
+            args->sessions = sessions;
+            args->thread_pool = thread_pool;
+
+            thread_pool_add_task(thread_pool, &(struct task){.args = args, .handle_task = get_request});
           } else {  // session::fds::listen_sockfd. will only happened as a result of a PASV command
             int data_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
             if (data_fd == -1) {
