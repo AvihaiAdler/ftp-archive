@@ -13,12 +13,15 @@ set(
   handlers/retrieve.c
   handlers/store.c
   handlers/util.c
-  handlers/get_request.c)
+  handlers/get_request.c
+)
+
 set(
   SERVER 
   ftpd.c
   misc/util.c
-  payload/payload.c)
+)
+
 add_executable(ftpd ${SERVER} ${HANDLERS})
 target_compile_options(ftpd PRIVATE -Wall -Wextra -pedantic -O3)
 target_link_options(ftpd PRIVATE -fsanitize=address,undefined)
@@ -61,11 +64,21 @@ set_target_properties(
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/thread_pool/include
 )
 
+#payload
+add_library(libpayload STATIC IMPORTED)
+set_target_properties(
+  libpayload
+  PROPERTIES
+  IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/lib/payload/libpayload.a
+  INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/payload/include
+)
+
 target_link_libraries(
   ftpd PRIVATE 
   libgenerics 
   libproperties
   liblogger
   libthread_pool
+  libpayload
   pthread
 )

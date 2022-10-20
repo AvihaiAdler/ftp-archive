@@ -14,7 +14,7 @@ set_target_properties(
 
 target_include_directories(properties PRIVATE .)
 
-# import the library
+# import library
 add_library(libgenerics STATIC IMPORTED)
 set_target_properties(
   libgenerics

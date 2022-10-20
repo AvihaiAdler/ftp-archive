@@ -8,7 +8,7 @@
 #include "misc/util.h"
 #include "mkd_ftp.h"
 #include "passive.h"
-#include "payload/payload.h"
+#include "payload.h"
 #include "port.h"
 #include "pwd_ftp.h"
 #include "quit.h"

@@ -1,0 +1,13 @@
+add_library(
+  payload
+  src/payload.c
+)
+
+set_target_properties(
+  payload PROPERTIES
+  VERSION ${PROJECT_VERSION}
+  PUBLIC_HEADER include/payload.h  
+)
+
+target_include_directories(payload PRIVATE .)
+

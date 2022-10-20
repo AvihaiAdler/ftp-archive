@@ -2,7 +2,7 @@
 #include <netdb.h>
 #include <sys/types.h>  // off_t
 #include "logger.h"
-#include "payload/payload.h"
+#include "payload.h"
 #include "session/session.h"
 #include "thread_pool.h"
 #include "vector_s.h"

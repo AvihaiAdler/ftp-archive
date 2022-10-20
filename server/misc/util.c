@@ -13,7 +13,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include "payload/payload.h"
 #include "session/session.h"
 #include "thread_pool.h"
 

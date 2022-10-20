@@ -33,7 +33,7 @@ enum reply_codes {
 };
 
 enum descriptor_codes {
-  DESCPTR_EOF = 0x40,  // 64. specify EOF for the last block of a file
+  DESCPTR_EOF = 0x40,  // 64. specifies EOF for the last block of a file
 };
 
 enum request_type {

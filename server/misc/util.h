@@ -6,7 +6,7 @@
 #include "hash_table.h"
 #include "list.h"
 #include "logger.h"
-#include "payload/payload.h"
+#include "payload.h"
 #include "session/session.h"
 #include "thread_pool.h"
 #include "vector.h"
