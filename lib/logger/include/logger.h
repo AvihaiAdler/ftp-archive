@@ -3,11 +3,11 @@
 
 struct logger;
 
-/* a naive logger implementation for a multithreaded program. the logger must be
- * initialized before attempting to use it in a multithreaded programs with
- * log_init. file_name may be NULL, in such case
- * - the logger will output to stdout */
+/* a naive logger implementation for multithreaded programs. the logger must be
+ * initialized before attempting to use it with log_init. file_name may be NULL, in such case - the logger will output
+ * to stdout */
 
+/* log levels */
 enum level { ERROR, WARN, DEBUG, INFO };
 
 /* initializes the logger 'object'. must be called before any use of the logger.
@@ -17,6 +17,8 @@ enum level { ERROR, WARN, DEBUG, INFO };
  * otherwise */
 struct logger *logger_init(char *file_name);
 
+/* logs a message. fmt is a string which may contains the specifiers used by fprintf. if such specifiers found - expects
+ * matching number of argumnets */
 void logger_log(struct logger *logger, enum level level, const char *fmt, ...);
 
 /* destroys the logger 'object'. must be called after all threads are
