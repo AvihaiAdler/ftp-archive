@@ -1,7 +1,7 @@
 set(
   CLIENT 
   ftp.c
-  src/util.c
+  util.c
 )
 
 add_executable(ftp ${CLIENT})
@@ -19,15 +19,6 @@ set_target_properties(
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/generics/include
 )
 
-# properties
-add_library(libproperties STATIC IMPORTED)
-set_target_properties(
-  libproperties
-  PROPERTIES
-  IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/lib/properties/libproperties.a
-  INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/properties/include
-)
-
 # logger
 add_library(liblogger STATIC IMPORTED)
 set_target_properties(
@@ -37,10 +28,19 @@ set_target_properties(
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/logger/include
 )
 
+# payload
+add_library(libpayload STATIC IMPORTED)
+set_target_properties(
+  libpayload
+  PROPERTIES
+  IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/lib/payload/libpayload.a
+  INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/payload/include
+)
+
 target_link_libraries(
   ftp PRIVATE 
   libgenerics 
-  libproperties
   liblogger
+  libpayload
   pthread
 )

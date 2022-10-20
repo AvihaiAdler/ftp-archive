@@ -1,168 +1,32 @@
+#define _XOPEN_SOURCE 700
 #include "include/util.h"
-#include <byteswap.h>
-#include <ctype.h>
-#include <stdio.h>
+#include <signal.h>  // sigaction, sigset
 #include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include "include/command.h"
-#include "include/payload.h"
-
-static bool is_big_endian(void) {
-  unsigned int one = 0x1;
-  if (*(unsigned char *)&one & 0x1) return false;
-  return true;
-}
-
-struct addrinfo *get_addr_info(const char *ip, const char *port) {
-  if (!ip && !port) return NULL;
-
-  struct addrinfo hints = {0};
-  hints.ai_family = AF_UNSPEC;      // don't care
-  hints.ai_socktype = SOCK_STREAM;  // TCP
-
-  struct addrinfo *addr = NULL;
-
-  if (getaddrinfo(ip, port, &hints, &addr) != 0) return NULL;
-  return addr;
-}
-
-int connect_to_host(struct addrinfo *addr) {
-  int sockfd;
-  for (; addr; addr = addr->ai_next) {
-    sockfd = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
-    if (sockfd == -1) continue;
-
-    int ret = connect(sockfd, addr->ai_addr, addr->ai_addrlen);
-    if (ret != 0) continue;
-
-    break;
-  }
-
-  if (!addr) return -1;
-  return sockfd;
-}
 
 void cleanup(struct logger *logger) {
   if (logger) logger_destroy(logger);
 }
 
-char *get_input(char *input, uint8_t size) {
-  if (!input || !size) return NULL;
-
-  printf(">>>");
-  fflush(stdout);
-
-  return fgets(input, size, stdin);
+int connect_to_host(struct logger *logger, const char *host, const char *serv) {
+  return 0;
 }
 
-bool send_payload(int sockfd, struct payload payload) {
-  if (!payload.size || !payload.data) return false;
+bool establish_sig_handler(int signum, void (*handler)(int signum)) {
+  // blocks SIGINT until a signal handler is established
+  sigset_t sigset;
+  sigemptyset(&sigset);
+  sigaddset(&sigset, signum);
+  sigprocmask(SIG_BLOCK, &sigset, NULL);  // block sigset of siganls
 
-  uint64_t payload_len = hton_u64(payload.size);
-  if (send(sockfd, &payload_len, sizeof payload_len, 0) == -1) return false;
+  struct sigaction act = {0};
+  act.sa_handler = handler;
+  act.sa_flags = SA_RESTART;
 
-  ssize_t ret = 0;
-  for (size_t i = 0; i < payload.size; i += ret) {
-    ret = send(sockfd, payload.data + i, payload.size - i, 0);
+  sigemptyset(&act.sa_mask);
 
-    if (ret == -1) return false;
-  }
+  // establish the signal handler
+  if (sigaction(SIGINT, &act, NULL) != 0) return false;
 
+  sigprocmask(SIG_UNBLOCK, &sigset, NULL);  // unblock sigset of siganls
   return true;
-}
-
-struct payload recv_payload(int sockfd) {
-  uint16_t payload_code = 0;
-  ssize_t ret = recv(sockfd, &payload_code, sizeof payload_code, 0);
-  if (ret == -1) return (struct payload){0};
-
-  payload_code = ntoh_u16(payload_code);
-
-  uint64_t payload_len = 0;
-  ret = recv(sockfd, &payload_len, sizeof payload_len, 0);
-  if (ret == -1) return (struct payload){0};
-
-  payload_len = ntoh_u64(payload_len);
-
-  uint8_t *data = calloc(payload_len, sizeof *data);
-  if (!data) return (struct payload){0};
-
-  ret = recv(sockfd, data, payload_len, 0);
-  if (ret == -1) return (struct payload){0};
-
-  return (struct payload){.size = payload_len, .data = data};
-}
-
-static uint64_t change_order_u64(uint64_t num) {
-  return is_big_endian() ? num : bswap_64(num);
-}
-
-uint64_t hton_u64(uint64_t value) {
-  return change_order_u64(value);
-}
-
-uint64_t ntoh_u64(uint64_t value) {
-  return change_order_u64(value);
-}
-
-static uint16_t change_order_u16(uint16_t num) {
-  return is_big_endian() ? num : bswap_16(num);
-}
-
-uint16_t hton_u16(uint16_t value) {
-  return change_order_u16(value);
-}
-
-uint16_t ntoh_u16(uint16_t value) {
-  return change_order_u16(value);
-}
-
-char *tolower_str(char *str, size_t len) {
-  if (!str || !len) return NULL;
-
-  for (size_t i = 0; i < len; i++) {
-    str[i] = tolower(str[i]);
-  }
-  return str;
-}
-
-// very inefficient, a hash implementation would be way better, but since we're
-// talking about small strings here - it tolerable
-static enum cmd get_command(char *cmd) {
-  if (strcmp(cmd, "quit")) {
-    return QUIT;
-  } else if (strcmp(cmd, "retr")) {
-    return RETRIEVE;
-  } else if (strcmp(cmd, "stor")) {
-    return STROE;
-  } else if (strcmp(cmd, "appe")) {
-    return APPEND;
-  } else if (strcmp(cmd, "dele")) {
-    return DELETE;
-  } else if (strcmp(cmd, "list")) {
-    return LIST;
-  }
-  return UNKNOWN;
-}
-
-struct command parse_command(char *cmd) {
-  if (!cmd) return (struct command){.cmd = UNKNOWN};
-
-  char *end = strchr(cmd, 0);
-  if (!end) return (struct command){.cmd = UNKNOWN};
-
-  struct command command = {0};
-  strtok(cmd, " ");
-  size_t i = 0;
-  for (char *ptr = cmd; ptr && i < sizeof command.args; ptr = strtok(NULL, " "), i++) {
-    if (ptr == cmd) {
-      command.cmd = get_command(cmd);
-    } else {
-      command.args[i] = ptr;
-    }
-  }
-
-  return command;
 }
