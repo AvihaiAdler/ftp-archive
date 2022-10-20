@@ -353,6 +353,8 @@ bool create_sig_handler(int signal, void (*handler)(int signal)) {
   // create signal handler
   struct sigaction act = {0};
   act.sa_handler = handler;
+  act.sa_flags = SA_RESTART;
+
   sigemptyset(&act.sa_mask);
   if (sigaction(signal, &act, NULL) == -1) return false;
 
