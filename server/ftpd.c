@@ -39,7 +39,7 @@ struct server_fds {
 
 static atomic_bool terminate;
 
-void signal_handler(int signum) {
+static void signal_handler(int signum) {
   (void)signum;
   atomic_store(&terminate, true);
 }
