@@ -73,10 +73,7 @@ static int cmpr_pfds(const void *a, const void *b) {
 }
 
 struct addrinfo *get_addr_info(const char *host, const char *serv, int flags) {
-  struct addrinfo hints = {0};
-  hints.ai_family = AF_UNSPEC;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = flags;
+  struct addrinfo hints = {.ai_family = AF_UNSPEC, .ai_socktype = SOCK_STREAM, .ai_flags = flags};
 
   struct addrinfo *info;
   if (getaddrinfo(host, serv, &hints, &info) != 0) return NULL;
@@ -99,21 +96,30 @@ int get_passive_socket(struct logger *logger, const char *host, const char *serv
     sockfd = socket(available->ai_family, available->ai_socktype, available->ai_protocol);
     if (sockfd == -1) continue;
 
-    if (fcntl(sockfd, F_SETFL, O_NONBLOCK) == -1) continue;
-
+    if (fcntl(sockfd, F_SETFL, O_NONBLOCK) == -1) {
+      close(sockfd);
+      continue;
+    }
     // int val = 1;
     // if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof val) == -1) continue;
 
-    if (bind(sockfd, available->ai_addr, available->ai_addrlen) == -1) continue;
+    if (bind(sockfd, available->ai_addr, available->ai_addrlen) == -1) {
+      close(sockfd);
+      continue;
+    }
 
-    if (listen(sockfd, conn_q_size) == 0) { success = true; }
+    int listen_ret = listen(sockfd, conn_q_size);
+    if (listen_ret == 0) {
+      success = true;
+    } else {
+      close(sockfd);
+    }
   }
 
   freeaddrinfo(info);
 
   // failed to listen()/bind()
   if (!success) {
-    close(sockfd);
     logger_log(logger, ERROR, "[%s] couldn't get a socket for %s:%s", __func__, host ? host : "", serv ? serv : "");
     return -1;
   }
@@ -175,12 +181,17 @@ int get_active_socket(struct logger *logger,
 
     // try to bind the socket to local_ip:server_data_port
     for (struct addrinfo *lcl_available = local_info; lcl_available; lcl_available = lcl_available->ai_next) {
-      if (bind(sockfd, lcl_available->ai_addr, lcl_available->ai_addrlen) != 0) continue;
+      if (bind(sockfd, lcl_available->ai_addr, lcl_available->ai_addrlen) != 0) {
+        close(sockfd);
+        continue;
+      }
 
       // try to connect the socket to remote_host:remote_serv
       if (connect(sockfd, available->ai_addr, available->ai_addrlen) == 0) {
         success = true;
         break;
+      } else {
+        close(sockfd);
       }
     }
   }
@@ -190,7 +201,6 @@ int get_active_socket(struct logger *logger,
 
   // failed to listen()/bind()
   if (!success) {
-    close(sockfd);
     logger_log(logger,
                ERROR,
                "[%s] couldn't get a socket for %s:%s",
