@@ -388,7 +388,7 @@ int main(int argc, char *argv[]) {
         // get the corresponding session which the fd 'tied' to
         struct session *session = vector_s_find(sessions, &current->fd);
         if (!session) {
-          logger_log(logger, ERROR, "[%s] failed to fined the session for fd [%d]", __func__, current->fd);
+          logger_log(logger, ERROR, "[%s] failed to find the session for fd [%d]", __func__, current->fd);
           continue;
         }
 
