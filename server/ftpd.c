@@ -106,8 +106,8 @@ int main(int argc, char *argv[]) {
 
   logger_log(logger, INFO, "[%s] server root directory obtained", __func__);
 
-  // create a signal handler (must be invoked prior to the creation of the thread pool due to the sigprocmask() call)
-  if (!create_sig_handler(SIGINT, signal_handler)) {
+  // install a signal handler (must be invoked prior to the creation of the thread pool due to the sigprocmask() call)
+  if (!install_sig_handler(SIGINT, signal_handler)) {
     logger_log(logger, ERROR, "[%s] failed to create a signal handler", __func__);
     cleanup(properties, logger, NULL, NULL, NULL);
     return 1;

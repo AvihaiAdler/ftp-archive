@@ -356,7 +356,7 @@ struct list *get_local_ip() {
   return ips;
 }
 
-bool create_sig_handler(int signal, void (*handler)(int signal)) {
+bool install_sig_handler(int signal, void (*handler)(int signal)) {
   // block 'signal' utill the handler is established. all susequent calls to sig* assumes success
   sigset_t sigset;
   sigemptyset(&sigset);

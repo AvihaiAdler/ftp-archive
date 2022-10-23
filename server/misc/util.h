@@ -68,7 +68,7 @@ void get_ip_and_port(int sockfd, char *ip, size_t ip_size, char *port, size_t po
 struct list *get_local_ip(void);
 
 /* establish a signal handler */
-bool create_sig_handler(int signal, void (*handler)(int signal));
+bool install_sig_handler(int signal, void (*handler)(int signal));
 
 /* returns a string literal corespond each errno code */
 const char *strerr_safe(int err);
