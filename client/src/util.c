@@ -1,17 +1,119 @@
 #define _XOPEN_SOURCE 700
 #include "include/util.h"
-#include <signal.h>  // sigaction, sigset
+#include <ctype.h>
+#include <netdb.h>   // getaddrinfo, getnameinfo
+#include <signal.h>  // sigaction, sigset, sigemptyset, sigaddset, sigprocmask
 #include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>  // getaddrinfo, socket, connect, getsockname, getnameinfo
+#include <sys/types.h>   // getaddrinfo
+#include <unistd.h>      //close
 
-void cleanup(struct logger *logger) {
+#define CMD_MAX_LEN 4
+#define CMD_MIN_LEN 3
+
+static const char *trim_str(const char *str) {
+  if (!str) return str;
+
+  while (isspace(*str))
+    str++;
+
+  return str;
+}
+
+void cleanup(struct logger *logger, struct sockfds *sockfds) {
   if (logger) logger_destroy(logger);
+
+  if (sockfds) {
+    if (sockfds->control_sockfd != -1) close(sockfds->control_sockfd);
+    if (sockfds->data_sockfd != -1) close(sockfds->data_sockfd);
+    if (sockfds->passive_sockfd != -1) close(sockfds->passive_sockfd);
+  }
+}
+
+struct addrinfo *get_addr_info(const char *host, const char *serv, int flags) {
+  if (!host && !serv) return NULL;
+
+  struct addrinfo hints = {.ai_family = AF_UNSPEC, .ai_socktype = SOCK_STREAM, .ai_flags = flags};
+  struct addrinfo *info;
+  int addrinfo_ret = getaddrinfo(host, serv, &hints, &info);
+
+  if (addrinfo_ret != 0) return NULL;
+
+  return info;
 }
 
 int connect_to_host(struct logger *logger, const char *host, const char *serv) {
-  return 0;
+  if (!logger) return -1;
+  if (!host || !serv) {
+    logger_log(logger, ERROR, "[%s] [host] and [serv] may not be NULL", __func__);
+    return -1;
+  }
+
+  struct addrinfo *info = get_addr_info(host, serv, 0);
+
+  if (!info) {
+    logger_log(logger, ERROR, "[%s] failed to get address info for [%s:%s]", __func__, host, serv);
+    return -1;
+  }
+
+  int sockfd = -1;
+  for (struct addrinfo *available = info; available; available = available->ai_next) {
+    sockfd = socket(available->ai_family, available->ai_socktype, available->ai_protocol);
+    if (sockfd == -1) continue;
+
+    int conn_ret = connect(sockfd, available->ai_addr, available->ai_addrlen);
+    if (conn_ret == 0) {
+      break;
+    } else {
+      close(sockfd);
+      sockfd = -1;
+    }
+  }
+  freeaddrinfo(info);
+
+  return sockfd;
 }
 
-bool establish_sig_handler(int signum, void (*handler)(int signum)) {
+int get_passive_socket(struct logger *logger, const char *port) {
+  if (!logger) return -1;
+  if (!port) {
+    logger_log(logger, ERROR, "[%s] [port] may not be NULL", __func__);
+    return -1;
+  }
+
+  struct addrinfo *info = get_addr_info(NULL, port, AI_PASSIVE);
+  if (!info) {
+    logger_log(logger, ERROR, "[%s] failed to get address info for [%s:%s]", __func__, port);
+    return -1;
+  }
+
+  bool success = false;
+  int sockfd = -1;
+  for (struct addrinfo *available = info; available && !success; available = available->ai_next) {
+    sockfd = socket(available->ai_family, available->ai_socktype, available->ai_protocol);
+    if (sockfd == -1) continue;
+
+    // maynot be needed. the server should know the address of the client (we're creating a socket for the same port we
+    // used to connet() with)
+    // if (bind(sockfd, available->ai_addr, available->ai_addrlen) == -1) continue;
+    if (listen(sockfd, 1) == 0) {
+      success = true;
+    } else {
+      close(sockfd);
+    }
+  }
+  freeaddrinfo(info);
+
+  if (!success) {
+    logger_log(logger, ERROR, "[%s] failed to get a passive socket for port [%s]", __func__, port);
+    return -1;
+  }
+
+  return sockfd;
+}
+
+bool install_sig_handler(int signum, void (*handler)(int signum)) {
   // blocks SIGINT until a signal handler is established
   sigset_t sigset;
   sigemptyset(&sigset);
@@ -29,4 +131,49 @@ bool establish_sig_handler(int signum, void (*handler)(int signum)) {
 
   sigprocmask(SIG_UNBLOCK, &sigset, NULL);  // unblock sigset of siganls
   return true;
+}
+
+void get_ip_and_port(int sockfd, char *ip, size_t ip_size, char *port, size_t port_size) {
+  struct sockaddr_storage addr;
+  socklen_t addrlen = sizeof addr;
+
+  // get the ip:port as a string
+  if (getsockname(sockfd, (struct sockaddr *)&addr, &addrlen) == 0) {
+    getnameinfo((struct sockaddr *)&addr, addrlen, ip, ip_size, port, port_size, NI_NUMERICHOST | NI_NUMERICSERV);
+  }
+}
+
+enum request_type parse_command(char *cmd) {
+  if (!cmd) return REQ_UNKNOWN;
+
+  const char *cmd_ptr = trim_str(cmd);
+
+  size_t cmd_len = strcspn(cmd_ptr, " \0");  // stop at a space or the null terminator
+  if (cmd_len < CMD_MIN_LEN || cmd_len > CMD_MAX_LEN) return REQ_UNKNOWN;
+
+  if (memcmp(cmd_ptr, "cwd", cmd_len) == 0) {
+    return REQ_CWD;
+  } else if (memcmp(cmd_ptr, "pwd", cmd_len) == 0) {
+    return REQ_PWD;
+  } else if (memcmp(cmd_ptr, "mkd", cmd_len) == 0) {
+    return REQ_MKD;
+  } else if (memcmp(cmd_ptr, "rmd", cmd_len) == 0) {
+    return REQ_RMD;
+  } else if (memcmp(cmd_ptr, "port", cmd_len) == 0) {
+    return REQ_PORT;
+  } else if (memcmp(cmd_ptr, "pasv", cmd_len) == 0) {
+    return REQ_PASV;
+  } else if (memcmp(cmd_ptr, "dele", cmd_len) == 0) {
+    return REQ_DELE;
+  } else if (memcmp(cmd_ptr, "list", cmd_len) == 0) {
+    return REQ_LIST;
+  } else if (memcmp(cmd_ptr, "retr", cmd_len) == 0) {
+    return REQ_RETR;
+  } else if (memcmp(cmd_ptr, "stor", cmd_len) == 0) {
+    return REQ_STOR;
+  } else if (memcmp(cmd_ptr, "quit", cmd_len) == 0) {
+    return REQ_QUIT;
+  }
+
+  return REQ_UNKNOWN;
 }
