@@ -18,7 +18,7 @@ static uint16_t change_order_u16(uint16_t num) {
 int send_reply(struct reply *reply, int sockfd, int flags) {
   if (!reply) return ERR_INVALID_ARGS;
   if (sockfd < 0) return ERR_INVALID_SOCKET_FD;
-  if (reply->length > REPLY_MAX_LEN - 1) return ERR_INVALID_LEN;
+  if (reply->length >= REPLY_MAX_LEN - 1) return ERR_INVALID_LEN;
 
   reply->code = change_order_u16(reply->code);
   uint16_t reply_length = change_order_u16(reply->length);
@@ -27,13 +27,63 @@ int send_reply(struct reply *reply, int sockfd, int flags) {
   ssize_t bytes_sent = send(sockfd, &reply->code, sizeof reply->code, flags);
   if (bytes_sent == -1) return ERR_SOCKET_TRANSMISSION_ERR;
 
-  // send data length
+  // send reply length
   bytes_sent = send(sockfd, &reply_length, sizeof reply_length, flags);
   if (bytes_sent == -1) return ERR_SOCKET_TRANSMISSION_ERR;
 
+  // send reply body
   ssize_t ret = 0;
   for (uint16_t sent = 0; sent < reply->length; sent += ret) {
     ret = send(sockfd, reply->reply + sent, reply->length - sent, flags);
+    if (ret == -1) return ERR_SOCKET_TRANSMISSION_ERR;  // error. possibly sockfd was closed
+  }
+  return ERR_SUCCESS;
+}
+
+int recieve_reply(struct reply *reply, int sockfd, int flags) {
+  if (!reply) return ERR_INVALID_ARGS;
+  if (sockfd < 0) return ERR_INVALID_SOCKET_FD;
+
+  // recieve reply code
+  ssize_t recieved = recv(sockfd, &reply->code, sizeof reply->length, flags);
+  if (recieved == -1) return ERR_SOCKET_TRANSMISSION_ERR;
+
+  reply->code = change_order_u16(reply->code);
+
+  // recieve reply length
+  recieved = recv(sockfd, &reply->length, sizeof reply->length, flags);
+  if (recieved == -1) return ERR_SOCKET_TRANSMISSION_ERR;
+
+  reply->length = change_order_u16(reply->length);
+  if (reply->length >= REPLY_MAX_LEN - 1) return ERR_INVALID_LEN;
+
+  // recieve reply body
+  ssize_t ret = 0;
+  for (uint16_t recved = 0; recved < reply->length; recved += ret) {
+    ret = recv(sockfd, reply->reply + recved, reply->length - recved, flags);
+    if (ret == -1) return ERR_SOCKET_TRANSMISSION_ERR;  // error. sockfd was possibly closed
+  }
+
+  reply->reply[reply->length + 1] = 0;  // null terminate the reply
+
+  return ERR_SUCCESS;
+}
+
+int send_request(struct request *request, int sockfd, int flags) {
+  if (!request) return ERR_INVALID_ARGS;
+  if (sockfd < 0) return ERR_INVALID_SOCKET_FD;
+  if (request->length >= REQUEST_MAX_LEN - 1) return ERR_INVALID_LEN;
+
+  uint16_t request_length = change_order_u16(request->length);
+
+  // send request length
+  ssize_t bytes_sent = send(sockfd, &request_length, sizeof request_length, flags);
+  if (bytes_sent == -1) return ERR_SOCKET_TRANSMISSION_ERR;
+
+  // send request body
+  ssize_t ret = 0;
+  for (uint16_t sent = 0; sent < request->length; sent += ret) {
+    ret = send(sockfd, request->request + sent, request->length - sent, flags);
     if (ret == -1) return ERR_SOCKET_TRANSMISSION_ERR;  // error. possibly sockfd was closed
   }
   return ERR_SUCCESS;
@@ -48,13 +98,16 @@ int recieve_request(struct request *request, int sockfd, int flags) {
   if (recieved == -1) return ERR_SOCKET_TRANSMISSION_ERR;
 
   request->length = change_order_u16(request->length);
-  if (request->length > REQUEST_MAX_LEN - 1) return ERR_INVALID_LEN;
+  if (request->length >= REQUEST_MAX_LEN - 1) return ERR_INVALID_LEN;
 
+  // recieve request body
   ssize_t ret = 0;
   for (uint16_t recved = 0; recved < request->length; recved += ret) {
     ret = recv(sockfd, request->request + recved, request->length - recved, flags);
     if (ret == -1) return ERR_SOCKET_TRANSMISSION_ERR;  // error. sockfd was possibly closed
   }
+
+  request->request[request->length + 1] = 0;  // null terminate the request
 
   return ERR_SUCCESS;
 }
