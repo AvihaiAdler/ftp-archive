@@ -24,40 +24,39 @@ static bool parse_command(struct request *request, struct request_args *request_
   const char *req_ptr = trim_str(tolower_str((char *)request->request, request->length));
   if (!req_ptr || !request->length) return false;
 
-  char *end_ptr = strchr((char *)request->request, ' ');
-  if (!end_ptr) return false;
+  size_t cmd_len = strcspn(req_ptr, " \0");  // stop at a space or the null terminator
 
-  ptrdiff_t cmd_len = end_ptr - (char *)request->request;
   if (cmd_len > CMD_MAX_LEN || cmd_len < CMD_MIN_LEN) return false;
 
-  const char *req_args = trim_str(end_ptr);
-  if (strncmp(req_ptr, "cwd", cmd_len) == 0) {
+  if (memcmp(req_ptr, "cwd", cmd_len) == 0) {
     request_args->type = REQ_CWD;
-  } else if (strncmp(req_ptr, "pwd", cmd_len) == 0) {
+  } else if (memcmp(req_ptr, "pwd", cmd_len) == 0) {
     request_args->type = REQ_PWD;
-  } else if (strncmp(req_ptr, "mkd", cmd_len) == 0) {
+  } else if (memcmp(req_ptr, "mkd", cmd_len) == 0) {
     request_args->type = REQ_MKD;
-  } else if (strncmp(req_ptr, "rmd", cmd_len) == 0) {
+  } else if (memcmp(req_ptr, "rmd", cmd_len) == 0) {
     request_args->type = REQ_RMD;
-  } else if (strncmp(req_ptr, "port", cmd_len) == 0) {
+  } else if (memcmp(req_ptr, "port", cmd_len) == 0) {
     request_args->type = REQ_PORT;
-  } else if (strncmp(req_ptr, "pasv", cmd_len) == 0) {
+  } else if (memcmp(req_ptr, "pasv", cmd_len) == 0) {
     request_args->type = REQ_PASV;
-  } else if (strncmp(req_ptr, "dele", cmd_len) == 0) {
+  } else if (memcmp(req_ptr, "dele", cmd_len) == 0) {
     request_args->type = REQ_DELE;
-  } else if (strncmp(req_ptr, "list", cmd_len) == 0) {
+  } else if (memcmp(req_ptr, "list", cmd_len) == 0) {
     request_args->type = REQ_LIST;
-  } else if (strncmp(req_ptr, "retr", cmd_len) == 0) {
+  } else if (memcmp(req_ptr, "retr", cmd_len) == 0) {
     request_args->type = REQ_RETR;
-  } else if (strncmp(req_ptr, "stor", cmd_len) == 0) {
+  } else if (memcmp(req_ptr, "stor", cmd_len) == 0) {
     request_args->type = REQ_STOR;
-  } else if (strncmp(req_ptr, "quit", cmd_len) == 0) {
+  } else if (memcmp(req_ptr, "quit", cmd_len) == 0) {
     request_args->type = REQ_QUIT;
   } else {
     return false;
   }
 
-  strcpy(request_args->request_args, req_args);
+  const char *req_args = trim_str(req_ptr + cmd_len);
+  if (*req_args) strcpy(request_args->request_args, req_args);
+
   return true;
 }
 
