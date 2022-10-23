@@ -157,7 +157,7 @@ int retrieve_file(void *arg) {
   send_reply_wrapper(session.fds.control_fd,
                      args->logger,
                      RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
-                     "[%d] data connection open. starting transfer of %Lf %s",
+                     "[%d] data connection open. starting transfer of %Lf%s",
                      RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
                      file_size.size,
                      file_size.units);

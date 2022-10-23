@@ -127,12 +127,6 @@ int list(void *arg) {
   strcat(path, "/");
   strcat(path, dir_name);
 
-  send_reply_wrapper(session.fds.control_fd,
-                     args->logger,
-                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
-                     "[%d] ok. begin transfer",
-                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER);
-
   // open the directory
   DIR *dir = opendir(path);
 
@@ -154,6 +148,12 @@ int list(void *arg) {
                        dir_name);
     return 1;
   }
+
+  send_reply_wrapper(session.fds.control_fd,
+                     args->logger,
+                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
+                     "[%d] ok. begin transfer",
+                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER);
 
   // get the fd of the directory
   int dir_fd = dirfd(dir);

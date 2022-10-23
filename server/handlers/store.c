@@ -176,6 +176,12 @@ int store_file(void *arg) {
     return 1;
   }
 
+  send_reply_wrapper(session.fds.control_fd,
+                     args->logger,
+                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
+                     "[%d] data connection open. begin transfer",
+                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER);
+
   // write into the file
   // read the file and send it
   struct data_block data = {0};
