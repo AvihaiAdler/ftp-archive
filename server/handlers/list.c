@@ -152,7 +152,7 @@ int list(void *arg) {
   send_reply_wrapper(session.fds.control_fd,
                      args->logger,
                      RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
-                     "[%d] ok. begin transfer",
+                     "[%d] data connection open. begin transfer",
                      RPLY_DATA_CONN_OPEN_STARTING_TRANSFER);
 
   // get the fd of the directory
