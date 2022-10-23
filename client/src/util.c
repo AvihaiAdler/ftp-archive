@@ -1,6 +1,7 @@
 #define _XOPEN_SOURCE 700
 #include "include/util.h"
 #include <ctype.h>
+#include <limits.h>
 #include <netdb.h>   // getaddrinfo, getnameinfo
 #include <signal.h>  // sigaction, sigset, sigemptyset, sigaddset, sigprocmask
 #include <stdlib.h>
@@ -148,32 +149,40 @@ enum request_type parse_command(char *cmd) {
 
   const char *cmd_ptr = trim_str(cmd);
 
-  size_t cmd_len = strcspn(cmd_ptr, " \0");  // stop at a space or the null terminator
-  if (cmd_len < CMD_MIN_LEN || cmd_len > CMD_MAX_LEN) return REQ_UNKNOWN;
+  size_t cmd_len = strcspn(cmd_ptr, " ");  // stop at a space or the null terminator
+  if (cmd_len > INT_MAX) return REQ_UNKNOWN;
 
-  if (memcmp(cmd_ptr, "cwd", cmd_len) == 0) {
-    return REQ_CWD;
-  } else if (memcmp(cmd_ptr, "pwd", cmd_len) == 0) {
-    return REQ_PWD;
-  } else if (memcmp(cmd_ptr, "mkd", cmd_len) == 0) {
-    return REQ_MKD;
-  } else if (memcmp(cmd_ptr, "rmd", cmd_len) == 0) {
-    return REQ_RMD;
-  } else if (memcmp(cmd_ptr, "port", cmd_len) == 0) {
-    return REQ_PORT;
-  } else if (memcmp(cmd_ptr, "pasv", cmd_len) == 0) {
-    return REQ_PASV;
-  } else if (memcmp(cmd_ptr, "dele", cmd_len) == 0) {
-    return REQ_DELE;
-  } else if (memcmp(cmd_ptr, "list", cmd_len) == 0) {
-    return REQ_LIST;
-  } else if (memcmp(cmd_ptr, "retr", cmd_len) == 0) {
-    return REQ_RETR;
-  } else if (memcmp(cmd_ptr, "stor", cmd_len) == 0) {
-    return REQ_STOR;
-  } else if (memcmp(cmd_ptr, "quit", cmd_len) == 0) {
-    return REQ_QUIT;
+  switch ((int)cmd_len) {
+    case CMD_MIN_LEN:
+      if (memcmp(cmd_ptr, "cwd", cmd_len) == 0) {
+        return REQ_CWD;
+      } else if (memcmp(cmd_ptr, "pwd", cmd_len) == 0) {
+        return REQ_PWD;
+      } else if (memcmp(cmd_ptr, "mkd", cmd_len) == 0) {
+        return REQ_MKD;
+      } else if (memcmp(cmd_ptr, "rmd", cmd_len) == 0) {
+        return REQ_RMD;
+      }
+      break;
+    case CMD_MAX_LEN:
+      if (memcmp(cmd_ptr, "port", cmd_len) == 0) {
+        return REQ_PORT;
+      } else if (memcmp(cmd_ptr, "pasv", cmd_len) == 0) {
+        return REQ_PASV;
+      } else if (memcmp(cmd_ptr, "dele", cmd_len) == 0) {
+        return REQ_DELE;
+      } else if (memcmp(cmd_ptr, "list", cmd_len) == 0) {
+        return REQ_LIST;
+      } else if (memcmp(cmd_ptr, "retr", cmd_len) == 0) {
+        return REQ_RETR;
+      } else if (memcmp(cmd_ptr, "stor", cmd_len) == 0) {
+        return REQ_STOR;
+      } else if (memcmp(cmd_ptr, "quit", cmd_len) == 0) {
+        return REQ_QUIT;
+      }
+      break;
+    default:
+      break;
   }
-
   return REQ_UNKNOWN;
 }
