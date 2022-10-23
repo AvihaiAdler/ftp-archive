@@ -119,9 +119,9 @@ int passive(void *arg) {
   // send a feedback
   send_reply_wrapper(session.fds.control_fd,
                      args->logger,
-                     RPLY_CMD_OK,
-                     "[%d] ok. %s,%s",
-                     RPLY_CMD_OK,
+                     RPLY_PASSIVE,
+                     "[%d] passive. %s,%s",
+                     RPLY_PASSIVE,
                      local_ip,
                      pasv_port);
 
