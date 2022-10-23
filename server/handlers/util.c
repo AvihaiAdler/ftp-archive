@@ -31,7 +31,7 @@ void send_reply_wrapper(int sockfd, struct logger *logger, enum reply_codes repl
   }
 
   vsnprintf((char *)reply.reply, required_size + 1, fmt, args);
-  reply.length = required_size + 1;
+  reply.length = required_size;
 
   va_end(args);
 
