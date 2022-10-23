@@ -180,19 +180,22 @@ int get_active_socket(struct logger *logger,
     // if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof val) == -1) continue;
 
     // try to bind the socket to local_ip:server_data_port
-    for (struct addrinfo *lcl_available = local_info; lcl_available; lcl_available = lcl_available->ai_next) {
-      if (bind(sockfd, lcl_available->ai_addr, lcl_available->ai_addrlen) != 0) {
-        close(sockfd);
-        continue;
-      }
+    bool bind_success = false;
+    for (struct addrinfo *lcl_available = local_info; lcl_available && !bind_success;
+         lcl_available = lcl_available->ai_next) {
+      if (bind(sockfd, lcl_available->ai_addr, lcl_available->ai_addrlen) == 0) { bind_success = true; }
+    }
 
-      // try to connect the socket to remote_host:remote_serv
-      if (connect(sockfd, available->ai_addr, available->ai_addrlen) == 0) {
-        success = true;
-        break;
-      } else {
-        close(sockfd);
-      }
+    if (!bind_success) {
+      close(sockfd);
+      continue;
+    }
+
+    // try to connect the socket to remote_host:remote_serv
+    if (connect(sockfd, available->ai_addr, available->ai_addrlen) == 0) {
+      success = true;
+    } else {
+      close(sockfd);
     }
   }
 
