@@ -1,4 +1,5 @@
 #include "get_request.h"
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>  // write(), close()
@@ -24,34 +25,44 @@ static bool parse_command(struct request *request, struct request_args *request_
   const char *req_ptr = trim_str(tolower_str((char *)request->request, request->length));
   if (!req_ptr || !request->length) return false;
 
-  size_t cmd_len = strcspn(req_ptr, " \0");  // stop at a space or the null terminator
+  size_t cmd_len = strcspn(req_ptr, " ");  // stop at a space or the null terminator
+  if (cmd_len > INT_MAX) return false;
 
-  if (cmd_len > CMD_MAX_LEN || cmd_len < CMD_MIN_LEN) return false;
-
-  if (memcmp(req_ptr, "cwd", cmd_len) == 0) {
-    request_args->type = REQ_CWD;
-  } else if (memcmp(req_ptr, "pwd", cmd_len) == 0) {
-    request_args->type = REQ_PWD;
-  } else if (memcmp(req_ptr, "mkd", cmd_len) == 0) {
-    request_args->type = REQ_MKD;
-  } else if (memcmp(req_ptr, "rmd", cmd_len) == 0) {
-    request_args->type = REQ_RMD;
-  } else if (memcmp(req_ptr, "port", cmd_len) == 0) {
-    request_args->type = REQ_PORT;
-  } else if (memcmp(req_ptr, "pasv", cmd_len) == 0) {
-    request_args->type = REQ_PASV;
-  } else if (memcmp(req_ptr, "dele", cmd_len) == 0) {
-    request_args->type = REQ_DELE;
-  } else if (memcmp(req_ptr, "list", cmd_len) == 0) {
-    request_args->type = REQ_LIST;
-  } else if (memcmp(req_ptr, "retr", cmd_len) == 0) {
-    request_args->type = REQ_RETR;
-  } else if (memcmp(req_ptr, "stor", cmd_len) == 0) {
-    request_args->type = REQ_STOR;
-  } else if (memcmp(req_ptr, "quit", cmd_len) == 0) {
-    request_args->type = REQ_QUIT;
-  } else {
-    return false;
+  switch ((int)cmd_len) {
+    case CMD_MIN_LEN:
+      if (memcmp(req_ptr, "cwd", cmd_len) == 0) {
+        request_args->type = REQ_CWD;
+      } else if (memcmp(req_ptr, "pwd", cmd_len) == 0) {
+        request_args->type = REQ_PWD;
+      } else if (memcmp(req_ptr, "mkd", cmd_len) == 0) {
+        request_args->type = REQ_MKD;
+      } else if (memcmp(req_ptr, "rmd", cmd_len) == 0) {
+        request_args->type = REQ_RMD;
+      } else {
+        return false;
+      }
+      break;
+    case CMD_MAX_LEN:
+      if (memcmp(req_ptr, "port", cmd_len) == 0) {
+        request_args->type = REQ_PORT;
+      } else if (memcmp(req_ptr, "pasv", cmd_len) == 0) {
+        request_args->type = REQ_PASV;
+      } else if (memcmp(req_ptr, "dele", cmd_len) == 0) {
+        request_args->type = REQ_DELE;
+      } else if (memcmp(req_ptr, "list", cmd_len) == 0) {
+        request_args->type = REQ_LIST;
+      } else if (memcmp(req_ptr, "retr", cmd_len) == 0) {
+        request_args->type = REQ_RETR;
+      } else if (memcmp(req_ptr, "stor", cmd_len) == 0) {
+        request_args->type = REQ_STOR;
+      } else if (memcmp(req_ptr, "quit", cmd_len) == 0) {
+        request_args->type = REQ_QUIT;
+      } else {
+        return false;
+      }
+      break;
+    default:
+      return false;
   }
 
   const char *req_args = trim_str(req_ptr + cmd_len);
@@ -122,7 +133,7 @@ int get_request(void *arg) {
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_CMD_SYNTAX_ERR,
-                       "[%d] invalud request",
+                       "[%d] invalid request",
                        RPLY_CMD_SYNTAX_ERR);
     return 1;
   }
@@ -145,6 +156,9 @@ int get_request(void *arg) {
                          RPLY_DATA_CONN_CLOSED);
       return 1;
     }
+
+    // send_reply_wrapper(session.fds.control_fd, args->logger, RPLY_)
+
     int sockfd = get_active_socket(args->logger, args->server_data_port, session.context.ip, session.context.port, 0);
     if (sockfd == -1) return 1;
 
@@ -231,6 +245,8 @@ int get_request(void *arg) {
       break;
     case REQ_QUIT:
       task.handle_task = quit;
+      break;
+    default:
       break;
   }
 
