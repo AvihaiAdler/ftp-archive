@@ -22,11 +22,13 @@
 #define CMD_MIN_LEN 3
 
 static bool parse_command(struct request *request, struct request_args *request_args) {
+  if (!request->length) return false;
+
   const char *req_ptr = trim_str(tolower_str((char *)request->request, request->length));
-  if (!req_ptr || !request->length) return false;
+  if (!req_ptr) return false;
 
   size_t cmd_len = strcspn(req_ptr, " ");  // stop at a space or the null terminator
-  if (cmd_len > INT_MAX) return false;
+  if (cmd_len == 0 || cmd_len > INT_MAX) return false;
 
   switch ((int)cmd_len) {
     case CMD_MIN_LEN:
@@ -101,14 +103,15 @@ int get_request(void *arg) {
   // get a request
   struct request request = {0};
   int ret = recieve_request(&request, session.fds.control_fd, 0);
-  if (ret != 0) {
+  if (ret != ERR_SUCCESS) {
     logger_log(args->logger,
                ERROR,
-               "[%lu] [%s] [%s:%s] failed to recieve a request",
+               "[%lu] [%s] [%s:%s] failed to recieve a request. reason [%s]",
                thrd_current(),
                __func__,
                session.context.ip,
-               session.context.port);
+               session.context.port,
+               str_err_code(ret));
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_ACTION_INCOMPLETE_LCL_ERROR,
@@ -117,13 +120,22 @@ int get_request(void *arg) {
     return 1;
   }
 
+  logger_log(args->logger,
+             INFO,
+             "[%lu] [%s] recieved [%s] from [%s:%s]",
+             thrd_current(),
+             __func__,
+             (char *)request.request,
+             session.context.ip,
+             session.context.port);
+
   // parse the request
   struct request_args req_args = {0};
   bool parsed = parse_command(&request, &req_args);
   if (!parsed) {
     logger_log(args->logger,
                ERROR,
-               "[%lu] [%s] [%s:%s] invalid request [%hu : %s]",
+               "[%lu] [%s] [%s:%s] invalid request [len: %hu, request: %s]",
                thrd_current(),
                __func__,
                session.context.ip,
