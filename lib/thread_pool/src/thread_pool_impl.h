@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <threads.h>
 
-#include "vector.h"
+#include "list.h"
 
 /* used internally to represent a thread */
 struct thread {
@@ -18,7 +18,7 @@ struct thread_pool {
   uint8_t num_of_threads;
 
   void (*destroy_task)(void *task);
-  struct vector *tasks;  // treated as a queue. FIFO
+  struct list *tasks;  // treated as a queue. FIFO
   mtx_t tasks_mtx;
   cnd_t tasks_cnd;
 };
@@ -26,7 +26,7 @@ struct thread_pool {
 /* used internally to pass the thread the resources it needs */
 struct thread_args {
   struct thread *self;
-  struct vector *tasks;
+  struct list *tasks;
   mtx_t *tasks_mtx;
   cnd_t *tasks_cnd;
 
