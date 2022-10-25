@@ -68,22 +68,23 @@ struct data_block {
   uint8_t data[DATA_BLOCK_MAX_LEN];
 };
 
-/* sends a reply. returns 0 on success */
+/* sends a reply. returns ERR_SUCCESS on success */
 int send_reply(struct reply *reply, int sockfd, int flags);
 
-/* recieve a reply. returns 0 on success. returns reply:reply as a null terminated string */
+/* recieve a reply. returns ERR_SUCCESS on success. returns reply:reply as a null terminated string */
 int recieve_reply(struct reply *reply, int sockfd, int flags);
 
-/* sends a request. returns 0 on success */
+/* sends a request. returns ERR_SUCCESS on success */
 int send_request(struct request *request, int sockfd, int flags);
 
-/* recieve a request. returns 0 on success. returns request::request as a null terminated string */
+/* recieve a request. returns ERR_SUCCESS on success. returns request::request as a null terminated string */
 int recieve_request(struct request *request, int sockfd, int flags);
 
-/* sends a data block 'as is'. returns 0 on success */
+/* sends a data block 'as is'. returns ERR_SUCCESS on success */
 int send_data(struct data_block *data, int sockfd, int flags);
 
-/* recieves a data block. returns 0 on success. data_block::data is not necessarily a null terminated string */
+/* recieves a data block. returns ERR_SUCCESS on success. data_block::data is not necessarily a null terminated string
+ */
 int receive_data(struct data_block *data, int sockfd, int flags);
 
 /* converts an enum err_codes to its string representation */

@@ -45,7 +45,7 @@ int recieve_reply(struct reply *reply, int sockfd, int flags) {
   if (sockfd < 0) return ERR_INVALID_SOCKET_FD;
 
   // recieve reply code
-  ssize_t recieved = recv(sockfd, &reply->code, sizeof reply->length, flags);
+  ssize_t recieved = recv(sockfd, &reply->code, sizeof reply->code, flags);
   if (recieved == -1) return ERR_SOCKET_TRANSMISSION_ERR;
 
   reply->code = change_order_u16(reply->code);
@@ -64,7 +64,7 @@ int recieve_reply(struct reply *reply, int sockfd, int flags) {
     if (ret == -1) return ERR_SOCKET_TRANSMISSION_ERR;  // error. sockfd was possibly closed
   }
 
-  reply->reply[reply->length + 1] = 0;  // null terminate the reply
+  reply->reply[reply->length] = 0;  // null terminate the reply
 
   return ERR_SUCCESS;
 }
@@ -107,7 +107,7 @@ int recieve_request(struct request *request, int sockfd, int flags) {
     if (ret == -1) return ERR_SOCKET_TRANSMISSION_ERR;  // error. sockfd was possibly closed
   }
 
-  request->request[request->length + 1] = 0;  // null terminate the request
+  request->request[request->length] = 0;  // null terminate the request
 
   return ERR_SUCCESS;
 }
