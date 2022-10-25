@@ -12,8 +12,3 @@ add_subdirectory(lib/thread_pool)
 add_subdirectory(lib/payload)
 add_subdirectory(server)
 add_subdirectory(client)
-
-# copy the final executables into /bin
-file(COPY ${CMAKE_BINARY_DIR}/server/ftpd DESTINATION ${CMAKE_SOURCE_DIR}/bin)
-file(COPY ${CMAKE_BINARY_DIR}/client/ftp DESTINATION ${CMAKE_SOURCE_DIR}/bin)
-

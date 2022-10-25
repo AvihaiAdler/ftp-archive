@@ -23,9 +23,13 @@ set(
 )
 
 add_executable(ftpd ${SERVER} ${HANDLERS})
-target_compile_options(ftpd PRIVATE -Wall -Wextra -pedantic -O3)
+target_compile_options(ftpd PRIVATE -Wall -Wextra -pedantic -g)
 # target_link_options(ftpd PRIVATE -fsanitize=address,undefined)
 target_include_directories(ftpd PRIVATE .)
+set_target_properties(ftpd 
+  PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
+)
 
 # import the libraries
 # genereics
