@@ -27,8 +27,6 @@ int greet(void *arg) {
     return 1;
   }
 
-  struct session session = {0};
-  memcpy(&session, tmp_session, sizeof session);
   free(tmp_session);
 
   // send a 'ready' reply
