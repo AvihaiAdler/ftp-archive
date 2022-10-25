@@ -18,17 +18,22 @@ char *tolower_str(char *str, size_t len) {
 }
 
 void send_reply_wrapper(int sockfd, struct logger *logger, enum reply_codes reply_code, const char *fmt, ...) {
-  struct reply reply = {.code = reply_code};
+  struct reply reply = {.code = (uint16_t)reply_code};
 
   va_list args;
   va_start(args, fmt);
 
-  size_t required_size = vsnprintf(NULL, 0, fmt, args);
+  va_list args_cpy;
+  va_copy(args_cpy, args);
+
+  size_t required_size = vsnprintf(NULL, 0, fmt, args_cpy);
   if (required_size + 1 > REPLY_MAX_LEN - 1) {
-    logger_log(logger, ERROR, "[%lu] [send_reply_wrapper] reply too long", thrd_current());
+    logger_log(logger, ERROR, "[%lu] [%s] reply too long", thrd_current(), __func__);
     va_end(args);
+    va_end(args_cpy);
     return;
   }
+  va_end(args_cpy);
 
   vsnprintf((char *)reply.reply, required_size + 1, fmt, args);
   reply.length = required_size;
@@ -40,11 +45,15 @@ void send_reply_wrapper(int sockfd, struct logger *logger, enum reply_codes repl
   if (ret != ERR_SUCCESS && logger) {
     logger_log(logger,
                ERROR,
-               "[%lu] [send_reply_wrapper] [%s] failed to send reply [%s]",
+               "[%lu] [%s] [%s] failed to send reply [%s]",
                thrd_current(),
+               __func__,
                str_err_code(err),
                (char *)reply.reply);
+    return;
   }
+  if (logger)
+    logger_log(logger, INFO, "[%lu] [%s] reply [%s] sent successfully", thrd_current(), __func__, (char *)reply.reply);
 }
 
 const char *trim_str(const char *str) {
