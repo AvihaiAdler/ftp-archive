@@ -243,13 +243,15 @@ int main(int argc, char *argv[]) {
     }
 
     // search for an event
-    for (unsigned long long i = 0; events_count > 0 && i < vector_size(pollfds); i++, events_count--) {
+    for (unsigned long long i = 0; events_count > 0 && i < vector_size(pollfds); i++) {
       struct pollfd *current = vector_at(pollfds, i);
       if (!current->revents) continue;
 
       // used to accept() new connections / get the ip:port of a socket
       struct sockaddr_storage remote_addr = {0};
       socklen_t remote_addrlen = sizeof remote_addr;
+
+      events_count--;
 
       if (current->revents & POLLIN) {                  // this fp is ready to poll data from
         if (current->fd == server_fds.listen_sockfd) {  // the main 'listening' socket
@@ -263,7 +265,7 @@ int main(int argc, char *argv[]) {
 
           struct session session = {0};
 
-          if (!construct_session(&session, remote_fd)) {
+          if (!construct_session(&session, remote_fd, (struct sockaddr *)&remote_addr, remote_addrlen)) {
             logger_log(logger, ERROR, "[%s] falied to construct a session for fd [%d]", __func__, remote_fd);
             continue;
           }
