@@ -230,7 +230,7 @@ void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events) {
   vector_push(pollfds, &(struct pollfd){.fd = fd, .events = events});
 }
 
-bool construct_session(struct session *session, int remote_fd) {
+bool construct_session(struct session *session, int remote_fd, struct sockaddr *remote, socklen_t remote_len) {
   if (!session) return false;
 
   session->fds.control_fd = remote_fd;
@@ -244,7 +244,13 @@ bool construct_session(struct session *session, int remote_fd) {
   strcpy(session->context.root_dir, ".");
   *session->context.curr_dir = 0;
 
-  get_ip_and_port(remote_fd, session->context.ip, INET6_ADDRSTRLEN, session->context.port, NI_MAXSERV);
+  getnameinfo(remote,
+              remote_len,
+              session->context.ip,
+              INET6_ADDRSTRLEN,
+              session->context.port,
+              NI_MAXSERV,
+              NI_NUMERICHOST | NI_NUMERICSERV);
 
   return true;
 }

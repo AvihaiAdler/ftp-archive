@@ -1,8 +1,8 @@
 #pragma once
 
-#include <arpa/inet.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <sys/socket.h>
 #include "hash_table.h"
 #include "list.h"
 #include "logger.h"
@@ -40,7 +40,7 @@ void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events);
  * session::context::ip as the ip of remote_fd
  * session::context::port as the port of remote_fd
  * returns true on success, false otherwise */
-bool construct_session(struct session *session, int remote_fd);
+bool construct_session(struct session *session, int remote_fd, struct sockaddr *remote, socklen_t remote_len);
 
 /* adds a pair of control_sockfd, data_sockfd to the vector of these pairs used by the threads */
 void add_session(struct vector_s *sessions, struct logger *logger, struct session *session);
