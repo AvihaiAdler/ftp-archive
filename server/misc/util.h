@@ -30,8 +30,9 @@ int get_active_socket(struct logger *logger,
                       const char *remote_serv,
                       int flags);
 
-/* adds a sockfd to the vector of sockfd used by poll() */
-void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events);
+int register_fd(struct logger *logger, int epollfd, int fd, int events);
+
+int unregister_fd(struct logger *logger, int epollfd, int fd, int events);
 
 /* constructs a session object.
  * init the following members:
@@ -47,9 +48,6 @@ void add_session(struct vector_s *sessions, struct logger *logger, struct sessio
 
 /* updates a session returns true on success, falue on failure */
 bool update_session(struct vector_s *sessions, struct logger *logger, struct session *update);
-
-/* removes a sockfd to the vector of sockfd used by poll() */
-void remove_fd(struct vector *pollfds, int fd);
 
 /* compr between control_sockfd, data_sockfd pair. used to initialize the vector of these pairs */
 int cmpr_sessions(const void *a, const void *b);

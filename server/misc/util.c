@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -96,12 +97,12 @@ int get_passive_socket(struct logger *logger, const char *host, const char *serv
     sockfd = socket(available->ai_family, available->ai_socktype, available->ai_protocol);
     if (sockfd == -1) continue;
 
-    if (fcntl(sockfd, F_SETFL, O_NONBLOCK) == -1) {
-      close(sockfd);
-      continue;
-    }
-    // int val = 1;
-    // if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof val) == -1) continue;
+    // if (fcntl(sockfd, F_SETFL, O_NONBLOCK) == -1) {
+    //   close(sockfd);
+    //   continue;
+    // }
+    int val = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof val) == -1) continue;
 
     if (bind(sockfd, available->ai_addr, available->ai_addrlen) == -1) {
       close(sockfd);
@@ -216,18 +217,34 @@ int get_active_socket(struct logger *logger,
   return sockfd;
 }
 
-void add_fd(struct vector *pollfds, struct logger *logger, int fd, int events) {
-  if (!pollfds) return;
-
-  if (fd < 0) {
-    if (logger) logger_log(logger, ERROR, "[add_fd] invalid fd [%d] recieved", fd);
-    return;
+int register_fd(struct logger *logger, int epollfd, int fd, int events) {
+  if (!logger) return -1;
+  if (epollfd < 0) {
+    logger_log(logger, ERROR, "[%s] invalid epollfd [%d]", __func__, epollfd);
+    return -1;
   }
 
-  // fd already exists in pollfds
-  if (vector_index_of(pollfds, &(struct pollfd){.fd = fd}, cmpr_pfds) != GENERICS_EINVAL) return;
+  if (fd < 0) {
+    logger_log(logger, ERROR, "[%s] invalid fd [%d]", __func__, fd);
+    return -1;
+  }
 
-  vector_push(pollfds, &(struct pollfd){.fd = fd, .events = events});
+  return epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &(struct epoll_event){.events = events, .data.fd = fd});
+}
+
+int unregister_fd(struct logger *logger, int epollfd, int fd, int events) {
+  if (!logger) return -1;
+  if (epollfd < 0) {
+    logger_log(logger, ERROR, "[%s] invalid epollfd [%d]", __func__, epollfd);
+    return -1;
+  }
+
+  if (fd < 0) {
+    logger_log(logger, ERROR, "[%s] invalid fd [%d]", __func__, fd);
+    return -1;
+  }
+
+  return epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, &(struct epoll_event){.events = events, .data.fd = fd});
 }
 
 bool construct_session(struct session *session, int remote_fd, struct sockaddr *remote, socklen_t remote_len) {
@@ -292,19 +309,6 @@ int cmpr_sessions(const void *a, const void *b) {
   if (s_a->fds.control_fd == *s_b || s_a->fds.listen_sockfd == *s_b) return 0;
   if (s_a->fds.control_fd > *s_b) return 1;
   return -1;
-}
-
-void remove_fd(struct vector *pollfds, int fd) {
-  if (!pollfds) return;
-
-  size_t pos = vector_index_of(pollfds, &(struct pollfd){.fd = fd}, cmpr_pfds);
-
-  if (pos == GENERICS_EINVAL) return;
-
-  struct pollfd *pfd = vector_remove_at(pollfds, pos);
-  if (!pfd) return;
-
-  free(pfd);
 }
 
 void close_session(struct vector_s *sessions, int fd) {
@@ -387,6 +391,9 @@ const char *strerr_safe(int err) {
   switch (err) {
     case EACCES:
       err_str = "permission denied";
+      break;
+    case EAGAIN:
+      err_str = "resource temporarily unavailable";
       break;
     case EBADF:
       err_str = "bad file descriptor";
