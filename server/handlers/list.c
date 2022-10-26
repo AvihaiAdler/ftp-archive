@@ -1,5 +1,6 @@
 #include "list.h"
 #include <dirent.h>  // opendir(), readdir(), closedir()
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,7 +50,7 @@ int list(void *arg) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] invalid data_sockfd",
-               thrd_current,
+               thrd_current(),
                __func__,
                session.context.ip,
                session.context.port);
@@ -67,7 +68,7 @@ int list(void *arg) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] invalid path [%s]",
-               thrd_current,
+               thrd_current(),
                __func__,
                session.context.ip,
                session.context.port,
@@ -91,7 +92,7 @@ int list(void *arg) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] get_path() failure",
-               thrd_current,
+               thrd_current(),
                __func__,
                session.context.ip,
                session.context.port);
@@ -111,7 +112,7 @@ int list(void *arg) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] path too long",
-               thrd_current,
+               thrd_current(),
                __func__,
                session.context.ip,
                session.context.port);
@@ -135,7 +136,7 @@ int list(void *arg) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] invalid path [%s]",
-               thrd_current,
+               thrd_current(),
                __func__,
                session.context.ip,
                session.context.port,
@@ -169,15 +170,17 @@ int list(void *arg) {
     // get the file size
     struct stat statbuf = {0};
     int ret = fstatat(dir_fd, dirent->d_name, &statbuf, 0);
+    int err = errno;
     if (ret == -1) {
       logger_log(args->logger,
                  WARN,
-                 "[%lu] [%s] [%s:%s] invalid file [%s]",
+                 "[%lu] [%s] [%s:%s] invalid file [%s]. reason [%s]",
                  thrd_current(),
                  __func__,
                  session.context.ip,
                  session.context.port,
-                 abs);
+                 dirent->d_name,
+                 str_err_code(err));
       continue;
     }
 

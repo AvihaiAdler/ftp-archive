@@ -58,7 +58,7 @@ int make_directory(void *arg) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] get_path() failure",
-               thrd_current,
+               thrd_current(),
                __func__,
                session.context.ip,
                session.context.port);
@@ -78,7 +78,7 @@ int make_directory(void *arg) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] path too long",
-               thrd_current,
+               thrd_current(),
                __func__,
                session.context.ip,
                session.context.port);
