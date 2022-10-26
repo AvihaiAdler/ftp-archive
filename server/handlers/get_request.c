@@ -1,4 +1,5 @@
 #include "get_request.h"
+#include <errno.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -103,15 +104,20 @@ int get_request(void *arg) {
   // get a request
   struct request request = {0};
   int ret = recieve_request(&request, session.fds.control_fd, 0);
+
   if (ret != ERR_SUCCESS) {
+    int err = errno;
+
     logger_log(args->logger,
                ERROR,
-               "[%lu] [%s] [%s:%s] failed to recieve a request. reason [%s]",
+               "[%lu] [%s] [%s:%s] failed to recieve a request. reason [%s] errno [%d:%s]",
                thrd_current(),
                __func__,
                session.context.ip,
                session.context.port,
-               str_err_code(ret));
+               str_err_code(ret),
+               err,
+               strerr_safe(err));
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_ACTION_INCOMPLETE_LCL_ERROR,
@@ -175,6 +181,14 @@ int get_request(void *arg) {
     if (sockfd == -1) return 1;
 
     session.fds.data_fd = sockfd;
+
+    logger_log(args->logger,
+               INFO,
+               "[%lu] [%s] successufly obtained a data socket for [%s:%s]",
+               thrd_current(),
+               __func__,
+               session.context.ip,
+               session.context.port);
 
     // update session
     if (!update_session(args->sessions, args->logger, &session)) {
@@ -262,7 +276,14 @@ int get_request(void *arg) {
       break;
   }
 
+  logger_log(args->logger, INFO, "[%lu] [%s] adding the task [%d]", thrd_current(), __func__, req_args.type);
   thread_pool_add_task(args->thread_pool, &task);
+  logger_log(args->logger,
+             INFO,
+             "[%lu] [%s] the task [%d] added successfully",
+             thrd_current(),
+             __func__,
+             req_args.type);
 
   return 0;
 }
