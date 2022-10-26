@@ -11,21 +11,21 @@ static int thread_func_wrapper(void *arg) {
   while (!atomic_load(&thread_args->self->terminate)) {
     mtx_lock(thread_args->tasks_mtx);  // assumes never fails
     // there're no tasks
-    if (list_size(thread_args->tasks) == 0) { cnd_wait(thread_args->tasks_cnd, thread_args->tasks_mtx); }
+    if (vector_size(thread_args->tasks) == 0) cnd_wait(thread_args->tasks_cnd, thread_args->tasks_mtx);
 
-    struct task *task = list_remove_first(thread_args->tasks);
+    struct task *task = vector_remove_at(thread_args->tasks, 0);
 
     mtx_unlock(thread_args->tasks_mtx);  // assumes never fails
 
     // handle the task
     // as long as task is valid the thread shouldn't stop
-    if (task && !atomic_load(&thread_args->self->terminate)) {
-      thread_args->args = task->args;
-
-      if (task->handle_task) task->handle_task(thread_args->args);
+    if (atomic_load(&thread_args->self->terminate)) {
+      if (task) free(task);
+      break;
     }
 
     if (task) {
+      if (task->handle_task) task->handle_task(task->args);
       if (thread_args->destroy_task) thread_args->destroy_task(task);
       free(task);
     }
@@ -41,7 +41,7 @@ static void cleanup(struct thread_pool *thread_pool, bool tasks_mtx, bool tasks_
 
   if (thread_pool->threads) free(thread_pool->threads);
 
-  if (thread_pool->tasks) list_destroy(thread_pool->tasks, thread_pool->destroy_task);
+  if (thread_pool->tasks) vector_destroy(thread_pool->tasks, thread_pool->destroy_task);
 
   if (tasks_mtx) mtx_destroy(&thread_pool->tasks_mtx);
 
@@ -66,7 +66,7 @@ struct thread_pool *thread_pool_init(uint8_t num_of_threads, void (*destroy_task
   }
 
   // init tasks vector
-  thread_pool->tasks = list_init();
+  thread_pool->tasks = vector_init(sizeof(struct task));
   if (!thread_pool->tasks) {
     cleanup(thread_pool, false, false);
     return NULL;
@@ -134,7 +134,7 @@ bool thread_pool_add_task(struct thread_pool *thread_pool, struct task *task) {
 
   mtx_lock(&thread_pool->tasks_mtx);  // assumes never fails
 
-  bool ret = list_append(thread_pool->tasks, task, sizeof *task);
+  bool ret = vector_push(thread_pool->tasks, task);
 
   // wakeup all threads
   if (ret) cnd_broadcast(&thread_pool->tasks_cnd);
