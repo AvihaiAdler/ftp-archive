@@ -17,6 +17,7 @@ struct request_args {
 };
 
 struct args {
+  int epollfd;
   int remote_fd;
   int event_fd;
   const char *server_data_port;

@@ -8,7 +8,6 @@
 #define MAX_ROOT_DIR_LEN 20
 
 struct fds {
-  int epollfd;
   int control_fd;
   int data_fd;
   int listen_sockfd;
