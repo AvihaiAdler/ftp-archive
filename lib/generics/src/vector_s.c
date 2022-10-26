@@ -223,6 +223,25 @@ static void *vector_at(struct vector_s *vector, size_t pos) {
   return (unsigned char *)vector->data + (pos * vector->data_size);
 }
 
+void *vector_s_at(struct vector_s *vector, size_t pos) {
+  mtx_lock(&vector->lock);
+  void *tmp = vector_at(vector, pos);
+  if (!tmp) {
+    mtx_unlock(&vector->lock);
+    return NULL;
+  }
+
+  void *old = malloc(vector->data_size);
+  if (!old) {
+    mtx_unlock(&vector->lock);
+    return NULL;
+  }
+
+  memcpy(old, tmp, vector->data_size);
+  mtx_unlock(&vector->lock);
+  return old;
+}
+
 void *vector_s_remove_at(struct vector_s *vector, size_t pos) {
   mtx_lock(&vector->lock);
   void *tmp = vector_at(vector, pos);

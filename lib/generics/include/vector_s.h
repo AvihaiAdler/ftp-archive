@@ -59,6 +59,9 @@ bool vector_s_push(struct vector_s *vector, const void *element);
  * success. NULL on failure. the element must be free'd */
 void *vector_s_pop(struct vector_s *vector);
 
+/* returns a copy of the element at position pos (which has to be free'd) on success. NULL on failure */
+void *vector_s_at(struct vector_s *vector, size_t pos);
+
 /* remove the element at position pos. returns a copy of the removed element (which has to
  * be free'd). NULL on failure */
 void *vector_s_remove_at(struct vector_s *vector, size_t pos);
