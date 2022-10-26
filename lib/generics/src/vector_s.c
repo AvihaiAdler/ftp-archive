@@ -16,6 +16,14 @@ struct vector_s {
   void (*destroy_element)(void *);
 };
 
+static void *vector_at(struct vector_s *vector, size_t pos) {
+  if (!vector) return NULL;
+  if (!vector->data) return NULL;
+  if (pos >= vector->size) return NULL;
+
+  return (unsigned char *)vector->data + (pos * vector->data_size);
+}
+
 struct vector_s *vector_s_init(size_t data_size,
                                int (*cmpr)(const void *, const void *),
                                void (*destroy_element)(void *)) {
@@ -102,7 +110,8 @@ void *vector_s_find(struct vector_s *vector, const void *element) {
   void *tmp = NULL;
   bool found = false;
   for (size_t index = 0; index < vector->size; index++) {
-    tmp = (unsigned char *)vector->data + index * vector->data_size;
+    tmp = vector_at(vector, index);
+
     if (vector->cmpr(tmp, element) == 0) {
       found = true;
       break;
@@ -215,14 +224,6 @@ void *vector_s_pop(struct vector_s *vector) {
   return vector_s_remove_at(vector, vector->size - 1);
 }
 
-static void *vector_at(struct vector_s *vector, size_t pos) {
-  if (!vector) return NULL;
-  if (!vector->data) return NULL;
-  if (pos >= vector->size) return NULL;
-
-  return (unsigned char *)vector->data + (pos * vector->data_size);
-}
-
 void *vector_s_at(struct vector_s *vector, size_t pos) {
   mtx_lock(&vector->lock);
   void *tmp = vector_at(vector, pos);
@@ -269,7 +270,7 @@ void *vector_s_remove_at(struct vector_s *vector, size_t pos) {
 
 void *vector_s_remove(struct vector_s *vector, void *element) {
   mtx_lock(&vector->lock);
-  intmax_t pos = vector_s_index_of(vector, element);
+  size_t pos = vector_s_index_of(vector, element);
   if (pos == GENERICS_EINVAL) {
     mtx_unlock(&vector->lock);
     return NULL;
