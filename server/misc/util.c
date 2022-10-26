@@ -4,7 +4,6 @@
 #include <fcntl.h>
 #include <ifaddrs.h>
 #include <netdb.h>
-#include <poll.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -63,14 +62,6 @@ void destroy_session(void *session) {
   if (s->fds.control_fd > 0) close(s->fds.control_fd);
   if (s->fds.data_fd > 0) close(s->fds.data_fd);
   if (s->fds.listen_sockfd > 0) close(s->fds.listen_sockfd);
-}
-
-/* cmpr fds, used internally by remove_fd */
-static int cmpr_pfds(const void *a, const void *b) {
-  const struct pollfd *pfd_a = a;
-  const struct pollfd *pfd_b = b;
-
-  return (pfd_a->fd > pfd_b->fd) - (pfd_a->fd < pfd_b->fd);
 }
 
 struct addrinfo *get_addr_info(const char *host, const char *serv, int flags) {
@@ -247,9 +238,14 @@ int unregister_fd(struct logger *logger, int epollfd, int fd, int events) {
   return epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, &(struct epoll_event){.events = events, .data.fd = fd});
 }
 
-bool construct_session(struct session *session, int remote_fd, struct sockaddr *remote, socklen_t remote_len) {
+bool construct_session(struct session *session,
+                       int epollfd,
+                       int remote_fd,
+                       struct sockaddr *remote,
+                       socklen_t remote_len) {
   if (!session) return false;
 
+  session->fds.epollfd = epollfd;
   session->fds.control_fd = remote_fd;
   session->fds.data_fd = -1;
   session->data_sock_type = ACTIVE;
@@ -302,12 +298,12 @@ bool update_session(struct vector_s *sessions, struct logger *logger, struct ses
 
 int cmpr_sessions(const void *a, const void *b) {
   const struct session *s_a = a;
-  const int *s_b = b;
+  const struct session *s_b = b;
 
   /* searches for the session by either fds. ignores a::data_fd alltogether. i.e. looks for a session whos either
    * b::control_fd OR b::data_fd equal to a::control_fd*/
-  if (s_a->fds.control_fd == *s_b || s_a->fds.listen_sockfd == *s_b) return 0;
-  if (s_a->fds.control_fd > *s_b) return 1;
+  if (s_a->fds.control_fd == s_b->fds.control_fd || s_a->fds.listen_sockfd == s_b->fds.control_fd) return 0;
+  if (s_a->fds.control_fd > s_b->fds.control_fd) return 1;
   return -1;
 }
 
@@ -345,21 +341,21 @@ struct list *get_local_ip() {
     char addr_str[INET6_ADDRSTRLEN] = {0};
     if (!ifa->ifa_addr) continue;
 
-    if (ifa->ifa_addr->sa_family == AF_INET) {  // IPv4
-      struct sockaddr_in addr = {0};
-      memcpy(&addr, ifa->ifa_addr, sizeof addr);
+    if (strcmp(ifa->ifa_name, "eth0") == 0) {
+      struct sockaddr_storage addr = {0};
+      socklen_t addr_len =
+        ifa->ifa_addr->sa_family == AF_INET ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6);
+      memcpy(&addr, ifa->ifa_addr, addr_len);
 
-      if (strcmp(ifa->ifa_name, "eth0") == 0) { inet_ntop(AF_INET, &addr.sin_addr, addr_str, sizeof addr_str); }
-    } else if (ifa->ifa_addr->sa_family == AF_INET6) {  // IPv6
-      struct sockaddr_in6 addr = {0};
-      memcpy(&addr, ifa->ifa_addr, sizeof addr);
+      getnameinfo((struct sockaddr *)&addr, addr_len, addr_str, sizeof addr_str, NULL, 0, AI_NUMERICHOST);
 
-      if (strcmp(ifa->ifa_name, "eth0") == 0) { inet_ntop(AF_INET6, &addr.sin6_addr, addr_str, sizeof addr_str); }
-    } else {
-      continue;
+      size_t addr_str_len = strlen(addr_str);
+      if (!addr_str_len) continue;
+
+      list_append(ips, addr_str, strlen(addr_str) + 1);
+
+      fprintf(stderr, "[%s] ip: [%s]\n", __func__, addr_str);
     }
-
-    list_append(ips, addr_str, sizeof addr_str);
   }
 
   if (ifaddrs) freeifaddrs(ifaddrs);
