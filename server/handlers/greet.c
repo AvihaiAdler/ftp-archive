@@ -9,7 +9,7 @@ int greet(void *arg) {
   struct args *args = arg;
 
   // find the session
-  struct session *tmp_session = vector_s_find(args->sessions, &args->remote_fd);
+  struct session *tmp_session = vector_s_find(args->sessions, &(struct session){.fds.control_fd = args->remote_fd});
   if (!tmp_session) {
     logger_log(args->logger,
                ERROR,

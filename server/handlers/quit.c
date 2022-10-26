@@ -7,7 +7,7 @@ int quit(void *arg) {
   if (!arg) return 1;
   struct args *args = arg;
 
-  struct session *session = vector_s_find(args->sessions, &args->remote_fd);
+  struct session *session = vector_s_find(args->sessions, &(struct session){.fds.control_fd = args->remote_fd});
   if (!session) {
     logger_log(args->logger,
                ERROR,

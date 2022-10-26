@@ -11,7 +11,7 @@ int passive(void *arg) {
   struct args *args = arg;
 
   // find the session
-  struct session *tmp_session = vector_s_find(args->sessions, &args->remote_fd);
+  struct session *tmp_session = vector_s_find(args->sessions, &(struct session){.fds.control_fd = args->remote_fd});
   if (!tmp_session) {
     logger_log(args->logger,
                ERROR,
@@ -45,7 +45,7 @@ int passive(void *arg) {
   if (pasv_fd == -1) {  // failed to get a passive socket
     logger_log(args->logger,
                ERROR,
-               "[%lu] [%s] failed to open an active data socket for [%s:%s]",
+               "[%lu] [%s] failed to open a passive data socket for [%s:%s]",
                thrd_current(),
                __func__,
                session.context.ip,

@@ -9,7 +9,7 @@ int print_working_directory(void *arg) {
   struct args *args = arg;
 
   // find the session
-  struct session *session = vector_s_find(args->sessions, &args->remote_fd);
+  struct session *session = vector_s_find(args->sessions, &(struct session){.fds.control_fd = args->remote_fd});
   if (!session) {
     logger_log(args->logger,
                ERROR,
