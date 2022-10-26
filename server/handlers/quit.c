@@ -1,5 +1,6 @@
 #include "quit.h"
 #include <stdlib.h>
+#include <sys/epoll.h>
 #include "misc/util.h"
 #include "util.h"
 
@@ -11,24 +12,33 @@ int quit(void *arg) {
   if (!session) {
     logger_log(args->logger,
                ERROR,
-               "[%lu] [%s] falied to close session [%s:%s], session doesn't exists",
+               "[%lu] [%s] failed to close session with scokfd [%d], session doesn't exists",
                thrd_current(),
                __func__,
-               args->remote_fd,
                args->remote_fd);
     return 1;
   }
 
   logger_log(args->logger,
              INFO,
-             "[%lu] [%s] [%s:%s] closing session [%s:%s]",
+             "[%lu] [%s] closing session [%s:%s]",
              thrd_current(),
              __func__,
              session->context.ip,
-             session->context.port,
-             session->fds.control_fd,
-             session->fds.data_fd);
-  close_session(args->sessions, args->remote_fd);
+             session->context.port);
+
+  unregister_fd(args->logger, args->epollfd, session->fds.control_fd, EPOLLIN);
+  if (session->data_sock_type == PASSIVE && session->fds.listen_sockfd != -1) {
+    unregister_fd(args->logger, args->epollfd, session->fds.listen_sockfd, EPOLLIN);
+  }
   free(session);
+
+  send_reply_wrapper(args->remote_fd,
+                     args->logger,
+                     RPLY_CLOSING_CTRL_CONN,
+                     "[%d] closing control connection",
+                     RPLY_CLOSING_CTRL_CONN);
+
+  close_session(args->sessions, args->remote_fd);
   return 0;
 }
