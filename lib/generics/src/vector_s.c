@@ -329,10 +329,10 @@ size_t vector_s_shrink(struct vector_s *vector) {
 }
 
 size_t vector_s_index_of(struct vector_s *vector, const void *element) {
-  if (!vector) return -1;
+  if (!vector) return GENERICS_EINVAL;
 
   mtx_lock(&vector->lock);
-  if (!vector->data) return -1;
+  if (!vector->data) return GENERICS_EINVAL;
 
   for (size_t i = 0; i < vector->size * vector->data_size; i += vector->data_size) {
     if (vector->cmpr(element, (unsigned char *)vector->data + i) == 0) {
