@@ -70,9 +70,8 @@ void vector_s_destroy(struct vector_s *vector) {
 size_t vector_s_size(struct vector_s *vector) {
   if (!vector) return 0;
 
-  size_t size = 0;
   mtx_lock(&vector->lock);
-  size = vector->size;
+  size_t size = vector->size;
   mtx_unlock(&vector->lock);
 
   return size;
@@ -85,9 +84,8 @@ size_t vector_s_struct_size(struct vector_s *vector) {
 size_t vector_s_capacity(struct vector_s *vector) {
   if (!vector) return 0;
 
-  size_t capacity = 0;
   mtx_lock(&vector->lock);
-  capacity = vector->capacity;
+  size_t capacity = vector->capacity;
   mtx_unlock(&vector->lock);
 
   return capacity;
@@ -191,7 +189,11 @@ size_t vector_s_resize(struct vector_s *vector, size_t size) {
     size_t new_capacity = vector_s_reserve(vector, size);
 
     // vector_reserve failure
-    if (prev_capacity == new_capacity) { return vector->size; }
+    if (prev_capacity == new_capacity) {
+      size_t size = vector->size;
+      mtx_unlock(&vector->lock);
+      return size;
+    }
   }
 
   size_t new_size = vector->size = size;
@@ -300,9 +302,10 @@ void *vector_s_replace(struct vector_s *vector, const void *old_elem, const void
     return NULL;
   }
 
-  memcpy(old, vector_at(vector, pos), vector->data_size);
+  void *ptr = vector_at(vector, pos);
+  memcpy(old, ptr, vector->data_size);
 
-  memcpy(vector->data + (pos * vector->data_size), new_elem, vector->data_size);
+  memcpy(ptr, new_elem, vector->data_size);
   mtx_unlock(&vector->lock);
   return old;
 }
@@ -319,8 +322,9 @@ size_t vector_s_shrink(struct vector_s *vector) {
   size_t new_capacity = vector->size;
   void *tmp = realloc(vector->data, new_capacity * vector->data_size);
   if (!tmp) {
+    size_t capacity = vector->capacity;
     mtx_unlock(&vector->lock);
-    return vector->capacity;
+    return capacity;
   }
 
   vector->capacity = new_capacity;
@@ -333,17 +337,20 @@ size_t vector_s_index_of(struct vector_s *vector, const void *element) {
   if (!vector) return GENERICS_EINVAL;
 
   mtx_lock(&vector->lock);
-  if (!vector->data) return GENERICS_EINVAL;
+  if (!vector->data) {
+    mtx_unlock(&vector->lock);
+    return GENERICS_EINVAL;
+  }
 
   for (size_t i = 0; i < vector->size * vector->data_size; i += vector->data_size) {
     if (vector->cmpr(element, (unsigned char *)vector->data + i) == 0) {
       size_t index = i / vector->data_size;
-      mtx_lock(&vector->lock);
+      mtx_unlock(&vector->lock);
       return index;
     }
   }
 
-  mtx_lock(&vector->lock);
+  mtx_unlock(&vector->lock);
   return GENERICS_EINVAL;
 }
 
@@ -354,5 +361,5 @@ void vector_s_sort(struct vector_s *vector) {
   if (!vector->data) return;
 
   qsort(vector->data, vector->size, vector->data_size, vector->cmpr);
-  mtx_lock(&vector->lock);
+  mtx_unlock(&vector->lock);
 }
