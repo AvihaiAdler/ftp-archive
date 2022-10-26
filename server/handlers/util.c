@@ -84,23 +84,13 @@ bool validate_path(const char *path, struct logger *logger) {
 
   // path contains a . or starts with a /
   if (strchr(path, '.') || *path == '/') {
-    logger_log(logger,
-               ERROR,
-               "[thread:%lu] [%s] [%s:%s] bad request. path [%s] not allowed",
-               thrd_current(),
-               __func__,
-               path);
+    logger_log(logger, ERROR, "[thread:%lu] [%s] bad request. path [%s] not allowed", thrd_current(), __func__, path);
     return false;
   }
 
   // path contains a ../
   if (strstr(path, "../")) {
-    logger_log(logger,
-               ERROR,
-               "[thread:%lu] [%s] [%s:%s] bad request. path [%s] not allowed",
-               thrd_current(),
-               __func__,
-               path);
+    logger_log(logger, ERROR, "[thread:%lu] [%s] bad request. path [%s] not allowed", thrd_current(), __func__, path);
     return false;
   }
 
