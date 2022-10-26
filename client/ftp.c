@@ -1,5 +1,3 @@
-#define _XOPEN_SOURCE 700
-#define _DEFAULT_SOURCE
 #include <arpa/inet.h>  // INET6_ADDRSTRLEN
 #include <netdb.h>      //NI_MAXSERV
 #include <signal.h>     // SIGINT

@@ -1,13 +1,12 @@
-#define _GNU_SOURCE  // ppoll()
 #include <errno.h>
-#include <fcntl.h>  // fcntl()
-#include <limits.h>
+#include <fcntl.h>   // fcntl()
+#include <limits.h>  // INT_MAX
 #include <signal.h>  // sigaction()
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <string.h>     // strlen()
 #include <sys/epoll.h>  // epoll
 #include <sys/eventfd.h>
 #include <sys/stat.h>  // mkdir()

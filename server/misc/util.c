@@ -1,10 +1,9 @@
 #include "util.h"
 #include <arpa/inet.h>
 #include <errno.h>
-#include <fcntl.h>
-#include <ifaddrs.h>
+#include <ifaddrs.h>  //ifaddrs, getifaddrs()
 #include <netdb.h>
-#include <signal.h>
+#include <signal.h>  // sigprocmask(), sigaddset(), sigemptyset(), sigaction()
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -88,10 +87,6 @@ int get_passive_socket(struct logger *logger, const char *host, const char *serv
     sockfd = socket(available->ai_family, available->ai_socktype, available->ai_protocol);
     if (sockfd == -1) continue;
 
-    // if (fcntl(sockfd, F_SETFL, O_NONBLOCK) == -1) {
-    //   close(sockfd);
-    //   continue;
-    // }
     int val = 1;
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof val) == -1) continue;
 

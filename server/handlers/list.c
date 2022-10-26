@@ -216,8 +216,8 @@ int list(void *arg) {
     // check for the last file in the directory
     if (counter == num_of_files - 1) data.descriptor = DESCPTR_EOF;
 
-    int err = send_data(&data, session.fds.data_fd, 0);
-    if (err != ERR_SUCCESS) {
+    int send_ret = send_data(&data, session.fds.data_fd, 0);
+    if (send_ret != ERR_SUCCESS) {
       logger_log(args->logger,
                  ERROR,
                  "[%lu] [%s] [%s:%s] failed to send data [%s]",
@@ -225,7 +225,7 @@ int list(void *arg) {
                  __func__,
                  session.context.ip,
                  session.context.port,
-                 str_err_code(err));
+                 str_err_code(send_ret));
       send_reply_wrapper(session.fds.control_fd,
                          args->logger,
                          RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
