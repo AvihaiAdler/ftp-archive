@@ -4,6 +4,7 @@
 #include <limits.h>
 #include <netdb.h>   // getaddrinfo, getnameinfo
 #include <signal.h>  // sigaction, sigset, sigemptyset, sigaddset, sigprocmask
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>  // getaddrinfo, socket, connect, getsockname, getnameinfo
@@ -150,7 +151,7 @@ enum request_type parse_command(char *cmd) {
   const char *cmd_ptr = trim_str(cmd);
 
   size_t cmd_len = strcspn(cmd_ptr, " ");  // stop at a space or the null terminator
-  if (cmd_len > INT_MAX) return REQ_UNKNOWN;
+  if (cmd_len == 0 || cmd_len > INT_MAX) return REQ_UNKNOWN;
 
   switch ((int)cmd_len) {
     case CMD_MIN_LEN:
