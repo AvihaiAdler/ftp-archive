@@ -127,7 +127,7 @@ int make_directory(void *arg) {
   send_reply_wrapper(session.fds.control_fd,
                      args->logger,
                      RPLY_CMD_OK,
-                     "[%d] ok. the directory [%s] has been created",
+                     "[%d] ok. [%s]",
                      RPLY_CMD_OK,
                      args->req_args.request_args);
 
