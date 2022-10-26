@@ -130,7 +130,7 @@ int get_request(void *arg) {
                        RPLY_ACTION_INCOMPLETE_LCL_ERROR,
                        "[%d] action incomplete. internal process error",
                        RPLY_ACTION_INCOMPLETE_LCL_ERROR);
-    epoll_ctl(session.fds.epollfd,
+    epoll_ctl(args->epollfd,
               EPOLL_CTL_MOD,
               args->remote_fd,
               &(struct epoll_event){.events = EPOLLIN | EPOLLET | EPOLLONESHOT, .data.fd = args->remote_fd});
@@ -164,7 +164,7 @@ int get_request(void *arg) {
                        RPLY_CMD_SYNTAX_ERR,
                        "[%d] invalid request",
                        RPLY_CMD_SYNTAX_ERR);
-    epoll_ctl(session.fds.epollfd,
+    epoll_ctl(args->epollfd,
               EPOLL_CTL_MOD,
               args->remote_fd,
               &(struct epoll_event){.events = EPOLLIN | EPOLLET | EPOLLONESHOT, .data.fd = args->remote_fd});
@@ -187,7 +187,7 @@ int get_request(void *arg) {
                          RPLY_DATA_CONN_CLOSED,
                          "[%d] data connection closed",
                          RPLY_DATA_CONN_CLOSED);
-      epoll_ctl(session.fds.epollfd,
+      epoll_ctl(args->epollfd,
                 EPOLL_CTL_MOD,
                 args->remote_fd,
                 &(struct epoll_event){.events = EPOLLIN | EPOLLET | EPOLLONESHOT, .data.fd = args->remote_fd});
@@ -224,7 +224,7 @@ int get_request(void *arg) {
                          RPLY_ACTION_INCOMPLETE_LCL_ERROR,
                          "[%d] action incomplete. internal error",
                          RPLY_ACTION_INCOMPLETE_LCL_ERROR);
-      epoll_ctl(session.fds.epollfd,
+      epoll_ctl(args->epollfd,
                 EPOLL_CTL_MOD,
                 args->remote_fd,
                 &(struct epoll_event){.events = EPOLLIN | EPOLLET | EPOLLONESHOT, .data.fd = args->remote_fd});
@@ -248,13 +248,14 @@ int get_request(void *arg) {
                        RPLY_ACTION_INCOMPLETE_LCL_ERROR,
                        "[%d] action incomplete. internal process error",
                        RPLY_ACTION_INCOMPLETE_LCL_ERROR);
-    epoll_ctl(session.fds.epollfd,
+    epoll_ctl(args->epollfd,
               EPOLL_CTL_MOD,
               args->remote_fd,
               &(struct epoll_event){.events = EPOLLIN | EPOLLET | EPOLLONESHOT, .data.fd = args->remote_fd});
     return 1;
   }
 
+  task_args->epollfd = args->epollfd;
   task_args->remote_fd = args->remote_fd;
   task_args->server_data_port = args->server_data_port;
   task_args->event_fd = args->event_fd;
@@ -303,7 +304,7 @@ int get_request(void *arg) {
       break;
   }
 
-  epoll_ctl(session.fds.epollfd,
+  epoll_ctl(args->epollfd,
             EPOLL_CTL_MOD,
             args->remote_fd,
             &(struct epoll_event){.events = EPOLLIN | EPOLLET | EPOLLONESHOT, .data.fd = args->remote_fd});
