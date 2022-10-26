@@ -1,13 +1,14 @@
 #define _GNU_SOURCE  // ppoll()
 #include <errno.h>
+#include <fcntl.h>  // fcntl()
 #include <limits.h>
-#include <poll.h>
 #include <signal.h>  // sigaction()
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/epoll.h>  // epoll
 #include <sys/eventfd.h>
 #include <sys/stat.h>  // mkdir()
 #include <unistd.h>    // close(), read()
@@ -195,6 +196,7 @@ int main(int argc, char *argv[]) {
   if (server_fds.event_fd == -1) {
     logger_log(logger, ERROR, "[%s] failed to retrieve an event fd", __func__);
     cleanup(properties, logger, thread_pool, NULL, NULL);
+    close(server_fds.listen_sockfd);
     return 1;
   }
 
@@ -205,63 +207,100 @@ int main(int argc, char *argv[]) {
   if (!sessions) {
     logger_log(logger, ERROR, "[%s] failed to init session vector", __func__);
     cleanup(properties, logger, thread_pool, NULL, NULL);
+    close(server_fds.listen_sockfd);
+    close(server_fds.event_fd);
     return 1;
   }
 
   logger_log(logger, INFO, "[%s] sessions initiated successfully", __func__);
 
-  // create a set of open fds
-  struct vector *pollfds = vector_init(sizeof(struct pollfd));
-  if (!pollfds) {
-    logger_log(logger, ERROR, "[%s] failed to init control-socket fds vector", __func__);
+  struct vector *epoll_events = vector_init(sizeof(struct epoll_event));
+  if (!epoll_events) {
+    logger_log(logger, ERROR, "[%s] falied to init epoll_events vector", __func__);
     cleanup(properties, logger, thread_pool, sessions, NULL);
+    close(server_fds.listen_sockfd);
+    close(server_fds.event_fd);
+    return 1;
+  }
+  vector_resize(epoll_events, num_of_threads);
+
+  int epollfd = epoll_create1(0);
+  if (epollfd == -1) {
+    logger_log(logger, ERROR, "[%s] failed to create an epoll instance", __func__);
+    cleanup(properties, logger, thread_pool, sessions, NULL);
+    close(server_fds.listen_sockfd);
+    close(server_fds.event_fd);
     return 1;
   }
 
-  logger_log(logger, INFO, "[%s] pollfds initiated successfully", __func__);
+  if (register_fd(logger, epollfd, server_fds.listen_sockfd, EPOLLIN | EPOLLET) != 0) {
+    logger_log(logger, ERROR, "[%s] falied to add server listen socket to the epoll instance", __func__);
+    cleanup(properties, logger, thread_pool, sessions, epoll_events);
+    close(server_fds.listen_sockfd);
+    close(server_fds.event_fd);
+    close(epollfd);
+    return 1;
+  }
 
-  // add the main server control sockfd to the list of open fds
-  add_fd(pollfds, logger, server_fds.listen_sockfd, POLLIN);
-  add_fd(pollfds, logger, server_fds.event_fd, POLLIN);
+  if (register_fd(logger, epollfd, server_fds.event_fd, EPOLLIN | EPOLLET) != 0) {
+    logger_log(logger, ERROR, "[%s] falied to add server event socket to the epoll instance", __func__);
+    cleanup(properties, logger, thread_pool, sessions, epoll_events);
+    close(server_fds.listen_sockfd);
+    close(server_fds.event_fd);
+    close(epollfd);
+    return 1;
+  }
 
   // for ppoll
   sigset_t ppoll_sigset;
   if (sigemptyset(&ppoll_sigset) != 0) {
     logger_log(logger, ERROR, "[%s] falied to init sigset_t for ppoll", __func__);
-    cleanup(properties, logger, thread_pool, sessions, pollfds);
+    cleanup(properties, logger, thread_pool, sessions, NULL);
+    close(server_fds.listen_sockfd);
+    close(server_fds.event_fd);
+    close(epollfd);
     return 1;
   }
 
   // main server loop
   logger_log(logger, INFO, "[%s] started listening on fd [%d]", __func__, server_fds.listen_sockfd);
   while (!atomic_load(&terminate)) {
-    int events_count = ppoll((struct pollfd *)vector_data(pollfds), vector_size(pollfds), NULL, &ppoll_sigset);
+    logger_log(logger, INFO, "[%s] pre-ppoll", __func__);
+    int events_count = epoll_pwait(epollfd,
+                                   (struct epoll_event *)vector_data(epoll_events),
+                                   vector_size(epoll_events),
+                                   -1,
+                                   &ppoll_sigset);
     int err = errno;
+    logger_log(logger, INFO, "[%s] post-ppoll", __func__);
     if (events_count == -1) {
-      logger_log(logger, ERROR, "[%s] poll error [%s]", __func__, strerr_safe(err));
+      logger_log(logger, ERROR, "[%s] poll error [%s] [event_count: %d]", __func__, strerr_safe(err), events_count);
       break;
     }
 
+    if (events_count == 0) continue;
+
     // search for an event
-    for (unsigned long long i = 0; events_count > 0 && i < vector_size(pollfds); i++) {
-      struct pollfd *current = vector_at(pollfds, i);
-      if (!current->revents) continue;
+    for (size_t i = 0; events_count > 0 && i < vector_size(epoll_events); i++) {
+      struct epoll_event *current = vector_at(epoll_events, i);
+      if (!current->events) continue;
 
       // used to accept() new connections / get the ip:port of a socket
       struct sockaddr_storage remote_addr = {0};
       socklen_t remote_addrlen = sizeof remote_addr;
 
+      logger_log(logger, ERROR, "[%s] looking for event[event_count: %d]", __func__, events_count);
       events_count--;
 
-      if (current->revents & POLLIN) {                  // this fp is ready to poll data from
-        if (current->fd == server_fds.listen_sockfd) {  // the main 'listening' socket
-          int remote_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
+      if (current->events & EPOLLIN) {                       // this fp is ready to poll data from
+        if (current->data.fd == server_fds.listen_sockfd) {  // the main 'listening' socket
+          int remote_fd = accept(current->data.fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
           if (remote_fd == -1) {
             logger_log(logger, ERROR, "[%s] accept() failue on main listening socket", __func__);
             continue;
           }
 
-          add_fd(pollfds, logger, remote_fd, POLLIN);
+          register_fd(logger, epollfd, remote_fd, EPOLLIN | EPOLLET);
 
           struct session session = {0};
 
@@ -296,34 +335,34 @@ int main(int argc, char *argv[]) {
           args->sessions = sessions;
 
           thread_pool_add_task(thread_pool, &(struct task){.args = args, .handle_task = greet});
-        } else if (current->fd == server_fds.event_fd) {  // event fd
+        } else if (current->data.fd == server_fds.event_fd) {  // event fd
           uint64_t discard = 0;
-          ssize_t ret = read(current->fd, &discard, sizeof discard);  // consume the value in event_fd
+          ssize_t ret = read(current->data.fd, &discard, sizeof discard);  // consume the value in event_fd
           if (ret == -1) { logger_log(logger, INFO, "[%s] failed to consume the value of event_fd", __func__); }
 
-          // update pollfds. add the passive sockfd to pollfds
-          size_t size = vector_size(pollfds);
+          size_t size = vector_s_size(sessions);
           for (size_t i = 0; i < size; i++) {
-            struct session *tmp = vector_at(pollfds, i);
+            struct session *tmp = vector_s_at(sessions, i);
             if (!tmp) continue;
 
             if (tmp->data_sock_type == PASSIVE && tmp->fds.listen_sockfd > 0) {
-              add_fd(pollfds, logger, tmp->fds.listen_sockfd, POLLIN);
-            } else if (tmp->data_sock_type == ACTIVE) {
-              remove_fd(pollfds, tmp->fds.listen_sockfd);
+              register_fd(logger, epollfd, tmp->fds.listen_sockfd, EPOLLIN | EPOLLET);
             }
+
+            free(tmp);
           }
+
         } else {  // any other socket
           /* could be either a control socket or a session::fds::listen_sockfd socket. if its a control socket: get a
            * request. otherwise: accept, update the session::data_fd. invalidate session::fds::listen_sockfd
            * afterwards(and remove it from pollfds)*/
-          struct session *session = vector_s_find(sessions, &current->fd);
+          struct session *session = vector_s_find(sessions, &current->data.fd);
           if (!session) {
-            logger_log(logger, ERROR, "[%s] couldn't find sockfd [%d]", __func__, current->fd);
+            logger_log(logger, ERROR, "[%s] couldn't find sockfd [%d]", __func__, current->data.fd);
             continue;
           }
 
-          if (current->fd == session->fds.control_fd) {  // session::fds::control_fd
+          if (current->data.fd == session->fds.control_fd) {  // session::fds::control_fd
             // consruct the args for get_request
             struct args *args = malloc(sizeof *args);
             if (!args) {
@@ -338,14 +377,19 @@ int main(int argc, char *argv[]) {
 
             args->event_fd = server_fds.event_fd;
             args->logger = logger;
-            args->remote_fd = current->fd;
+            args->remote_fd = session->fds.control_fd;
             args->server_data_port = data_port;
             args->sessions = sessions;
             args->thread_pool = thread_pool;
 
             thread_pool_add_task(thread_pool, &(struct task){.args = args, .handle_task = get_request});
+            logger_log(logger,
+                       ERROR,
+                       "[%s] found one. added a get_request task for socket [%d]",
+                       __func__,
+                       current->data.fd);
           } else {  // session::fds::listen_sockfd. will only happened as a result of a PASV command
-            int data_fd = accept(current->fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
+            int data_fd = accept(current->data.fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
             if (data_fd == -1) {
               logger_log(logger,
                          ERROR,
@@ -357,9 +401,9 @@ int main(int argc, char *argv[]) {
             }
 
             // stop monitor session::fds::listen_sockfd
-            remove_fd(pollfds, current->fd);
+            unregister_fd(logger, epollfd, current->data.fd, EPOLLIN | EPOLLET);
             // close session::fds::listen_sockfd
-            close(current->fd);
+            close(current->data.fd);
 
             // replace the old session
             // the new passive data_fd. session::fds::data_fd is guaranteed to be closed and invalidated
@@ -373,7 +417,10 @@ int main(int argc, char *argv[]) {
                          __func__,
                          session->context.ip,
                          session->context.port);
-              cleanup(properties, logger, thread_pool, sessions, pollfds);
+              cleanup(properties, logger, thread_pool, sessions, epoll_events);
+              close(server_fds.listen_sockfd);
+              close(server_fds.event_fd);
+              close(epollfd);
               return 1;
             }
 
@@ -385,19 +432,19 @@ int main(int argc, char *argv[]) {
                        session->context.port);
           }  // session::fds::listen_sockfd
           free(session);
-        }                                      // any other socket
-      } else if (current->events & POLLHUP) {  // this fp has been closed
+        }                                       // any other socket
+      } else if (current->events & EPOLLHUP) {  // this fp has been closed
         // get the corresponding session which the fd 'tied' to
-        struct session *session = vector_s_find(sessions, &current->fd);
+        struct session *session = vector_s_find(sessions, &current->data.fd);
         if (!session) {
-          logger_log(logger, ERROR, "[%s] failed to find the session for fd [%d]", __func__, current->fd);
+          logger_log(logger, ERROR, "[%s] failed to find the session for fd [%d]", __func__, current->data.fd);
           continue;
         }
 
-        remove_fd(pollfds, current->fd);
+        unregister_fd(logger, epollfd, current->data.fd, EPOLLIN | EPOLLET);
 
         // the client closed its control_fd - close the entire session
-        if (current->fd == session->fds.control_fd) { close_session(sessions, current->fd); }
+        if (current->data.fd == session->fds.control_fd) { close_session(sessions, current->data.fd); }
 
         logger_log(logger,
                    INFO,
@@ -407,11 +454,11 @@ int main(int argc, char *argv[]) {
                    session->context.port);
 
         free(session);
-      } else if (current->events & (POLLERR | POLLNVAL)) {  // (POLLERR / POLLNVAL)
+      } else if (current->events & EPOLLERR) {  // (POLLERR / POLLNVAL)
         // get the corresponding session to which the fd 'tied' to
-        struct session *session = vector_s_find(sessions, &current->fd);
+        struct session *session = vector_s_find(sessions, &current->data.fd);
         if (!session) {
-          logger_log(logger, ERROR, "[%s] failed to fined the session for fd [%d]", __func__, current->fd);
+          logger_log(logger, ERROR, "[%s] failed to fined the session for fd [%d]", __func__, current->data.fd);
           continue;
         }
         logger_log(logger,
@@ -420,10 +467,13 @@ int main(int argc, char *argv[]) {
                    __func__,
                    session->context.ip,
                    session->context.port);
-        remove_fd(pollfds, current->fd);
-        close_session(sessions, current->fd);
+
+        unregister_fd(logger, epollfd, current->data.fd, EPOLLIN | EPOLLET);
+        close_session(sessions, current->data.fd);
 
         free(session);
+      } else {
+        logger_log(logger, INFO, "[%s] events: [%d]", __func__, current->events);
       }
     }  // events loop
   }    // main server loop
@@ -431,7 +481,8 @@ int main(int argc, char *argv[]) {
   logger_log(logger, INFO, "[%s] shutting down", __func__);
   close(server_fds.listen_sockfd);
   close(server_fds.event_fd);
-  cleanup(properties, logger, thread_pool, sessions, pollfds);
+  close(epollfd);
+  cleanup(properties, logger, thread_pool, sessions, epoll_events);
 
   return 0;
 }

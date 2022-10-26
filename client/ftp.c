@@ -2,12 +2,12 @@
 #define _DEFAULT_SOURCE
 #include <arpa/inet.h>  // INET6_ADDRSTRLEN
 #include <netdb.h>      //NI_MAXSERV
-#include <poll.h>
-#include <signal.h>  // SIGINT
+#include <signal.h>     // SIGINT
 #include <stdbool.h>
 #include <stdio.h>
-#include <string.h>  // strerror
-#include <unistd.h>  // close, fork
+#include <string.h>     // strerror
+#include <sys/epoll.h>  // epoll
+#include <unistd.h>     // close, fork
 
 #include "include/util.h"
 #include "logger.h"
@@ -51,9 +51,26 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  {
+    struct reply reply;
+    int recv_ret = recieve_reply(&reply, sockfds.control_sockfd, 0);
+
+    if (recv_ret != ERR_SUCCESS) {
+      logger_log(logger,
+                 ERROR,
+                 "[%s] encountered an error while reading from file fd [%d]. reason [%s]",
+                 __func__,
+                 sockfds.control_sockfd,
+                 str_err_code(recv_ret));
+    }
+
+    fprintf(stdout, "%s\n", (char *)reply.reply);
+  }
+
   char local_ip[INET6_ADDRSTRLEN];
   char local_port[NI_MAXSERV];
   get_ip_and_port(sockfds.control_sockfd, local_ip, sizeof local_ip, local_port, sizeof local_port);
+  logger_log(logger, INFO, "[%s] local port: %s", __func__, local_port);
 
   sockfds.passive_sockfd = get_passive_socket(logger, local_port);
   if (sockfds.passive_sockfd == -1) {
@@ -62,10 +79,24 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  struct pollfd pollfds[] = {{.fd = sockfds.control_sockfd, .events = POLLIN},
-                             {.fd = sockfds.passive_sockfd, .events = POLLIN},
-                             {.fd = sockfds.data_sockfd, .events = POLLIN}};
-  size_t pollfds_size = sizeof pollfds / sizeof *pollfds;
+  int epollfd = epoll_create1(0);
+  if (epollfd == -1) {
+    logger_log(logger, ERROR, "[%s] falied to create an epoll instance [%s]", __func__);
+    cleanup(logger, &sockfds);
+    return 1;
+  }
+
+  epoll_ctl(epollfd,
+            EPOLL_CTL_ADD,
+            sockfds.control_sockfd,
+            &(struct epoll_event){.events = EPOLLIN, .data.fd = sockfds.control_sockfd});
+  epoll_ctl(epollfd,
+            EPOLL_CTL_ADD,
+            sockfds.passive_sockfd,
+            &(struct epoll_event){.events = EPOLLIN, .data.fd = sockfds.passive_sockfd});
+
+  struct epoll_event epoll_events[2];
+  size_t epoll_events_size = sizeof epoll_events / sizeof *epoll_events;
 
   // main event loop
   char cmd[REQUEST_MAX_LEN] = {0};
@@ -74,45 +105,74 @@ int main(int argc, char *argv[]) {
     fflush(stdout);
 
     if (!fgets(cmd, sizeof cmd, stdin)) continue;
+    cmd[strcspn(cmd, "\n")] = 0;
 
     // parse the command
     enum request_type req_type = parse_command(cmd);
     struct request request = {.length = strlen(cmd)};
-    strcpy(request.request, cmd);
+    strcpy((char *)request.request, cmd);
 
     if (req_type == REQ_UNKNOWN) continue;
 
-    int event_count = poll(pollfds, pollfds_size, -1);
+    // send the request
+    int send_ret = send_request(&request, sockfds.control_sockfd, MSG_DONTWAIT);
+    if (send_ret != ERR_SUCCESS) {
+      logger_log(logger,
+                 ERROR,
+                 "[%s] failed to send request [%s]. reason [%s]",
+                 __func__,
+                 (char *)request.request,
+                 str_err_code(send_ret));
+      continue;
+    }
+
+    logger_log(logger, INFO, "[%s] request [%hu : %s] sent", __func__, request.length, (char *)request.request);
+
+    int event_count = epoll_wait(epollfd, epoll_events, epoll_events_size, -1);
     if (event_count == -1) {
       logger_log(logger, ERROR, "[%s] poll error [%s]", __func__);
       continue;
     }
 
-    for (int i = 0; i < event_count; i++) {
-      if (pollfds[i].revents & POLLIN) {
-        if (pollfds[i].fd == sockfds.passive_sockfd) {
+    for (size_t i = 0; event_count > 0 && i < epoll_events_size; i++) {
+      event_count--;
+      if (epoll_events[i].events & EPOLLIN) {
+        if (epoll_events[i].data.fd == sockfds.passive_sockfd) {
           struct sockaddr_storage remote = {0};
           socklen_t remote_len = sizeof remote;
-          int data_fd = accept(sockfds.passive_sockfd, &remote, &remote_len);
+          int data_fd = accept(sockfds.passive_sockfd, (struct sockaddr *)&remote, &remote_len);
           if (data_fd == -1) {
             logger_log(logger, ERROR, "[%s] failed to accept()", __func__);
             continue;
           }
           sockfds.data_sockfd = data_fd;
-          pollfds[2].fd = sockfds.data_sockfd;
-        } else if (pollfds[i].fd == sockfds.control_sockfd) {
-          print_reply(sockfds.control_sockfd);
-        } else {  // pollfds[i].fd == sockfds.data_sockfd
-          print_data(sockfds.data_sockfd);
+          // pollfds[2].fd = sockfds.data_sockfd;
+        } else if (epoll_events[i].data.fd == sockfds.control_sockfd) {
+          struct reply reply;
+          int recv_ret = recieve_reply(&reply, sockfds.control_sockfd, 0);
+
+          if (recv_ret != ERR_SUCCESS) {
+            logger_log(logger,
+                       ERROR,
+                       "[%s] encountered an error while reading from file fd [%d]. reason [%s]",
+                       __func__,
+                       sockfds.control_sockfd,
+                       str_err_code(recv_ret));
+            continue;
+          }
+
+          fprintf(stdout, "%s\n", reply.reply);
         }
-      } else if (pollfds[i].revents & (POLLERR | POLLNVAL)) {
+      } else if (epoll_events[i].events & EPOLLERR) {
         logger_log(logger, ERROR, "[%s] encountered an error whill polling. shutting down", __func__);
         cleanup(logger, &sockfds);
+        close(epollfd);
         return 1;
       }
     }
   }
 
   cleanup(logger, &sockfds);
+  close(epollfd);
   return 0;
 }
