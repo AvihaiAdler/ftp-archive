@@ -75,6 +75,75 @@ static bool parse_command(struct request *request, struct request_args *request_
   return true;
 }
 
+static void add_task(struct args *args,
+                     struct session *session,
+                     struct request_args *req_args,
+                     int (*handler)(void *arg)) {
+  if (!args) return;
+
+  // create the relevant task
+  struct args *task_args = malloc(sizeof *task_args);
+  if (!task_args) {
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] [%s:%s] memory allocation failue",
+               thrd_current(),
+               __func__,
+               session->context.ip,
+               session->context.port);
+    send_reply_wrapper(session->fds.control_fd,
+                       args->logger,
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
+                       "[%d] action incomplete. internal process error",
+                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+
+    // assume never fails. potential bug if it does
+    epoll_ctl(args->epollfd,
+              EPOLL_CTL_MOD,
+              args->remote_fd,
+              &(struct epoll_event){.events = EPOLLIN | EPOLLET | EPOLLONESHOT, .data.fd = args->remote_fd});
+    return;
+  }
+
+  task_args->epollfd = args->epollfd;
+  task_args->remote_fd = args->remote_fd;
+  task_args->server_data_port = args->server_data_port;
+  task_args->event_fd = args->event_fd;
+  task_args->logger = args->logger;
+  task_args->sessions = args->sessions;
+  memcpy(&task_args->req_args, req_args, sizeof task_args->req_args);
+
+  // add the task
+  struct task task = {0};
+  task.args = task_args;
+  task.handle_task = handler;
+
+  if (epoll_ctl(args->epollfd,
+                EPOLL_CTL_MOD,
+                args->remote_fd,
+                &(struct epoll_event){.events = EPOLLIN | EPOLLONESHOT, .data.fd = args->remote_fd}) == -1) {
+    int err = errno;
+    logger_log(args->logger,
+               ERROR,
+               "[%lu] [%s] failed to re-arm session [%s:%s] control_fd. reason [%s]. triggering a quit task",
+               thrd_current(),
+               __func__,
+               session->context.ip,
+               session->context.port,
+               strerr_safe(err));
+    req_args->type = REQ_QUIT;
+    task.handle_task = quit;
+  }
+
+  thread_pool_add_task(args->thread_pool, &task);
+  logger_log(args->logger,
+             INFO,
+             "[%lu] [%s] the task [%d] added successfully",
+             thrd_current(),
+             __func__,
+             req_args->type);
+}
+
 int get_request(void *arg) {
   if (!arg) return 1;
   struct args *args = arg;
@@ -97,10 +166,6 @@ int get_request(void *arg) {
                        RPLY_ACTION_INCOMPLETE_LCL_ERROR);
 
     // possible bug. if the session can't be found args->remote_fd will never rearm
-    // epoll_ctl(session.fds.epollfd,
-    //           EPOLL_CTL_MOD,
-    //           args->remote_fd,
-    //           &(struct epoll_event){.events = EPOLLIN | EPOLLET | EPOLLONESHOT, .data.fd = args->remote_fd});
     return 1;
   }
 
@@ -194,20 +259,18 @@ int get_request(void *arg) {
       return 1;
     }
 
-    // send_reply_wrapper(session.fds.control_fd, args->logger, RPLY_)
-
     int sockfd = get_active_socket(args->logger, args->server_data_port, session.context.ip, session.context.port, 0);
-    if (sockfd == -1) return 1;
-
     session.fds.data_fd = sockfd;
 
-    logger_log(args->logger,
-               INFO,
-               "[%lu] [%s] successufly obtained a data socket for [%s:%s]",
-               thrd_current(),
-               __func__,
-               session.context.ip,
-               session.context.port);
+    if (sockfd != -1) {
+      logger_log(args->logger,
+                 INFO,
+                 "[%lu] [%s] successufly obtained a data socket for [%s:%s]",
+                 thrd_current(),
+                 __func__,
+                 session.context.ip,
+                 session.context.port);
+    }
 
     // update session
     if (!update_session(args->sessions, args->logger, &session)) {
@@ -233,89 +296,46 @@ int get_request(void *arg) {
     }
   }
 
-  // create the relevant task
-  struct args *task_args = malloc(sizeof *task_args);
-  if (!task_args) {
-    logger_log(args->logger,
-               ERROR,
-               "[%lu] [%s] [%s:%s] memory allocation failue",
-               thrd_current(),
-               __func__,
-               session.context.ip,
-               session.context.port);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
-    epoll_ctl(args->epollfd,
-              EPOLL_CTL_MOD,
-              args->remote_fd,
-              &(struct epoll_event){.events = EPOLLIN | EPOLLET | EPOLLONESHOT, .data.fd = args->remote_fd});
-    return 1;
-  }
-
-  task_args->epollfd = args->epollfd;
-  task_args->remote_fd = args->remote_fd;
-  task_args->server_data_port = args->server_data_port;
-  task_args->event_fd = args->event_fd;
-  task_args->logger = args->logger;
-  task_args->sessions = args->sessions;
-  memcpy(&task_args->req_args, &req_args, sizeof task_args->req_args);
-
-  // add the task
-  struct task task = {0};
-  task.args = task_args;
+  int (*handler)(void *) = NULL;
   switch (req_args.type) {
     case REQ_PWD:
-      task.handle_task = print_working_directory;
+      handler = print_working_directory;
       break;
     case REQ_CWD:
-      task.handle_task = change_directory;
+      handler = change_directory;
       break;
     case REQ_MKD:
-      task.handle_task = make_directory;
+      handler = make_directory;
       break;
     case REQ_RMD:
-      task.handle_task = remove_directory;
+      handler = remove_directory;
       break;
     case REQ_PORT:
-      task.handle_task = port;
+      handler = port;
       break;
     case REQ_PASV:
-      task.handle_task = passive;
+      handler = passive;
       break;
     case REQ_DELE:
-      task.handle_task = delete_file;
+      handler = delete_file;
       break;
     case REQ_LIST:
-      task.handle_task = list;
+      handler = list;
       break;
     case REQ_RETR:
-      task.handle_task = retrieve_file;
+      handler = retrieve_file;
       break;
     case REQ_STOR:
-      task.handle_task = store_file;
+      handler = store_file;
       break;
     case REQ_QUIT:
-      task.handle_task = quit;
+      handler = quit;
       break;
     default:
       break;
   }
 
-  epoll_ctl(args->epollfd,
-            EPOLL_CTL_MOD,
-            args->remote_fd,
-            &(struct epoll_event){.events = EPOLLIN | EPOLLET | EPOLLONESHOT, .data.fd = args->remote_fd});
-
-  thread_pool_add_task(args->thread_pool, &task);
-  logger_log(args->logger,
-             INFO,
-             "[%lu] [%s] the task [%d] added successfully",
-             thrd_current(),
-             __func__,
-             req_args.type);
+  if (handler) { add_task(args, &session, &req_args, handler); }
 
   return 0;
 }
