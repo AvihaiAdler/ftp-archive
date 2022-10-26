@@ -301,7 +301,7 @@ int main(int argc, char *argv[]) {
 
           struct session session = {0};
 
-          if (!construct_session(&session, epollfd, remote_fd, (struct sockaddr *)&remote_addr, remote_addrlen)) {
+          if (!construct_session(&session, remote_fd, (struct sockaddr *)&remote_addr, remote_addrlen)) {
             logger_log(logger, ERROR, "[%s] falied to construct a session for fd [%d]", __func__, remote_fd);
             continue;
           }
@@ -372,6 +372,7 @@ int main(int argc, char *argv[]) {
               continue;
             }
 
+            args->epollfd = epollfd;
             args->event_fd = server_fds.event_fd;
             args->logger = logger;
             args->remote_fd = session->fds.control_fd;
@@ -380,11 +381,6 @@ int main(int argc, char *argv[]) {
             args->thread_pool = thread_pool;
 
             thread_pool_add_task(thread_pool, &(struct task){.args = args, .handle_task = get_request});
-            logger_log(logger,
-                       ERROR,
-                       "[%s] found one. added a get_request task for socket [%d]",
-                       __func__,
-                       current->data.fd);
           } else {  // session::fds::listen_sockfd. will only happened as a result of a PASV command
             int data_fd = accept(current->data.fd, (struct sockaddr *)&remote_addr, &remote_addrlen);
             if (data_fd == -1) {

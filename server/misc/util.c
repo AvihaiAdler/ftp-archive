@@ -238,14 +238,9 @@ int unregister_fd(struct logger *logger, int epollfd, int fd, int events) {
   return epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, &(struct epoll_event){.events = events, .data.fd = fd});
 }
 
-bool construct_session(struct session *session,
-                       int epollfd,
-                       int remote_fd,
-                       struct sockaddr *remote,
-                       socklen_t remote_len) {
+bool construct_session(struct session *session, int remote_fd, struct sockaddr *remote, socklen_t remote_len) {
   if (!session) return false;
 
-  session->fds.epollfd = epollfd;
   session->fds.control_fd = remote_fd;
   session->fds.data_fd = -1;
   session->data_sock_type = ACTIVE;
