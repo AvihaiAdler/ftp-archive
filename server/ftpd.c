@@ -265,14 +265,12 @@ int main(int argc, char *argv[]) {
   // main server loop
   logger_log(logger, INFO, "[%s] started listening on fd [%d]", __func__, server_fds.listen_sockfd);
   while (!atomic_load(&terminate)) {
-    logger_log(logger, INFO, "[%s] pre-ppoll", __func__);
     int events_count = epoll_pwait(epollfd,
                                    (struct epoll_event *)vector_data(epoll_events),
                                    vector_size(epoll_events),
                                    -1,
                                    &ppoll_sigset);
     int err = errno;
-    logger_log(logger, INFO, "[%s] post-ppoll", __func__);
     if (events_count == -1) {
       logger_log(logger, ERROR, "[%s] poll error [%s] [event_count: %d]", __func__, strerr_safe(err), events_count);
       break;
@@ -289,7 +287,6 @@ int main(int argc, char *argv[]) {
       struct sockaddr_storage remote_addr = {0};
       socklen_t remote_addrlen = sizeof remote_addr;
 
-      logger_log(logger, ERROR, "[%s] looking for event[event_count: %d]", __func__, events_count);
       events_count--;
 
       if (current->events & EPOLLIN) {                       // this fp is ready to poll data from
@@ -300,11 +297,11 @@ int main(int argc, char *argv[]) {
             continue;
           }
 
-          register_fd(logger, epollfd, remote_fd, EPOLLIN | EPOLLET);
+          register_fd(logger, epollfd, remote_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
 
           struct session session = {0};
 
-          if (!construct_session(&session, remote_fd, (struct sockaddr *)&remote_addr, remote_addrlen)) {
+          if (!construct_session(&session, epollfd, remote_fd, (struct sockaddr *)&remote_addr, remote_addrlen)) {
             logger_log(logger, ERROR, "[%s] falied to construct a session for fd [%d]", __func__, remote_fd);
             continue;
           }
@@ -356,7 +353,7 @@ int main(int argc, char *argv[]) {
           /* could be either a control socket or a session::fds::listen_sockfd socket. if its a control socket: get a
            * request. otherwise: accept, update the session::data_fd. invalidate session::fds::listen_sockfd
            * afterwards(and remove it from pollfds)*/
-          struct session *session = vector_s_find(sessions, &current->data.fd);
+          struct session *session = vector_s_find(sessions, &(struct session){.fds.control_fd = current->data.fd});
           if (!session) {
             logger_log(logger, ERROR, "[%s] couldn't find sockfd [%d]", __func__, current->data.fd);
             continue;
