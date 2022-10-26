@@ -232,7 +232,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  if (register_fd(logger, epollfd, server_fds.listen_sockfd, EPOLLIN | EPOLLET) != 0) {
+  if (register_fd(logger, epollfd, server_fds.listen_sockfd, EPOLLIN) != 0) {
     logger_log(logger, ERROR, "[%s] falied to add server listen socket to the epoll instance", __func__);
     cleanup(properties, logger, thread_pool, sessions, epoll_events);
     close(server_fds.listen_sockfd);
@@ -241,7 +241,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  if (register_fd(logger, epollfd, server_fds.event_fd, EPOLLIN | EPOLLET) != 0) {
+  if (register_fd(logger, epollfd, server_fds.event_fd, EPOLLIN) != 0) {
     logger_log(logger, ERROR, "[%s] falied to add server event socket to the epoll instance", __func__);
     cleanup(properties, logger, thread_pool, sessions, epoll_events);
     close(server_fds.listen_sockfd);
@@ -271,8 +271,8 @@ int main(int argc, char *argv[]) {
                                    &ppoll_sigset);
     int err = errno;
     if (events_count == -1) {
-      logger_log(logger, ERROR, "[%s] poll error [%s] [event_count: %d]", __func__, strerr_safe(err), events_count);
-      break;
+      logger_log(logger, ERROR, "[%s] epoll error [%s] [event_count: %d]", __func__, strerr_safe(err), events_count);
+      continue;
     }
 
     if (events_count == 0) continue;
@@ -296,7 +296,7 @@ int main(int argc, char *argv[]) {
             continue;
           }
 
-          register_fd(logger, epollfd, remote_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
+          register_fd(logger, epollfd, remote_fd, EPOLLIN | EPOLLONESHOT);
 
           struct session session = {0};
 
@@ -342,7 +342,7 @@ int main(int argc, char *argv[]) {
             if (!tmp) continue;
 
             if (tmp->data_sock_type == PASSIVE && tmp->fds.listen_sockfd > 0) {
-              register_fd(logger, epollfd, tmp->fds.listen_sockfd, EPOLLIN | EPOLLET);
+              register_fd(logger, epollfd, tmp->fds.listen_sockfd, EPOLLIN);
             }
 
             free(tmp);
@@ -393,7 +393,7 @@ int main(int argc, char *argv[]) {
             }
 
             // stop monitor session::fds::listen_sockfd
-            unregister_fd(logger, epollfd, current->data.fd, EPOLLIN | EPOLLET);
+            unregister_fd(logger, epollfd, current->data.fd, EPOLLIN);
             // close session::fds::listen_sockfd
             close(current->data.fd);
 
@@ -433,7 +433,7 @@ int main(int argc, char *argv[]) {
           continue;
         }
 
-        unregister_fd(logger, epollfd, current->data.fd, EPOLLIN | EPOLLET);
+        unregister_fd(logger, epollfd, current->data.fd, EPOLLIN);
 
         // the client closed its control_fd - close the entire session
         if (current->data.fd == session->fds.control_fd) { close_session(sessions, current->data.fd); }
@@ -460,7 +460,7 @@ int main(int argc, char *argv[]) {
                    session->context.ip,
                    session->context.port);
 
-        unregister_fd(logger, epollfd, current->data.fd, EPOLLIN | EPOLLET);
+        unregister_fd(logger, epollfd, current->data.fd, EPOLLIN);
         close_session(sessions, current->data.fd);
 
         free(session);
