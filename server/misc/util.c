@@ -429,6 +429,9 @@ const char *strerr_safe(int err) {
     case ENOTDIR:
       err_str = "not a directory or a symbolic link to a directory";
       break;
+    case ENOTEMPTY:
+      err_str = "The path argument names a directory that is not an empty directory";
+      break;
     case EPERM:
       err_str = "operation not permitted";
       break;
