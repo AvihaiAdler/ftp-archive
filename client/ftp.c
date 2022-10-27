@@ -49,22 +49,6 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  {
-    struct reply reply;
-    int recv_ret = recieve_reply(&reply, sockfds.control_sockfd, 0);
-
-    if (recv_ret != ERR_SUCCESS) {
-      logger_log(logger,
-                 ERROR,
-                 "[%s] encountered an error while reading from file fd [%d]. reason [%s]",
-                 __func__,
-                 sockfds.control_sockfd,
-                 str_err_code(recv_ret));
-    }
-
-    fprintf(stdout, "%s\n", (char *)reply.reply);
-  }
-
   char local_ip[INET6_ADDRSTRLEN];
   char local_port[NI_MAXSERV];
   get_ip_and_port(sockfds.control_sockfd, local_ip, sizeof local_ip, local_port, sizeof local_port);
@@ -98,34 +82,7 @@ int main(int argc, char *argv[]) {
 
   // main event loop
   char cmd[REQUEST_MAX_LEN] = {0};
-  while (!terminate) {
-    fputs("ftp > ", stdout);
-    fflush(stdout);
-
-    if (!fgets(cmd, sizeof cmd, stdin)) continue;
-    cmd[strcspn(cmd, "\n")] = 0;
-
-    // parse the command
-    enum request_type req_type = parse_command(cmd);
-    struct request request = {.length = strlen(cmd)};
-    strcpy((char *)request.request, cmd);
-
-    if (req_type == REQ_UNKNOWN) continue;
-
-    // send the request
-    int send_ret = send_request(&request, sockfds.control_sockfd, MSG_DONTWAIT);
-    if (send_ret != ERR_SUCCESS) {
-      logger_log(logger,
-                 ERROR,
-                 "[%s] failed to send request [%s]. reason [%s]",
-                 __func__,
-                 (char *)request.request,
-                 str_err_code(send_ret));
-      continue;
-    }
-
-    logger_log(logger, INFO, "[%s] request [%hu : %s] sent", __func__, request.length, (char *)request.request);
-
+  do {
     int event_count = epoll_wait(epollfd, epoll_events, epoll_events_size, -1);
     if (event_count == -1) {
       logger_log(logger, ERROR, "[%s] poll error [%s]", __func__);
@@ -160,6 +117,8 @@ int main(int argc, char *argv[]) {
           }
 
           fprintf(stdout, "%s\n", reply.reply);
+
+          if (reply.code == RPLY_CLOSING_CTRL_CONN) { goto end_lbl; }
         }
       } else if (epoll_events[i].events & EPOLLERR) {
         logger_log(logger, ERROR, "[%s] encountered an error whill polling. shutting down", __func__);
@@ -168,8 +127,36 @@ int main(int argc, char *argv[]) {
         return 1;
       }
     }
-  }
 
+    fputs("ftp > ", stdout);
+    fflush(stdout);
+
+    if (!fgets(cmd, sizeof cmd, stdin)) continue;
+    cmd[strcspn(cmd, "\n")] = 0;
+
+    // parse the command
+    enum request_type req_type = parse_command(cmd);
+    struct request request = {.length = strlen(cmd)};
+    strcpy((char *)request.request, cmd);
+
+    if (req_type == REQ_UNKNOWN) continue;
+
+    // send the request
+    int send_ret = send_request(&request, sockfds.control_sockfd, MSG_DONTWAIT);
+    if (send_ret != ERR_SUCCESS) {
+      logger_log(logger,
+                 ERROR,
+                 "[%s] failed to send request [%s]. reason [%s]",
+                 __func__,
+                 (char *)request.request,
+                 str_err_code(send_ret));
+      continue;
+    }
+
+    logger_log(logger, INFO, "[%s] request [%hu : %s] sent", __func__, request.length, (char *)request.request);
+  } while (!terminate);
+
+end_lbl:
   cleanup(logger, &sockfds);
   close(epollfd);
   return 0;
