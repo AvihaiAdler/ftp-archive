@@ -128,18 +128,21 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    fputs("ftp > ", stdout);
-    fflush(stdout);
+    enum request_type req_type = REQ_UNKNOWN;
+    struct request request = {0};
+    do {
+      fputs("ftp > ", stdout);
+      fflush(stdout);
 
-    if (!fgets(cmd, sizeof cmd, stdin)) continue;
-    cmd[strcspn(cmd, "\n")] = 0;
+      if (!fgets(cmd, sizeof cmd, stdin)) continue;
+      cmd[strcspn(cmd, "\n")] = 0;
 
-    // parse the command
-    enum request_type req_type = parse_command(cmd);
-    struct request request = {.length = strlen(cmd)};
-    strcpy((char *)request.request, cmd);
+      // parse the command
+      req_type = parse_command(cmd);
+      request.length = strlen(cmd);
+      strcpy((char *)request.request, cmd);
 
-    if (req_type == REQ_UNKNOWN) continue;
+    } while (req_type == REQ_UNKNOWN);
 
     // send the request
     int send_ret = send_request(&request, sockfds.control_sockfd, MSG_DONTWAIT);
@@ -154,7 +157,7 @@ int main(int argc, char *argv[]) {
     }
 
     logger_log(logger, INFO, "[%s] request [%hu : %s] sent", __func__, request.length, (char *)request.request);
-  } while (!terminate);
+  } while (!terminate);  // main event loop
 
 end_lbl:
   cleanup(logger, &sockfds);
