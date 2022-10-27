@@ -157,7 +157,7 @@ int receive_data(struct data_block *data, int sockfd, int flags) {
   return ERR_SUCCESS;
 }
 
-const char *str_err_code(int err_code) {
+const char *str_err_code(enum err_codes err_code) {
   switch (err_code) {
     case ERR_SUCCESS:
       return "success";
@@ -173,4 +173,111 @@ const char *str_err_code(int err_code) {
       return "invalid argument/s";
   }
   return "unknown";
+}
+
+const char *str_reply_code(enum reply_codes reply_code) {
+  const char *rply_code_str;
+  switch (reply_code) {
+    case RPLY_DATA_CONN_OPEN_STARTING_TRANSFER:
+      rply_code_str = "data connection already open; transfer starting";
+      break;
+    case RPLY_FILE_OK_OPEN_DATA_CONN:
+      rply_code_str = "file status okay; about to open data connection";
+      break;
+    case RPLY_CMD_OK:
+      rply_code_str = "command okay";
+      break;
+    case RPLY_SERVICE_READY:
+      rply_code_str = "service ready for new user";
+      break;
+    case RPLY_CLOSING_CTRL_CONN:
+      rply_code_str = "service closing control connection";
+      break;
+    case RPLY_DATA_CONN_OPEN_NO_TRANSFER:
+      rply_code_str = "data connection open; no transfer in progress";
+      break;
+    case RPLY_PASSIVE:
+      rply_code_str = "entering passive mode";
+      break;
+    case RPLY_FILE_ACTION_COMPLETE:
+      rply_code_str = "requested file action okay, completed";
+      break;
+    case RPLY_PATHNAME_CREATED:
+      rply_code_str = "created";
+      break;
+    case RPLY_CANNOT_OPEN_DATA_CONN:
+      rply_code_str = "can't open data connection";
+      break;
+    case RPLY_DATA_CONN_CLOSED:
+      rply_code_str = "connection closed; transfer aborted";
+      break;
+    case RPLY_FILE_ACTION_NOT_TAKEN_FILE_BUSY:
+      rply_code_str = "requested file action not taken";
+      break;
+    case RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR:
+      rply_code_str = "requested file action not taken";
+      break;
+    case RPLY_FILE_ACTION_NOT_TAKEN_NOT_ENOUGH_SPACE:
+      rply_code_str = "requested action not taken. insufficient storage space in system";
+      break;
+    case RPLY_CMD_SYNTAX_ERR:
+      rply_code_str = "syntax error, command unrecognized";
+      break;
+    case RPLY_CMD_ARGS_SYNTAX_ERR:
+      rply_code_str = "syntax error in parameters or arguments";
+      break;
+    case RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE:
+      rply_code_str = "requested action not taken. file unavailable ";
+      break;
+    case RPLY_FILE_ACTION_NOT_TAKEN_INVALID_FILENAME:
+      rply_code_str = "requested action not taken. file name not allowed.";
+      break;
+    default:
+      rply_code_str = "unknown";
+      break;
+  }
+  return rply_code_str;
+}
+
+const char *str_request_type(enum request_type request_type) {
+  const char *req_type_str;
+  switch (request_type) {
+    case REQ_PWD:
+      req_type_str = "pwd";
+      break;
+    case REQ_CWD:
+      req_type_str = "cwd";
+      break;
+    case REQ_MKD:
+      req_type_str = "mkd";
+      break;
+    case REQ_RMD:
+      req_type_str = "rmd";
+      break;
+    case REQ_PORT:
+      req_type_str = "port";
+      break;
+    case REQ_PASV:
+      req_type_str = "pasv";
+      break;
+    case REQ_DELE:
+      req_type_str = "dele";
+      break;
+    case REQ_LIST:
+      req_type_str = "list";
+      break;
+    case REQ_RETR:
+      req_type_str = "retr";
+      break;
+    case REQ_STOR:
+      req_type_str = "stor";
+      break;
+    case REQ_QUIT:
+      req_type_str = "quit";
+      break;
+    default:
+      req_type_str = "unknown";
+      break;
+  }
+  return req_type_str;
 }

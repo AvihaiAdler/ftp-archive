@@ -20,17 +20,21 @@ enum reply_codes {
   RPLY_DATA_CONN_OPEN_STARTING_TRANSFER = 125,
   RPLY_FILE_OK_OPEN_DATA_CONN = 150,
   RPLY_CMD_OK = 200,
+  RPLY_SERVICE_READY = 220,
   RPLY_CLOSING_CTRL_CONN = 221,
-  RPLY_DATA_CONN_OPEN = 225,
+  RPLY_DATA_CONN_OPEN_NO_TRANSFER = 225,
   RPLY_PASSIVE = 227,
   RPLY_FILE_ACTION_COMPLETE = 250,
+  RPLY_PATHNAME_CREATED = 257,
   RPLY_CANNOT_OPEN_DATA_CONN = 425,
   RPLY_DATA_CONN_CLOSED = 426,
-  RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR = 450,
-  RPLY_ACTION_INCOMPLETE_LCL_ERROR = 451,
+  RPLY_FILE_ACTION_NOT_TAKEN_FILE_BUSY = 450,
+  RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR = 451,
+  RPLY_FILE_ACTION_NOT_TAKEN_NOT_ENOUGH_SPACE = 452,
   RPLY_CMD_SYNTAX_ERR = 500,
-  RPLY_ARGS_SYNTAX_ERR = 501,
-  RPLY_FILE_ACTION_INCOMPLETE_FILE_UNAVAILABLE = 550
+  RPLY_CMD_ARGS_SYNTAX_ERR = 501,
+  RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE = 550,
+  RPLY_FILE_ACTION_NOT_TAKEN_INVALID_FILENAME = 553,
 };
 
 enum descriptor_codes {
@@ -89,4 +93,10 @@ int send_data(struct data_block *data, int sockfd, int flags);
 int receive_data(struct data_block *data, int sockfd, int flags);
 
 /* converts an enum err_codes to its string representation */
-const char *str_err_code(int err_code);
+const char *str_err_code(enum err_codes err_code);
+
+/* converts an enum reply_codes to its string representation */
+const char *str_reply_code(enum reply_codes reply_code);
+
+/* converts an enum request_type to its string representation */
+const char *str_request_type(enum request_type request_type);
