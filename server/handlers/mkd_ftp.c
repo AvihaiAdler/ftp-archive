@@ -108,7 +108,7 @@ int make_directory(void *arg) {
     send_reply_wrapper(args->remote_fd,
                        args->logger,
                        RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error (%s)",
+                       "[%d] action incomplete. internal process error [%s]",
                        RPLY_ACTION_INCOMPLETE_LCL_ERROR,
                        strerr_safe(err));
     return 1;

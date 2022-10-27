@@ -102,8 +102,9 @@ int delete_file(void *arg) {
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                       "[%d] file action incomplete. internal process error",
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+                       "[%d] file action incomplete. internal process error [%s]",
+                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
+                       strerr_safe(err));
   }
 
   // send feedback
