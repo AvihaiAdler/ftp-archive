@@ -21,17 +21,18 @@ int print_working_directory(void *arg) {
                args->remote_fd);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     return 1;
   }
 
   send_reply_wrapper(session->fds.control_fd,
                      args->logger,
-                     RPLY_CMD_OK,
-                     "[%d] ok. %s/",
-                     RPLY_CMD_OK,
+                     RPLY_PATHNAME_CREATED,
+                     "[%d]. [%s/]",
+                     RPLY_PATHNAME_CREATED,
                      session->context.curr_dir);
 
   logger_log(args->logger,

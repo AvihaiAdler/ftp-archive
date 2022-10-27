@@ -24,9 +24,10 @@ int delete_file(void *arg) {
                args->remote_fd);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     return 1;
   }
   struct session session = {0};
@@ -35,11 +36,12 @@ int delete_file(void *arg) {
 
   // validate file path
   if (!validate_path(args->req_args.request_args, args->logger)) {
-    send_reply_wrapper(args->remote_fd,
+    send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ARGS_SYNTAX_ERR,
-                       "[%d] invalid arguments",
-                       RPLY_ARGS_SYNTAX_ERR);
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       "[%d] %s",
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
     return 1;
   }
 
@@ -56,9 +58,10 @@ int delete_file(void *arg) {
                session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                       "[%d] file action incomplete. internal process error",
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
 
     return 1;
   }
@@ -76,9 +79,10 @@ int delete_file(void *arg) {
                session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                       "[%d] file action incomplete. internal process error",
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       "[%d] %s",
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
 
     return 1;
   }
@@ -101,9 +105,10 @@ int delete_file(void *arg) {
                strerr_safe(err));
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                       "[%d] file action incomplete. internal process error [%s]",
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
+                       RPLY_FILE_ACTION_NOT_TAKEN_FILE_BUSY,
+                       "[%d] %s. [%s]",
+                       RPLY_FILE_ACTION_NOT_TAKEN_FILE_BUSY,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_FILE_BUSY),
                        strerr_safe(err));
   }
 
@@ -119,8 +124,9 @@ int delete_file(void *arg) {
   send_reply_wrapper(session.fds.control_fd,
                      args->logger,
                      RPLY_FILE_ACTION_COMPLETE,
-                     "[%d] file action complete. [%s] has been deleted",
+                     "[%d] %s. [%s] has been deleted",
                      RPLY_FILE_ACTION_COMPLETE,
+                     str_reply_code(RPLY_FILE_ACTION_COMPLETE),
                      args->req_args.request_args);
 
   return 0;

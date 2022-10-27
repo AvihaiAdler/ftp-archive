@@ -23,9 +23,10 @@ int passive(void *arg) {
                args->remote_fd);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     return 1;
   }
 
@@ -54,8 +55,9 @@ int passive(void *arg) {
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_CANNOT_OPEN_DATA_CONN,
-                       "[%d] cannot open passive data connection",
-                       RPLY_CANNOT_OPEN_DATA_CONN);
+                       "[%d] %s",
+                       RPLY_CANNOT_OPEN_DATA_CONN,
+                       str_reply_code(RPLY_CANNOT_OPEN_DATA_CONN));
     return 1;
   }
 
@@ -85,9 +87,10 @@ int passive(void *arg) {
 
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. local process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     return 1;
   }
 
@@ -105,9 +108,10 @@ int passive(void *arg) {
 
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. local process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     return 1;
   }
 
@@ -120,8 +124,9 @@ int passive(void *arg) {
   send_reply_wrapper(session.fds.control_fd,
                      args->logger,
                      RPLY_PASSIVE,
-                     "[%d] passive. %s,%s",
+                     "[%d] %s. (%s,%s)",
                      RPLY_PASSIVE,
+                     str_reply_code(RPLY_PASSIVE),
                      local_ip,
                      pasv_port);
 

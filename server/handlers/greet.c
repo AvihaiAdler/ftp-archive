@@ -21,15 +21,21 @@ int greet(void *arg) {
                args->remote_fd);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "%d action incomplete",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     return 1;
   }
 
   free(tmp_session);
 
   // send a 'ready' reply
-  send_reply_wrapper(args->remote_fd, args->logger, RPLY_CMD_OK, "%d ok. service ready", RPLY_CMD_OK);
+  send_reply_wrapper(args->remote_fd,
+                     args->logger,
+                     RPLY_SERVICE_READY,
+                     "[%d] %s",
+                     RPLY_SERVICE_READY,
+                     str_reply_code(RPLY_SERVICE_READY));
   return 0;
 }

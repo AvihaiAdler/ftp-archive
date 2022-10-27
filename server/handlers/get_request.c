@@ -93,15 +93,16 @@ static void add_task(struct args *args,
                session->context.port);
     send_reply_wrapper(session->fds.control_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
 
     // assume never fails. potential bug if it does
     epoll_ctl(args->epollfd,
               EPOLL_CTL_MOD,
               args->remote_fd,
-              &(struct epoll_event){.events = EPOLLIN | EPOLLET | EPOLLONESHOT, .data.fd = args->remote_fd});
+              &(struct epoll_event){.events = EPOLLIN | EPOLLONESHOT, .data.fd = args->remote_fd});
     return;
   }
 
@@ -161,9 +162,10 @@ int get_request(void *arg) {
                args->remote_fd);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
 
     // possible bug. if the session can't be found args->remote_fd will never rearm
     return 1;
@@ -192,13 +194,14 @@ int get_request(void *arg) {
                strerr_safe(err));
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     epoll_ctl(args->epollfd,
               EPOLL_CTL_MOD,
               args->remote_fd,
-              &(struct epoll_event){.events = EPOLLIN | EPOLLET | EPOLLONESHOT, .data.fd = args->remote_fd});
+              &(struct epoll_event){.events = EPOLLIN | EPOLLONESHOT, .data.fd = args->remote_fd});
     return 1;
   }
 
@@ -227,12 +230,13 @@ int get_request(void *arg) {
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_CMD_SYNTAX_ERR,
-                       "[%d] invalid request",
-                       RPLY_CMD_SYNTAX_ERR);
+                       "[%d] %s",
+                       RPLY_CMD_SYNTAX_ERR,
+                       str_reply_code(RPLY_CMD_SYNTAX_ERR));
     epoll_ctl(args->epollfd,
               EPOLL_CTL_MOD,
               args->remote_fd,
-              &(struct epoll_event){.events = EPOLLIN | EPOLLET | EPOLLONESHOT, .data.fd = args->remote_fd});
+              &(struct epoll_event){.events = EPOLLIN | EPOLLONESHOT, .data.fd = args->remote_fd});
     return 1;
   }
 
@@ -250,12 +254,13 @@ int get_request(void *arg) {
       send_reply_wrapper(session.fds.control_fd,
                          args->logger,
                          RPLY_DATA_CONN_CLOSED,
-                         "[%d] data connection closed",
-                         RPLY_DATA_CONN_CLOSED);
+                         "[%d] %s",
+                         RPLY_DATA_CONN_CLOSED,
+                         str_reply_code(RPLY_DATA_CONN_CLOSED));
       epoll_ctl(args->epollfd,
                 EPOLL_CTL_MOD,
                 args->remote_fd,
-                &(struct epoll_event){.events = EPOLLIN | EPOLLET | EPOLLONESHOT, .data.fd = args->remote_fd});
+                &(struct epoll_event){.events = EPOLLIN | EPOLLONESHOT, .data.fd = args->remote_fd});
       return 1;
     }
 
@@ -284,13 +289,14 @@ int get_request(void *arg) {
                  session.fds.control_fd);
       send_reply_wrapper(session.fds.control_fd,
                          args->logger,
-                         RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                         "[%d] action incomplete. internal error",
-                         RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                         RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                         "[%d] %s",
+                         RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                         str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
       epoll_ctl(args->epollfd,
                 EPOLL_CTL_MOD,
                 args->remote_fd,
-                &(struct epoll_event){.events = EPOLLIN | EPOLLET | EPOLLONESHOT, .data.fd = args->remote_fd});
+                &(struct epoll_event){.events = EPOLLIN | EPOLLONESHOT, .data.fd = args->remote_fd});
       close(session.fds.data_fd);  // close data socket
       return 1;
     }

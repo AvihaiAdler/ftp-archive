@@ -24,9 +24,10 @@ int make_directory(void *arg) {
                args->remote_fd);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     return 1;
   }
   struct session session = {0};
@@ -43,11 +44,12 @@ int make_directory(void *arg) {
                __func__,
                session.context.ip,
                session.context.port);
-    send_reply_wrapper(args->remote_fd,
+    send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ARGS_SYNTAX_ERR,
-                       "[%d] invalid arguments",
-                       RPLY_ARGS_SYNTAX_ERR);
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       "[%d] %s",
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
     return 1;
   }
 
@@ -64,9 +66,10 @@ int make_directory(void *arg) {
                session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                       "[%d] file action incomplete. internal process error",
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       "[%d] %s",
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
 
     return 1;
   }
@@ -84,9 +87,10 @@ int make_directory(void *arg) {
                session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                       "[%d] file action incomplete. internal process error",
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       "[%d] %s",
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
 
     return 1;
   }
@@ -107,10 +111,10 @@ int make_directory(void *arg) {
                strerr_safe(err));
     send_reply_wrapper(args->remote_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error [%s]",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       strerr_safe(err));
+                       RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE));
     return 1;
   }
 
@@ -126,10 +130,11 @@ int make_directory(void *arg) {
   // there shouldn't be a possibilty for strstr to return NULL
   send_reply_wrapper(session.fds.control_fd,
                      args->logger,
-                     RPLY_CMD_OK,
-                     "[%d] ok. [%s]",
-                     RPLY_CMD_OK,
-                     args->req_args.request_args);
+                     RPLY_PATHNAME_CREATED,
+                     "[%d] [%s] %s",
+                     RPLY_PATHNAME_CREATED,
+                     args->req_args.request_args,
+                     str_reply_code(RPLY_PATHNAME_CREATED));
 
   return 0;
 }

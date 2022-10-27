@@ -36,9 +36,10 @@ int list(void *arg) {
                args->remote_fd);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     return 1;
   }
   struct session session = {0};
@@ -57,28 +58,21 @@ int list(void *arg) {
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_DATA_CONN_CLOSED,
-                       "[%d] data connection closed",
-                       RPLY_DATA_CONN_CLOSED);
+                       "[%d] %s",
+                       RPLY_DATA_CONN_CLOSED,
+                       str_reply_code(RPLY_DATA_CONN_CLOSED));
     return 1;
   }
 
   // get the directory path
   const char *dir_name = args->req_args.request_args;
   if (dir_name && !validate_path(dir_name, args->logger)) {
-    logger_log(args->logger,
-               ERROR,
-               "[%lu] [%s] [%s:%s] invalid path [%s]",
-               thrd_current(),
-               __func__,
-               session.context.ip,
-               session.context.port,
-               dir_name);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ARGS_SYNTAX_ERR,
-                       "[%d] invalid path [%s]",
-                       RPLY_ARGS_SYNTAX_ERR,
-                       dir_name);
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       "[%d] %s",
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
 
     return 1;
   }
@@ -98,9 +92,10 @@ int list(void *arg) {
                session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                       "[%d] file action incomplete. internal process error",
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       "[%d] %s",
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
 
     return 1;
   }
@@ -118,9 +113,10 @@ int list(void *arg) {
                session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                       "[%d] file action incomplete. internal process error",
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
 
     return 1;
   }
@@ -143,18 +139,19 @@ int list(void *arg) {
                dir_name);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ARGS_SYNTAX_ERR,
-                       "[%d] invalid path [%s]",
-                       RPLY_ARGS_SYNTAX_ERR,
-                       dir_name);
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       "[%d] %s",
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
     return 1;
   }
 
   send_reply_wrapper(session.fds.control_fd,
                      args->logger,
                      RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
-                     "[%d] data connection open. begin transfer",
-                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER);
+                     "[%d] %s",
+                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
+                     str_reply_code(RPLY_DATA_CONN_OPEN_STARTING_TRANSFER));
 
   // get the fd of the directory
   int dir_fd = dirfd(dir);
@@ -228,9 +225,10 @@ int list(void *arg) {
                  str_err_code(send_ret));
       send_reply_wrapper(session.fds.control_fd,
                          args->logger,
-                         RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                         "[%d] action incomplete",
-                         RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+                         RPLY_DATA_CONN_CLOSED,
+                         "[%d] %s",
+                         RPLY_DATA_CONN_CLOSED,
+                         str_reply_code(RPLY_DATA_CONN_CLOSED));
       successful_trasnfer = false;
       break;
     }
@@ -248,8 +246,9 @@ int list(void *arg) {
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_FILE_ACTION_COMPLETE,
-                       "[%d] file action complete. successful transfer",
-                       RPLY_FILE_ACTION_COMPLETE);
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_COMPLETE,
+                       str_reply_code(RPLY_FILE_ACTION_COMPLETE));
   }
 
   return 0;

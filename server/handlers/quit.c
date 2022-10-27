@@ -16,6 +16,13 @@ int quit(void *arg) {
                thrd_current(),
                __func__,
                args->remote_fd);
+
+    send_reply_wrapper(args->remote_fd,
+                       args->logger,
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     return 1;
   }
 
@@ -36,8 +43,9 @@ int quit(void *arg) {
   send_reply_wrapper(args->remote_fd,
                      args->logger,
                      RPLY_CLOSING_CTRL_CONN,
-                     "[%d] closing control connection",
-                     RPLY_CLOSING_CTRL_CONN);
+                     "[%d] %s",
+                     RPLY_CLOSING_CTRL_CONN,
+                     str_reply_code(RPLY_CLOSING_CTRL_CONN));
 
   close_session(args->sessions, args->remote_fd);
   return 0;

@@ -22,9 +22,10 @@ int port(void *arg) {
                args->remote_fd);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     return 1;
   }
 
@@ -45,11 +46,12 @@ int port(void *arg) {
                tmp_session->context.ip,
                tmp_session->context.port,
                args->req_args.request_args);
-    send_reply_wrapper(args->remote_fd,
+    send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ARGS_SYNTAX_ERR,
-                       "[%d] invalid request. syntax error",
-                       RPLY_ARGS_SYNTAX_ERR);
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       "[%d] %s",
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
     return 1;
   }
 
@@ -69,11 +71,13 @@ int port(void *arg) {
                __func__,
                tmp_session->context.ip,
                tmp_session->context.port);
-    send_reply_wrapper(args->remote_fd,
+
+    send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_CANNOT_OPEN_DATA_CONN,
-                       "[%d] couldn't open data connection",
-                       RPLY_CANNOT_OPEN_DATA_CONN);
+                       "[%d] %s",
+                       RPLY_CANNOT_OPEN_DATA_CONN,
+                       str_reply_code(RPLY_CANNOT_OPEN_DATA_CONN));
     return 1;
   }
 
@@ -99,11 +103,12 @@ int port(void *arg) {
                __func__,
                tmp_session->context.ip,
                tmp_session->context.port);
-    send_reply_wrapper(args->remote_fd,
+    send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. local process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     return 1;
   }
 
@@ -115,11 +120,7 @@ int port(void *arg) {
              __func__,
              tmp_session->context.ip,
              tmp_session->context.port);
-  send_reply_wrapper(args->remote_fd,
-                     args->logger,
-                     RPLY_CMD_OK,
-                     "[%d] action complete. ACTIVE mode enabled",
-                     RPLY_CMD_OK);
+  send_reply_wrapper(args->remote_fd, args->logger, RPLY_CMD_OK, "[%d] %s", RPLY_CMD_OK, str_reply_code(RPLY_CMD_OK));
 
   return 0;
 }

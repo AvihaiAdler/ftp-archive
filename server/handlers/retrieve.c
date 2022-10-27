@@ -23,9 +23,10 @@ int retrieve_file(void *arg) {
                args->remote_fd);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     return 1;
   }
   struct session session = {0};
@@ -44,27 +45,20 @@ int retrieve_file(void *arg) {
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_DATA_CONN_CLOSED,
-                       "[%d] data connection closed",
-                       RPLY_DATA_CONN_CLOSED);
+                       "[%d] %s",
+                       RPLY_DATA_CONN_CLOSED,
+                       str_reply_code(RPLY_DATA_CONN_CLOSED));
     return 1;
   }
 
   // validate the file path
   if (!validate_path(args->req_args.request_args, args->logger)) {
-    logger_log(args->logger,
-               ERROR,
-               "[%lu] [%s] [%s:%s] invalid path [%s]",
-               thrd_current(),
-               __func__,
-               session.context.ip,
-               session.context.port,
-               args->req_args.request_args);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ARGS_SYNTAX_ERR,
-                       "[%d] invalid path [%s]",
-                       RPLY_ARGS_SYNTAX_ERR,
-                       args->req_args.request_args);
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       "[%d] %s",
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
 
     return 1;
   }
@@ -82,9 +76,10 @@ int retrieve_file(void *arg) {
                session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                       "[%d] file action incomplete. internal process error",
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       "[%d] %s",
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
 
     return 1;
   }
@@ -102,9 +97,10 @@ int retrieve_file(void *arg) {
                session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                       "[%d] file action incomplete. internal process error",
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+                       RPLY_CMD_SYNTAX_ERR,
+                       "[%d] %s",
+                       RPLY_CMD_SYNTAX_ERR,
+                       str_reply_code(RPLY_CMD_SYNTAX_ERR));
 
     return 1;
   }
@@ -126,10 +122,10 @@ int retrieve_file(void *arg) {
                path);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_FILE_ACTION_INCOMPLETE_FILE_UNAVAILABLE,
-                       "[%d] invalid path [%s]",
-                       RPLY_FILE_ACTION_INCOMPLETE_FILE_UNAVAILABLE,
-                       args->req_args.request_args);
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       "[%d] %s",
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
 
     return 1;
   }
@@ -147,9 +143,10 @@ int retrieve_file(void *arg) {
                path);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                       "[%d] file action incomplete. internal process error",
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     return 1;
   }
 
@@ -157,8 +154,9 @@ int retrieve_file(void *arg) {
   send_reply_wrapper(session.fds.control_fd,
                      args->logger,
                      RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
-                     "[%d] data connection open. starting transfer of %Lf%s",
+                     "[%d] %s. %Lf%s",
                      RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
+                     str_reply_code(RPLY_DATA_CONN_OPEN_STARTING_TRANSFER),
                      file_size.size,
                      file_size.units);
 
@@ -203,8 +201,9 @@ int retrieve_file(void *arg) {
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_FILE_ACTION_COMPLETE,
-                       "[%d] action complete",
-                       RPLY_FILE_ACTION_COMPLETE);
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_COMPLETE,
+                       str_reply_code(RPLY_FILE_ACTION_COMPLETE));
   } else {
     logger_log(args->logger,
                ERROR,
@@ -215,9 +214,10 @@ int retrieve_file(void *arg) {
                session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                       "[%d] action incomplete. local process error",
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
   }
 
   return 0;

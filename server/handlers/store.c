@@ -23,9 +23,10 @@ int store_file(void *arg) {
                args->remote_fd);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     return 1;
   }
   struct session session = {0};
@@ -44,27 +45,20 @@ int store_file(void *arg) {
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_DATA_CONN_CLOSED,
-                       "[%d] data connection closed",
-                       RPLY_DATA_CONN_CLOSED);
+                       "[%d] %s",
+                       RPLY_DATA_CONN_CLOSED,
+                       str_reply_code(RPLY_DATA_CONN_CLOSED));
     return 1;
   }
 
   // validate file path
   if (!validate_path(args->req_args.request_args, args->logger)) {
-    logger_log(args->logger,
-               ERROR,
-               "[%lu] [%s] [%s:%s] invalid path [%s]",
-               thrd_current(),
-               __func__,
-               session.context.ip,
-               session.context.port,
-               args->req_args.request_args);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ARGS_SYNTAX_ERR,
-                       "[%d] invalid path [%s]",
-                       RPLY_ARGS_SYNTAX_ERR,
-                       args->req_args.request_args);
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       "[%d] %s",
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
 
     return 1;
   }
@@ -93,10 +87,10 @@ int store_file(void *arg) {
                args->req_args.request_args);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ARGS_SYNTAX_ERR,
-                       "[%d] invalid path [%s]",
-                       RPLY_ARGS_SYNTAX_ERR,
-                       args->req_args.request_args);
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       "[%d] %s",
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
   }
 
   // get the size of the file path. file name is unique and 'hidden'
@@ -120,9 +114,10 @@ int store_file(void *arg) {
                session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
   }
 
   // get the file path
@@ -138,9 +133,10 @@ int store_file(void *arg) {
                session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     if (tmp_file) free(tmp_file);
 
     return 1;
@@ -167,9 +163,10 @@ int store_file(void *arg) {
                tmp_file);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. local process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       "[%d] %s",
+                       RPLY_CMD_ARGS_SYNTAX_ERR,
+                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
     free(tmp_file);
     free(final_file);
 
@@ -179,8 +176,9 @@ int store_file(void *arg) {
   send_reply_wrapper(session.fds.control_fd,
                      args->logger,
                      RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
-                     "[%d] data connection open. begin transfer",
-                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER);
+                     "[%d] %s",
+                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
+                     str_reply_code(RPLY_DATA_CONN_OPEN_STARTING_TRANSFER));
 
   // write into the file
   // read the file and send it
@@ -218,9 +216,10 @@ int store_file(void *arg) {
                tmp_file);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. local process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
 
     unlink(tmp_file);
     free(tmp_file);
@@ -242,8 +241,9 @@ int store_file(void *arg) {
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
                        RPLY_FILE_ACTION_COMPLETE,
-                       "[%d] action complete",
-                       RPLY_FILE_ACTION_COMPLETE);
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_COMPLETE,
+                       str_reply_code(RPLY_FILE_ACTION_COMPLETE));
   } else {
     logger_log(args->logger,
                ERROR,
@@ -254,9 +254,10 @@ int store_file(void *arg) {
                session.context.port);
     send_reply_wrapper(session.fds.control_fd,
                        args->logger,
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR,
-                       "[%d] action incomplete. local process error",
-                       RPLY_FILE_ACTION_INCOMPLETE_PROCESS_ERR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
   }
   free(tmp_file);
   free(final_file);

@@ -24,9 +24,10 @@ int change_directory(void *arg) {
                args->remote_fd);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     return 1;
   }
   struct session session = {0};
@@ -39,9 +40,10 @@ int change_directory(void *arg) {
     if (!validate_path(args->req_args.request_args, args->logger)) {
       send_reply_wrapper(args->remote_fd,
                          args->logger,
-                         RPLY_ARGS_SYNTAX_ERR,
-                         "[%d] invalid arguments",
-                         RPLY_ARGS_SYNTAX_ERR);
+                         RPLY_CMD_ARGS_SYNTAX_ERR,
+                         "[%d] %s",
+                         RPLY_CMD_ARGS_SYNTAX_ERR,
+                         str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
       return 1;
     }
 
@@ -59,9 +61,10 @@ int change_directory(void *arg) {
                  session.context.port);
       send_reply_wrapper(args->remote_fd,
                          args->logger,
-                         RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                         "[%d] action incomplete. internal process error (path too long)",
-                         RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                         RPLY_CMD_SYNTAX_ERR,
+                         "[%d] %s",
+                         RPLY_CMD_SYNTAX_ERR,
+                         str_reply_code(RPLY_CMD_SYNTAX_ERR));
       return 1;
     }
 
@@ -79,9 +82,10 @@ int change_directory(void *arg) {
                  tmp_path);
       send_reply_wrapper(args->remote_fd,
                          args->logger,
-                         RPLY_ARGS_SYNTAX_ERR,
-                         "[%d] action incomplete. internal process error (invalid path)",
-                         RPLY_ARGS_SYNTAX_ERR);
+                         RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE,
+                         "[%d] %s",
+                         RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE,
+                         str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE));
       return 1;
     }
     close(ret);
@@ -94,17 +98,19 @@ int change_directory(void *arg) {
   if (!update_session(args->sessions, args->logger, &session)) {
     send_reply_wrapper(args->remote_fd,
                        args->logger,
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR,
-                       "[%d] action incomplete. internal process error",
-                       RPLY_ACTION_INCOMPLETE_LCL_ERROR);
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       "[%d] %s",
+                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     return 1;
   }
 
   send_reply_wrapper(session.fds.control_fd,
                      args->logger,
-                     RPLY_CMD_OK,
-                     "[%d] ok. [%s]",
-                     RPLY_CMD_OK,
+                     RPLY_FILE_ACTION_COMPLETE,
+                     "[%d] %s [%s]",
+                     RPLY_FILE_ACTION_COMPLETE,
+                     str_reply_code(RPLY_FILE_ACTION_COMPLETE),
                      *session.context.curr_dir ? session.context.curr_dir : "/");
   logger_log(args->logger,
              INFO,
