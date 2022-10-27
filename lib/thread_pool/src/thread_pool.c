@@ -11,7 +11,14 @@ static int thread_func_wrapper(void *arg) {
   while (!atomic_load(&thread_args->self->terminate)) {
     mtx_lock(thread_args->tasks_mtx);  // assumes never fails
     // there're no tasks
-    if (list_size(thread_args->tasks) == 0) cnd_wait(thread_args->tasks_cnd, thread_args->tasks_mtx);
+    if (list_size(thread_args->tasks) == 0) {
+      cnd_wait(thread_args->tasks_cnd, thread_args->tasks_mtx);
+
+      if (atomic_load(&thread_args->self->terminate)) {
+        mtx_unlock(thread_args->tasks_mtx);
+        goto end_lbl;
+      }
+    }
 
     struct task *task = list_remove_first(thread_args->tasks);
 
@@ -19,10 +26,6 @@ static int thread_func_wrapper(void *arg) {
 
     // handle the task
     // as long as task is valid the thread shouldn't stop
-    if (atomic_load(&thread_args->self->terminate)) {
-      if (task) free(task);
-      break;
-    }
 
     if (task) {
       if (task->handle_task) task->handle_task(task->args);
@@ -31,6 +34,7 @@ static int thread_func_wrapper(void *arg) {
     }
   }
 
+end_lbl:
   free(thread_args);
 
   return 0;
