@@ -39,9 +39,13 @@ struct server_fds {
 
 static atomic_bool terminate;
 
-static void signal_handler(int signum) {
+static void sigint_handler(int signum) {
   (void)signum;
   atomic_store(&terminate, true);
+}
+
+static void sigpipe_handler(int signum) {
+  (void)signum;
 }
 
 int main(int argc, char *argv[]) {
@@ -107,8 +111,14 @@ int main(int argc, char *argv[]) {
   logger_log(logger, INFO, "[%s] server root directory obtained", __func__);
 
   // install a signal handler (must be invoked prior to the creation of the thread pool due to the sigprocmask() call)
-  if (!install_sig_handler(SIGINT, signal_handler)) {
-    logger_log(logger, ERROR, "[%s] failed to create a signal handler", __func__);
+  if (!install_sig_handler(SIGINT, sigint_handler)) {
+    logger_log(logger, ERROR, "[%s] failed to create a sigint handler", __func__);
+    cleanup(properties, logger, NULL, NULL, NULL);
+    return 1;
+  }
+
+  if (!install_sig_handler(SIGPIPE, sigpipe_handler)) {
+    logger_log(logger, ERROR, "[%s] failed to create a sigpipe handler", __func__);
     cleanup(properties, logger, NULL, NULL, NULL);
     return 1;
   }
