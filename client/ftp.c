@@ -52,14 +52,16 @@ int main(int argc, char *argv[]) {
   char local_ip[INET6_ADDRSTRLEN];
   char local_port[NI_MAXSERV];
   get_ip_and_port(sockfds.control_sockfd, local_ip, sizeof local_ip, local_port, sizeof local_port);
-  logger_log(logger, INFO, "[%s] local port: %s", __func__, local_port);
+  logger_log(logger, INFO, "[%s] local address: [%s:%s]", __func__, local_ip, local_port);
 
   sockfds.passive_sockfd = get_passive_socket(logger, local_port);
   if (sockfds.passive_sockfd == -1) {
-    logger_log(logger, ERROR, "[%s] couldn't get a passive socket for port [%s]", __func__, port);
+    logger_log(logger, ERROR, "[%s] couldn't get a passive socket for port [%s]", __func__, local_port);
     cleanup(logger, &sockfds);
     return 1;
   }
+  get_ip_and_port(sockfds.passive_sockfd, local_ip, sizeof local_ip, local_port, sizeof local_port);
+  logger_log(logger, INFO, "[%s] local (passive) address: [%s:%s]", __func__, local_ip, local_port);
 
   int epollfd = epoll_create1(0);
   if (epollfd == -1) {
@@ -89,6 +91,8 @@ int main(int argc, char *argv[]) {
       continue;
     }
 
+    enum request_type req_type = REQ_UNKNOWN;
+    struct request request = {0};
     for (size_t i = 0; event_count > 0 && i < epoll_events_size; i++) {
       event_count--;
       if (epoll_events[i].events & EPOLLIN) {
@@ -118,7 +122,11 @@ int main(int argc, char *argv[]) {
 
           fprintf(stdout, "%s\n", reply.reply);
 
-          if (reply.code == RPLY_CLOSING_CTRL_CONN) { goto end_lbl; }
+          if (reply.code == RPLY_CLOSING_CTRL_CONN) {
+            goto end_lbl;
+          } else if (reply.code == RPLY_DATA_CONN_OPEN_STARTING_TRANSFER) {
+            perform_file_operation(logger, sockfds.data_sockfd, req_type, &request);
+          }
         }
       } else if (epoll_events[i].events & EPOLLERR) {
         logger_log(logger, ERROR, "[%s] encountered an error whill polling. shutting down", __func__);
@@ -128,8 +136,6 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    enum request_type req_type = REQ_UNKNOWN;
-    struct request request = {0};
     do {
       fputs("ftp > ", stdout);
       fflush(stdout);

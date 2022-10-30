@@ -24,3 +24,5 @@ bool install_sig_handler(int signum, void (*handler)(int signum));
 void get_ip_and_port(int sockfd, char *ip, size_t ip_size, char *port, size_t port_size);
 
 enum request_type parse_command(char *cmd);
+
+void perform_file_operation(struct logger *logger, int sockfd, enum request_type req_type, struct request *request);
