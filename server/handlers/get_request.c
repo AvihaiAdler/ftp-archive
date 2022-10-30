@@ -155,11 +155,9 @@ int get_request(void *arg) {
   if (!tmp_session) {
     logger_log(args->logger,
                ERROR,
-               "[%lu] [%s] [%s:%s] failed to find the session for fd [%d]",
+               "[%lu] [%s] failed to find the session for fd [%d]",
                thrd_current(),
                __func__,
-               tmp_session->context.ip,
-               tmp_session->context.port,
                args->remote_fd);
     send_reply_wrapper(args->remote_fd,
                        args->logger,
