@@ -23,7 +23,7 @@ set(
 )
 
 add_executable(ftpd ${SERVER} ${HANDLERS})
-target_compile_options(ftpd PRIVATE -Wall -Wextra -pedantic -g)
+target_compile_options(ftpd PRIVATE -Wall -Wextra -pedantic -g -D_XOPEN_SOURCE=700 -D_DEFAULT_SOURCE)
 # target_link_options(ftpd PRIVATE -fsanitize=address,undefined)
 target_include_directories(ftpd PRIVATE .)
 set_target_properties(ftpd 

@@ -1,5 +1,3 @@
-#define _XOPEN_SOURCE 700
-#define _DEFAULT_SOURCE
 #include "include/util.h"
 #include <ctype.h>
 #include <errno.h>

@@ -61,6 +61,7 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "[%s] properties file doens't exists or isn't valid\n", __func__);
     return 1;
   }
+  fprintf(stdout, "[%s] properties initialized successfully\n", __func__);
 
   // init logger
   struct logger *logger = logger_init(table_get(properties, LOG_FILE, strlen(LOG_FILE)));
@@ -70,7 +71,7 @@ int main(int argc, char *argv[]) {
     goto properties_cleanup;
   }
 
-  logger_log(logger, INFO, "[%s] logger initiated successfuly", __func__);
+  logger_log(logger, INFO, "[%s] logger initialized successfuly", __func__);
 
   const char *data_port = table_get(properties, DATA_PORT, strlen(DATA_PORT));
   if (!data_port) {
@@ -221,7 +222,7 @@ int main(int argc, char *argv[]) {
     goto thread_pool_cleanup;
   }
 
-  logger_log(logger, INFO, "[%s] sessions initiated successfully", __func__);
+  logger_log(logger, INFO, "[%s] sessions initialized successfully", __func__);
 
   struct vector *epoll_events = vector_init(sizeof(struct epoll_event));
   if (!epoll_events) {
@@ -232,7 +233,7 @@ int main(int argc, char *argv[]) {
     goto sessions_cleanup;
   }
 
-  logger_log(logger, INFO, "[%s] epoll_events oinitiated successfully", __func__);
+  logger_log(logger, INFO, "[%s] epoll_events initialized successfully", __func__);
   vector_resize(epoll_events, num_of_threads);
 
   int epollfd = epoll_create1(0);
@@ -483,7 +484,7 @@ int main(int argc, char *argv[]) {
     }  // events loop
   }    // main server loop
 
-  logger_log(logger, INFO, "[%s] shutting down", __func__);
+  logger_log(logger, INFO, "[%s] shutting down. closing server fds", __func__);
   close(server_fds.listen_sockfd);
   close(server_fds.event_fd);
   close(epollfd);
