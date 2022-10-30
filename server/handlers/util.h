@@ -39,10 +39,16 @@ bool validate_path(const char *file_name, struct logger *logger);
 
 const char *trim_str(const char *str);
 
-void send_reply_wrapper(int sockfd, struct logger *logger, enum reply_codes reply_code, const char *fmt, ...);
+enum err_codes send_reply_wrapper(int sockfd, struct logger *logger, enum reply_codes reply_code, const char *fmt, ...);
 
 char *tolower_str(char *str, size_t len);
 
 struct file_size get_file_size(off_t size_in_bytes);
 
 bool get_path(struct session *session, char *path, size_t path_size);
+
+void handle_reply_err(struct logger *logger,
+                      struct vector_s *sessions,
+                      struct session *session,
+                      int epollfd,
+                      enum err_codes err);

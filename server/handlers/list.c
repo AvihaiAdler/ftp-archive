@@ -55,24 +55,26 @@ int list(void *arg) {
                __func__,
                session.context.ip,
                session.context.port);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_DATA_CONN_CLOSED,
-                       "[%d] %s",
-                       RPLY_DATA_CONN_CLOSED,
-                       str_reply_code(RPLY_DATA_CONN_CLOSED));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_DATA_CONN_CLOSED,
+                                                 "[%d] %s",
+                                                 RPLY_DATA_CONN_CLOSED,
+                                                 str_reply_code(RPLY_DATA_CONN_CLOSED));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
     return 1;
   }
 
   // get the directory path
   const char *dir_name = args->req_args.request_args;
   if (dir_name && !validate_path(dir_name, args->logger)) {
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       "[%d] %s",
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 "[%d] %s",
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
     return 1;
   }
@@ -90,12 +92,13 @@ int list(void *arg) {
                __func__,
                session.context.ip,
                session.context.port);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       "[%d] %s",
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 "[%d] %s",
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
     return 1;
   }
@@ -111,12 +114,13 @@ int list(void *arg) {
                __func__,
                session.context.ip,
                session.context.port);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       "[%d] %s",
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 "[%d] %s",
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
     return 1;
   }
@@ -137,21 +141,23 @@ int list(void *arg) {
                session.context.ip,
                session.context.port,
                dir_name);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       "[%d] %s",
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 "[%d] %s",
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
     return 1;
   }
 
-  send_reply_wrapper(session.fds.control_fd,
-                     args->logger,
-                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
-                     "[%d] %s",
-                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
-                     str_reply_code(RPLY_DATA_CONN_OPEN_STARTING_TRANSFER));
+  enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                               args->logger,
+                                               RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
+                                               "[%d] %s",
+                                               RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
+                                               str_reply_code(RPLY_DATA_CONN_OPEN_STARTING_TRANSFER));
+  handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
   // get the fd of the directory
   int dir_fd = dirfd(dir);
@@ -223,12 +229,13 @@ int list(void *arg) {
                  session.context.ip,
                  session.context.port,
                  str_err_code(send_ret));
-      send_reply_wrapper(session.fds.control_fd,
-                         args->logger,
-                         RPLY_DATA_CONN_CLOSED,
-                         "[%d] %s",
-                         RPLY_DATA_CONN_CLOSED,
-                         str_reply_code(RPLY_DATA_CONN_CLOSED));
+      enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                   args->logger,
+                                                   RPLY_DATA_CONN_CLOSED,
+                                                   "[%d] %s",
+                                                   RPLY_DATA_CONN_CLOSED,
+                                                   str_reply_code(RPLY_DATA_CONN_CLOSED));
+      handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
       successful_trasnfer = false;
       break;
     }
@@ -243,12 +250,13 @@ int list(void *arg) {
                __func__,
                session.context.ip,
                session.context.port);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_FILE_ACTION_COMPLETE,
-                       "[%d] %s",
-                       RPLY_FILE_ACTION_COMPLETE,
-                       str_reply_code(RPLY_FILE_ACTION_COMPLETE));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_FILE_ACTION_COMPLETE,
+                                                 "[%d] %s",
+                                                 RPLY_FILE_ACTION_COMPLETE,
+                                                 str_reply_code(RPLY_FILE_ACTION_COMPLETE));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
   }
 
   return 0;

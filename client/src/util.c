@@ -1,6 +1,7 @@
 #define _XOPEN_SOURCE 700
 #include "include/util.h"
 #include <ctype.h>
+#include <errno.h>
 #include <limits.h>
 #include <netdb.h>   // getaddrinfo, getnameinfo
 #include <signal.h>  // sigaction, sigset, sigemptyset, sigaddset, sigprocmask
@@ -96,9 +97,12 @@ int get_passive_socket(struct logger *logger, const char *port) {
     sockfd = socket(available->ai_family, available->ai_socktype, available->ai_protocol);
     if (sockfd == -1) continue;
 
-    // maynot be needed. the server should know the address of the client (we're creating a socket for the same port we
+    int val = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof val) == -1) continue;
+
+    // may not be needed. the server should know the address of the client (we're creating a socket for the same port we
     // used to connet() with)
-    // if (bind(sockfd, available->ai_addr, available->ai_addrlen) == -1) continue;
+    if (bind(sockfd, available->ai_addr, available->ai_addrlen) == -1) continue;
     if (listen(sockfd, 1) == 0) {
       success = true;
     } else {
@@ -186,4 +190,114 @@ enum request_type parse_command(char *cmd) {
       break;
   }
   return REQ_UNKNOWN;
+}
+
+void perform_file_operation(struct logger *logger, int sockfd, enum request_type req_type, struct request *request) {
+  if (!logger) return;
+
+  if (req_type == REQ_UNKNOWN) {
+    logger_log(logger, ERROR, "[%s] unknown request", __func__);
+    return;
+  }
+
+  if (!request) {
+    logger_log(logger, ERROR, "[%s] request may not be NULL", __func__);
+    return;
+  }
+
+  struct data_block data = {0};
+  switch (req_type) {
+    case REQ_LIST:
+      do {
+        int recv_ret = receive_data(&data, sockfd, MSG_DONTWAIT);
+        if (recv_ret != ERR_SUCCESS) {
+          logger_log(logger,
+                     ERROR,
+                     "[%s] encountered an error while recieveing data. reason: [%s]",
+                     __func__,
+                     str_err_code(recv_ret));
+          break;
+        }
+      } while (data.descriptor != DESCPTR_EOF);
+      break;
+    case REQ_RETR:
+      break;
+    case REQ_STOR:
+      break;
+    default:
+      break;
+  }
+}
+
+static const char *strerr_safe(int err) {
+  const char *err_str = NULL;
+  switch (err) {
+    case EACCES:
+      err_str = "permission denied";
+      break;
+    case EAGAIN:
+      err_str = "resource temporarily unavailable";
+      break;
+    case EBADF:
+      err_str = "bad file descriptor";
+      break;
+    case EBUSY:
+      err_str = "device or resource busy";
+      break;
+    case EDQUOT:
+      err_str = "EDQUOT";
+      break;
+    case EEXIST:
+      err_str = "file exists";
+      break;
+    case EFAULT:
+      err_str = "bad address";
+      break;
+    case EINVAL:
+      err_str = "invalid argument";
+      break;
+    case EINTR:
+      err_str = "signal recieved before requested event";
+      break;
+    case EISDIR:
+      err_str = "is a directory";
+      break;
+    case EIO:
+      err_str = "an I/O error occurred";
+      break;
+    case ELOOP:
+      err_str = "too many levels of symbolic links";
+      break;
+    case EMLINK:
+      err_str = "too many links";
+      break;
+    case ENAMETOOLONG:
+      err_str = "filename too long";
+      break;
+    case ENONET:
+      err_str = "no such file or directory";
+      break;
+    case ENOMEM:
+      err_str = "not enough space";
+      break;
+    case ENOSPC:
+      err_str = "no space left on device";
+      break;
+    case ENOTDIR:
+      err_str = "not a directory or a symbolic link to a directory";
+      break;
+    case ENOTEMPTY:
+      err_str = "The path argument names a directory that is not an empty directory";
+      break;
+    case EPERM:
+      err_str = "operation not permitted";
+      break;
+    case EROFS:
+      err_str = "read-only file system";
+      break;
+    default:
+      err_str = "other";
+      break;
+  }
+  return err_str;
 }

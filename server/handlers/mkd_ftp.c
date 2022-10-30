@@ -44,12 +44,13 @@ int make_directory(void *arg) {
                __func__,
                session.context.ip,
                session.context.port);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       "[%d] %s",
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 "[%d] %s",
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
     return 1;
   }
 
@@ -64,12 +65,13 @@ int make_directory(void *arg) {
                __func__,
                session.context.ip,
                session.context.port);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       "[%d] %s",
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 "[%d] %s",
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
     return 1;
   }
@@ -85,12 +87,13 @@ int make_directory(void *arg) {
                __func__,
                session.context.ip,
                session.context.port);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       "[%d] %s",
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 "[%d] %s",
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
     return 1;
   }
@@ -109,12 +112,13 @@ int make_directory(void *arg) {
                session.context.ip,
                session.context.port,
                strerr_safe(err));
-    send_reply_wrapper(args->remote_fd,
-                       args->logger,
-                       RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE,
-                       "[%d] %s",
-                       RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE,
-                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE));
+    enum err_codes err_code = send_reply_wrapper(args->remote_fd,
+                                                 args->logger,
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE,
+                                                 "[%d] %s",
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE,
+                                                 str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
     return 1;
   }
 
@@ -128,13 +132,14 @@ int make_directory(void *arg) {
              path);
 
   // there shouldn't be a possibilty for strstr to return NULL
-  send_reply_wrapper(session.fds.control_fd,
-                     args->logger,
-                     RPLY_PATHNAME_CREATED,
-                     "[%d] [%s] %s",
-                     RPLY_PATHNAME_CREATED,
-                     args->req_args.request_args,
-                     str_reply_code(RPLY_PATHNAME_CREATED));
+  enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                               args->logger,
+                                               RPLY_PATHNAME_CREATED,
+                                               "[%d] [%s] %s",
+                                               RPLY_PATHNAME_CREATED,
+                                               args->req_args.request_args,
+                                               str_reply_code(RPLY_PATHNAME_CREATED));
+  handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
   return 0;
 }

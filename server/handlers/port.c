@@ -46,12 +46,13 @@ int port(void *arg) {
                tmp_session->context.ip,
                tmp_session->context.port,
                args->req_args.request_args);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       "[%d] %s",
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 "[%d] %s",
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
     return 1;
   }
 
@@ -72,12 +73,13 @@ int port(void *arg) {
                tmp_session->context.ip,
                tmp_session->context.port);
 
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_CANNOT_OPEN_DATA_CONN,
-                       "[%d] %s",
-                       RPLY_CANNOT_OPEN_DATA_CONN,
-                       str_reply_code(RPLY_CANNOT_OPEN_DATA_CONN));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_CANNOT_OPEN_DATA_CONN,
+                                                 "[%d] %s",
+                                                 RPLY_CANNOT_OPEN_DATA_CONN,
+                                                 str_reply_code(RPLY_CANNOT_OPEN_DATA_CONN));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
     return 1;
   }
 
@@ -103,12 +105,13 @@ int port(void *arg) {
                __func__,
                tmp_session->context.ip,
                tmp_session->context.port);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       "[%d] %s",
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 "[%d] %s",
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
     return 1;
   }
 
@@ -120,7 +123,9 @@ int port(void *arg) {
              __func__,
              tmp_session->context.ip,
              tmp_session->context.port);
-  send_reply_wrapper(args->remote_fd, args->logger, RPLY_CMD_OK, "[%d] %s", RPLY_CMD_OK, str_reply_code(RPLY_CMD_OK));
+  enum err_codes err_code =
+    send_reply_wrapper(args->remote_fd, args->logger, RPLY_CMD_OK, "[%d] %s", RPLY_CMD_OK, str_reply_code(RPLY_CMD_OK));
+  handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
   return 0;
 }

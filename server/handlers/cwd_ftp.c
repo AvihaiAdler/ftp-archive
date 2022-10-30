@@ -38,12 +38,13 @@ int change_directory(void *arg) {
     *session.context.curr_dir = 0;
   } else {
     if (!validate_path(args->req_args.request_args, args->logger)) {
-      send_reply_wrapper(args->remote_fd,
-                         args->logger,
-                         RPLY_CMD_ARGS_SYNTAX_ERR,
-                         "[%d] %s",
-                         RPLY_CMD_ARGS_SYNTAX_ERR,
-                         str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+      enum err_codes err_code = send_reply_wrapper(args->remote_fd,
+                                                   args->logger,
+                                                   RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                   "[%d] %s",
+                                                   RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                   str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+      handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
       return 1;
     }
 
@@ -59,12 +60,13 @@ int change_directory(void *arg) {
                  __func__,
                  session.context.ip,
                  session.context.port);
-      send_reply_wrapper(args->remote_fd,
-                         args->logger,
-                         RPLY_CMD_SYNTAX_ERR,
-                         "[%d] %s",
-                         RPLY_CMD_SYNTAX_ERR,
-                         str_reply_code(RPLY_CMD_SYNTAX_ERR));
+      enum err_codes err_code = send_reply_wrapper(args->remote_fd,
+                                                   args->logger,
+                                                   RPLY_CMD_SYNTAX_ERR,
+                                                   "[%d] %s",
+                                                   RPLY_CMD_SYNTAX_ERR,
+                                                   str_reply_code(RPLY_CMD_SYNTAX_ERR));
+      handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
       return 1;
     }
 
@@ -80,12 +82,13 @@ int change_directory(void *arg) {
                  session.context.ip,
                  session.context.port,
                  tmp_path);
-      send_reply_wrapper(args->remote_fd,
-                         args->logger,
-                         RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE,
-                         "[%d] %s",
-                         RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE,
-                         str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE));
+      enum err_codes err_code = send_reply_wrapper(args->remote_fd,
+                                                   args->logger,
+                                                   RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE,
+                                                   "[%d] %s",
+                                                   RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE,
+                                                   str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE));
+      handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
       return 1;
     }
     close(ret);
@@ -96,22 +99,24 @@ int change_directory(void *arg) {
 
   // replace the session
   if (!update_session(args->sessions, args->logger, &session)) {
-    send_reply_wrapper(args->remote_fd,
-                       args->logger,
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       "[%d] %s",
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    enum err_codes err_code = send_reply_wrapper(args->remote_fd,
+                                                 args->logger,
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 "[%d] %s",
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
     return 1;
   }
 
-  send_reply_wrapper(session.fds.control_fd,
-                     args->logger,
-                     RPLY_FILE_ACTION_COMPLETE,
-                     "[%d] %s [%s]",
-                     RPLY_FILE_ACTION_COMPLETE,
-                     str_reply_code(RPLY_FILE_ACTION_COMPLETE),
-                     *session.context.curr_dir ? session.context.curr_dir : "/");
+  enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                               args->logger,
+                                               RPLY_FILE_ACTION_COMPLETE,
+                                               "[%d] %s [%s]",
+                                               RPLY_FILE_ACTION_COMPLETE,
+                                               str_reply_code(RPLY_FILE_ACTION_COMPLETE),
+                                               *session.context.curr_dir ? session.context.curr_dir : "/");
+  handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
   logger_log(args->logger,
              INFO,
              "[%lu] [%s] [%s:%s] executed successfuly. working directory changed to [%s/%s]",

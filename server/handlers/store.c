@@ -42,23 +42,25 @@ int store_file(void *arg) {
                __func__,
                session.context.ip,
                session.context.port);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_DATA_CONN_CLOSED,
-                       "[%d] %s",
-                       RPLY_DATA_CONN_CLOSED,
-                       str_reply_code(RPLY_DATA_CONN_CLOSED));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_DATA_CONN_CLOSED,
+                                                 "[%d] %s",
+                                                 RPLY_DATA_CONN_CLOSED,
+                                                 str_reply_code(RPLY_DATA_CONN_CLOSED));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
     return 1;
   }
 
   // validate file path
   if (!validate_path(args->req_args.request_args, args->logger)) {
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       "[%d] %s",
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 "[%d] %s",
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
     return 1;
   }
@@ -85,12 +87,13 @@ int store_file(void *arg) {
                session.context.ip,
                session.context.port,
                args->req_args.request_args);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       "[%d] %s",
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 "[%d] %s",
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
   }
 
   // get the size of the file path. file name is unique and 'hidden'
@@ -112,12 +115,13 @@ int store_file(void *arg) {
                __func__,
                session.context.ip,
                session.context.port);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       "[%d] %s",
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 "[%d] %s",
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
   }
 
   // get the file path
@@ -131,12 +135,13 @@ int store_file(void *arg) {
                __func__,
                session.context.ip,
                session.context.port);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       "[%d] %s",
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 "[%d] %s",
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
     if (tmp_file) free(tmp_file);
 
     return 1;
@@ -161,24 +166,26 @@ int store_file(void *arg) {
                session.context.ip,
                session.context.port,
                tmp_file);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       "[%d] %s",
-                       RPLY_CMD_ARGS_SYNTAX_ERR,
-                       str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 "[%d] %s",
+                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
+                                                 str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
     free(tmp_file);
     free(final_file);
 
     return 1;
   }
 
-  send_reply_wrapper(session.fds.control_fd,
-                     args->logger,
-                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
-                     "[%d] %s",
-                     RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
-                     str_reply_code(RPLY_DATA_CONN_OPEN_STARTING_TRANSFER));
+  enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                               args->logger,
+                                               RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
+                                               "[%d] %s",
+                                               RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
+                                               str_reply_code(RPLY_DATA_CONN_OPEN_STARTING_TRANSFER));
+  handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
   // write into the file
   // read the file and send it
@@ -214,12 +221,13 @@ int store_file(void *arg) {
                session.context.ip,
                session.context.port,
                tmp_file);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       "[%d] %s",
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 "[%d] %s",
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
     unlink(tmp_file);
     free(tmp_file);
@@ -238,12 +246,13 @@ int store_file(void *arg) {
                session.context.ip,
                session.context.port,
                final_file + strlen(session.context.root_dir) + 1);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_FILE_ACTION_COMPLETE,
-                       "[%d] %s",
-                       RPLY_FILE_ACTION_COMPLETE,
-                       str_reply_code(RPLY_FILE_ACTION_COMPLETE));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_FILE_ACTION_COMPLETE,
+                                                 "[%d] %s",
+                                                 RPLY_FILE_ACTION_COMPLETE,
+                                                 str_reply_code(RPLY_FILE_ACTION_COMPLETE));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
   } else {
     logger_log(args->logger,
                ERROR,
@@ -252,12 +261,13 @@ int store_file(void *arg) {
                __func__,
                session.context.ip,
                session.context.port);
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       "[%d] %s",
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 "[%d] %s",
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
   }
   free(tmp_file);
   free(final_file);

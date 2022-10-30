@@ -52,12 +52,13 @@ int passive(void *arg) {
                session.context.ip,
                session.context.port);
 
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_CANNOT_OPEN_DATA_CONN,
-                       "[%d] %s",
-                       RPLY_CANNOT_OPEN_DATA_CONN,
-                       str_reply_code(RPLY_CANNOT_OPEN_DATA_CONN));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_CANNOT_OPEN_DATA_CONN,
+                                                 "[%d] %s",
+                                                 RPLY_CANNOT_OPEN_DATA_CONN,
+                                                 str_reply_code(RPLY_CANNOT_OPEN_DATA_CONN));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
     return 1;
   }
 
@@ -85,12 +86,13 @@ int passive(void *arg) {
                session.context.ip,
                session.context.port);
 
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       "[%d] %s",
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 "[%d] %s",
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
     return 1;
   }
 
@@ -106,12 +108,13 @@ int passive(void *arg) {
                __func__,
                args->event_fd);
 
-    send_reply_wrapper(session.fds.control_fd,
-                       args->logger,
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       "[%d] %s",
-                       RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                       str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                 args->logger,
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 "[%d] %s",
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
     return 1;
   }
 
@@ -121,14 +124,15 @@ int passive(void *arg) {
   get_ip_and_port(session.fds.listen_sockfd, local_ip, sizeof local_ip, pasv_port, sizeof pasv_port);
 
   // send a feedback
-  send_reply_wrapper(session.fds.control_fd,
-                     args->logger,
-                     RPLY_PASSIVE,
-                     "[%d] %s. (%s,%s)",
-                     RPLY_PASSIVE,
-                     str_reply_code(RPLY_PASSIVE),
-                     local_ip,
-                     pasv_port);
+  enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                               args->logger,
+                                               RPLY_PASSIVE,
+                                               "[%d] %s. (%s,%s)",
+                                               RPLY_PASSIVE,
+                                               str_reply_code(RPLY_PASSIVE),
+                                               local_ip,
+                                               pasv_port);
+  handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
   logger_log(args->logger,
              ERROR,

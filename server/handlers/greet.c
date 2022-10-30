@@ -28,14 +28,14 @@ int greet(void *arg) {
     return 1;
   }
 
-  free(tmp_session);
-
   // send a 'ready' reply
-  send_reply_wrapper(args->remote_fd,
-                     args->logger,
-                     RPLY_SERVICE_READY,
-                     "[%d] %s",
-                     RPLY_SERVICE_READY,
-                     str_reply_code(RPLY_SERVICE_READY));
+  enum err_codes err = send_reply_wrapper(args->remote_fd,
+                                          args->logger,
+                                          RPLY_SERVICE_READY,
+                                          "[%d] %s",
+                                          RPLY_SERVICE_READY,
+                                          str_reply_code(RPLY_SERVICE_READY));
+  handle_reply_err(args->logger, args->sessions, tmp_session, args->epollfd, err);
+  free(tmp_session);
   return 0;
 }

@@ -40,12 +40,13 @@ int quit(void *arg) {
   }
   free(session);
 
-  send_reply_wrapper(args->remote_fd,
-                     args->logger,
-                     RPLY_CLOSING_CTRL_CONN,
-                     "[%d] %s",
-                     RPLY_CLOSING_CTRL_CONN,
-                     str_reply_code(RPLY_CLOSING_CTRL_CONN));
+  enum err_codes err_code = send_reply_wrapper(args->remote_fd,
+                                               args->logger,
+                                               RPLY_CLOSING_CTRL_CONN,
+                                               "[%d] %s",
+                                               RPLY_CLOSING_CTRL_CONN,
+                                               str_reply_code(RPLY_CLOSING_CTRL_CONN));
+  handle_reply_err(args->logger, args->sessions, session, args->epollfd, err_code);
 
   close_session(args->sessions, args->remote_fd);
   return 0;

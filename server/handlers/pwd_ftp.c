@@ -28,12 +28,13 @@ int print_working_directory(void *arg) {
     return 1;
   }
 
-  send_reply_wrapper(session->fds.control_fd,
-                     args->logger,
-                     RPLY_PATHNAME_CREATED,
-                     "[%d]. [%s/]",
-                     RPLY_PATHNAME_CREATED,
-                     session->context.curr_dir);
+  enum err_codes err_code = send_reply_wrapper(session->fds.control_fd,
+                                               args->logger,
+                                               RPLY_PATHNAME_CREATED,
+                                               "[%d]. [%s/]",
+                                               RPLY_PATHNAME_CREATED,
+                                               session->context.curr_dir);
+  handle_reply_err(args->logger, args->sessions, session, args->epollfd, err_code);
 
   logger_log(args->logger,
              INFO,

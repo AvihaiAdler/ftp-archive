@@ -5,6 +5,7 @@
 #include <stdarg.h>  // vsnprintf()
 #include <stdio.h>
 #include <string.h>
+#include <sys/epoll.h>
 #include <unistd.h>  // getcwd()
 #include "misc/util.h"
 
@@ -17,7 +18,11 @@ char *tolower_str(char *str, size_t len) {
   return str;
 }
 
-void send_reply_wrapper(int sockfd, struct logger *logger, enum reply_codes reply_code, const char *fmt, ...) {
+enum err_codes send_reply_wrapper(int sockfd,
+                                  struct logger *logger,
+                                  enum reply_codes reply_code,
+                                  const char *fmt,
+                                  ...) {
   struct reply reply = {.code = (uint16_t)reply_code};
 
   va_list args;
@@ -31,7 +36,7 @@ void send_reply_wrapper(int sockfd, struct logger *logger, enum reply_codes repl
     logger_log(logger, ERROR, "[%lu] [%s] reply too long", thrd_current(), __func__);
     va_end(args);
     va_end(args_cpy);
-    return;
+    return ERR_INVALID_LEN;
   }
   va_end(args_cpy);
 
@@ -50,10 +55,58 @@ void send_reply_wrapper(int sockfd, struct logger *logger, enum reply_codes repl
                __func__,
                str_err_code(err),
                (char *)reply.reply);
-    return;
+    return ret;
   }
   if (logger)
     logger_log(logger, INFO, "[%lu] [%s] reply [%s] sent successfully", thrd_current(), __func__, (char *)reply.reply);
+  return ret;
+}
+
+void handle_reply_err(struct logger *logger,
+                      struct vector_s *sessions,
+                      struct session *session,
+                      int epollfd,
+                      enum err_codes err) {
+  switch (err) {
+    case ERR_SUCCESS:
+      break;
+    case ERR_SOCKET_TRANSMISSION_ERR:
+      logger_log(logger,
+                 ERROR,
+                 "[%lu] [%s] encountered an error while transmitting to [%s:%s]. closing the session",
+                 thrd_current(),
+                 __func__,
+                 session->context.ip,
+                 session->context.port);
+      unregister_fd(logger, epollfd, session->fds.control_fd, EPOLLIN);
+      unregister_fd(logger, epollfd, session->fds.listen_sockfd, EPOLLIN);
+      close_session(sessions, session->fds.control_fd);
+      break;
+    case ERR_INVALID_SOCKET_FD:
+      logger_log(logger,
+                 ERROR,
+                 "[%lu] [%s] tried to send to an %s [%s:%s]",
+                 thrd_current(),
+                 __func__,
+                 str_err_code(err),
+                 session->context.ip,
+                 session->context.port);
+      break;
+    case ERR_INVALID_RPLY_CODE:  // fall through
+    case ERR_INVALID_LEN:
+    case ERR_INVALID_ARGS:
+      logger_log(logger,
+                 ERROR,
+                 "[%lu] [%s] tried to send to a message with %s [%s:%s]",
+                 thrd_current(),
+                 __func__,
+                 str_err_code(err),
+                 session->context.ip,
+                 session->context.port);
+      break;
+    default:
+      break;
+  }
 }
 
 const char *trim_str(const char *str) {
