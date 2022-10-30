@@ -1,3 +1,5 @@
+#define _XOPEN_SOURCE 700
+#define _DEFAULT_SOURCE
 #include "util.h"
 #include <arpa/inet.h>
 #include <errno.h>
@@ -16,38 +18,6 @@
 #include "thread_pool.h"
 
 #define BUF_LEN 1024
-
-void cleanup(struct hash_table *properties,
-             struct logger *logger,
-             struct thread_pool *thread_pool,
-             struct vector_s *sessions,
-             struct vector *pollfds) {
-
-  if (properties) {
-    logger_log(logger, INFO, "[%s] destroying properties", __func__);
-    table_destroy(properties);
-  }
-
-  if (thread_pool) {
-    logger_log(logger, INFO, "[%s] destroying thread_pool", __func__);
-    thread_pool_destroy(thread_pool);
-  }
-
-  if (sessions) {
-    logger_log(logger, INFO, "[%s] destroying sessions", __func__);
-    vector_s_destroy(sessions);
-  }
-
-  if (pollfds) {
-    logger_log(logger, INFO, "[%s] destroying pollfds", __func__);
-    vector_destroy(pollfds, NULL);
-  }
-
-  if (logger) {
-    logger_log(logger, INFO, "[%s] destroying logger", __func__);
-    logger_destroy(logger);
-  }
-}
 
 void destroy_task(void *task) {
   struct task *t = task;
@@ -182,6 +152,18 @@ int get_active_socket(struct logger *logger,
     if (connect(sockfd, available->ai_addr, available->ai_addrlen) == 0) {
       success = true;
     } else {
+      int err = errno;
+      char buf[100];
+      logger_log(logger,
+                 INFO,
+                 "[%s] failed to connect() sockfd [%d] to [%s:%s]. reason: [%d: %s]",
+                 __func__,
+                 sockfd,
+                 remote_host,
+                 remote_serv,
+                 err,
+                 strerror_r(err, buf, sizeof buf));
+      //  strerr_safe(err));
       close(sockfd);
     }
   }
@@ -189,7 +171,7 @@ int get_active_socket(struct logger *logger,
   freeaddrinfo(remote_info);
   freeaddrinfo(local_info);
 
-  // failed to listen()/bind()
+  // failed to bind()/connect()
   if (!success) {
     logger_log(logger,
                ERROR,

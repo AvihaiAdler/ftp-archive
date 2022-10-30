@@ -12,12 +12,6 @@
 #include "vector.h"
 #include "vector_s.h"
 
-void cleanup(struct hash_table *properties,
-             struct logger *logger,
-             struct thread_pool *thread_pool,
-             struct vector_s *sessions,
-             struct vector *pollfds);
-
 struct addrinfo *get_addr_info(const char *host, const char *serv, int flags);
 
 /* opens a 'passive' socket with listen(). returns the socket fd on success, -1 on failure */

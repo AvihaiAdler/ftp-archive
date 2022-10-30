@@ -30,7 +30,6 @@
 #define DATA_PORT "data_port"
 #define CONN_Q_SIZE "connection_queue_size"
 #define ROOT_DIR "root_directory"
-#define DEFAULT_ROOT_DIR "/home/ftpd"
 
 struct server_fds {
   int listen_sockfd;
@@ -66,9 +65,9 @@ int main(int argc, char *argv[]) {
   // init logger
   struct logger *logger = logger_init(table_get(properties, LOG_FILE, strlen(LOG_FILE)));
   if (!logger) {
-    cleanup(properties, NULL, NULL, NULL, NULL);
     fprintf(stderr, "[%s] failed to init logger\n", __func__);
-    return 1;
+
+    goto properties_cleanup;
   }
 
   logger_log(logger, INFO, "[%s] logger initiated successfuly", __func__);
@@ -76,14 +75,15 @@ int main(int argc, char *argv[]) {
   const char *data_port = table_get(properties, DATA_PORT, strlen(DATA_PORT));
   if (!data_port) {
     logger_log(logger, ERROR, "[%s] unsupplied data_port", __func__);
-    cleanup(properties, logger, NULL, NULL, NULL);
+
+    goto logger_cleanup;
   }
 
   // get the root directory. all server files will be uploded there
   const char *root_dir = table_get(properties, ROOT_DIR, strlen(ROOT_DIR));
   if (!root_dir) {
-    logger_log(logger, WARN, "[%s] unsupplied root_directory. using the default [%s]", __func__, DEFAULT_ROOT_DIR);
-    root_dir = DEFAULT_ROOT_DIR;
+    logger_log(logger, ERROR, "[%s] unsupplied root_directory", __func__);
+    goto logger_cleanup;
   }
 
   // try to create the directory the files will be stored in
@@ -97,15 +97,15 @@ int main(int argc, char *argv[]) {
                "failed to create the directory [%s]. returned with error [%s]",
                root_dir,
                strerr_safe(err));
-    cleanup(properties, logger, NULL, NULL, NULL);
-    return 1;
+
+    goto logger_cleanup;
   }
 
   if (chdir(root_dir) != 0) {
     err = errno;
     logger_log(logger, ERROR, "falied to chdir to [%s]. reason [%s]", root_dir, strerr_safe(err));
-    cleanup(properties, logger, NULL, NULL, NULL);
-    return 1;
+
+    goto logger_cleanup;
   }
 
   logger_log(logger, INFO, "[%s] server root directory obtained", __func__);
@@ -113,14 +113,14 @@ int main(int argc, char *argv[]) {
   // install a signal handler (must be invoked prior to the creation of the thread pool due to the sigprocmask() call)
   if (!install_sig_handler(SIGINT, sigint_handler)) {
     logger_log(logger, ERROR, "[%s] failed to create a sigint handler", __func__);
-    cleanup(properties, logger, NULL, NULL, NULL);
-    return 1;
+
+    goto logger_cleanup;
   }
 
   if (!install_sig_handler(SIGPIPE, sigpipe_handler)) {
     logger_log(logger, ERROR, "[%s] failed to create a sigpipe handler", __func__);
-    cleanup(properties, logger, NULL, NULL, NULL);
-    return 1;
+
+    goto logger_cleanup;
   }
 
   // get the number of threads
@@ -131,14 +131,14 @@ int main(int argc, char *argv[]) {
     long tmp = strtol(num_of_threads_str, &endptr, 10);
     if (endptr == num_of_threads_str) {
       logger_log(logger, ERROR, "[%s] invalid [%s]: [%s]", __func__, NUM_OF_THREADS, num_of_threads_str);
-      cleanup(properties, logger, NULL, NULL, NULL);
-      return 1;
+
+      goto logger_cleanup;
     }
 
     if (tmp > UINT8_MAX) {
       logger_log(logger, ERROR, "[%s] invalid [%s]: [%s]", __func__, NUM_OF_THREADS, num_of_threads_str);
-      cleanup(properties, logger, NULL, NULL, NULL);
-      return 1;
+
+      goto logger_cleanup;
     }
     num_of_threads = (uint8_t)tmp;
   }
@@ -151,16 +151,16 @@ int main(int argc, char *argv[]) {
 
   if (ret) {
     logger_log(logger, ERROR, "[%s] failed to establish a signal mask for all threads", __func__);
-    cleanup(properties, logger, NULL, NULL, NULL);
-    return 1;
+
+    goto logger_cleanup;
   }
 
   // create threads
   struct thread_pool *thread_pool = thread_pool_init(num_of_threads, destroy_task);
   if (!thread_pool) {
     logger_log(logger, ERROR, "[%s] failed to init thread pool", __func__);
-    cleanup(properties, logger, NULL, NULL, NULL);
-    return 1;
+
+    goto logger_cleanup;
   }
 
   logger_log(logger, INFO, "[%s] thread pool created successfully", __func__);
@@ -168,8 +168,8 @@ int main(int argc, char *argv[]) {
   // unblock SIGINT for (only) the main thread
   if (pthread_sigmask(SIG_UNBLOCK, &threads_sigset, NULL) != 0) {
     logger_log(logger, ERROR, "[%s] failed to establish a signal mask for main", __func__);
-    cleanup(properties, logger, thread_pool, NULL, NULL);
-    return 1;
+
+    goto thread_pool_cleanup;
   }
 
   // load connection queue size (the number of connection the socket will accept and queue. after that - connections
@@ -179,8 +179,8 @@ int main(int argc, char *argv[]) {
   long q_size = strtol(conn_q_size, &endptr, 10);
   if (conn_q_size == endptr || q_size > INT_MAX) {
     logger_log(logger, ERROR, "[%s] invalid connection queue agrument [%s]", __func__, CONN_Q_SIZE);
-    cleanup(properties, logger, thread_pool, NULL, NULL);
-    return 1;
+
+    goto thread_pool_cleanup;
   }
 
   // holds the fd for the server
@@ -194,8 +194,8 @@ int main(int argc, char *argv[]) {
                                                 AI_PASSIVE);
   if (server_fds.listen_sockfd == -1) {
     logger_log(logger, ERROR, "[%s] failed to retrieve a listen socket", __func__);
-    cleanup(properties, logger, thread_pool, NULL, NULL);
-    return 1;
+
+    goto thread_pool_cleanup;
   }
 
   /* create an event fd. the fd will be used as a way to communicate between the threads and main. when opening a
@@ -204,9 +204,9 @@ int main(int argc, char *argv[]) {
   server_fds.event_fd = eventfd(0, EFD_NONBLOCK);
   if (server_fds.event_fd == -1) {
     logger_log(logger, ERROR, "[%s] failed to retrieve an event fd", __func__);
-    cleanup(properties, logger, thread_pool, NULL, NULL);
     close(server_fds.listen_sockfd);
-    return 1;
+
+    goto thread_pool_cleanup;
   }
 
   logger_log(logger, INFO, "[%s] server fds obtained successfully", __func__);
@@ -215,10 +215,10 @@ int main(int argc, char *argv[]) {
   struct vector_s *sessions = vector_s_init(sizeof(struct session), cmpr_sessions, destroy_session);
   if (!sessions) {
     logger_log(logger, ERROR, "[%s] failed to init session vector", __func__);
-    cleanup(properties, logger, thread_pool, NULL, NULL);
     close(server_fds.listen_sockfd);
     close(server_fds.event_fd);
-    return 1;
+
+    goto thread_pool_cleanup;
   }
 
   logger_log(logger, INFO, "[%s] sessions initiated successfully", __func__);
@@ -226,49 +226,51 @@ int main(int argc, char *argv[]) {
   struct vector *epoll_events = vector_init(sizeof(struct epoll_event));
   if (!epoll_events) {
     logger_log(logger, ERROR, "[%s] falied to init epoll_events vector", __func__);
-    cleanup(properties, logger, thread_pool, sessions, NULL);
     close(server_fds.listen_sockfd);
     close(server_fds.event_fd);
-    return 1;
+
+    goto sessions_cleanup;
   }
+
+  logger_log(logger, INFO, "[%s] epoll_events oinitiated successfully", __func__);
   vector_resize(epoll_events, num_of_threads);
 
   int epollfd = epoll_create1(0);
   if (epollfd == -1) {
     logger_log(logger, ERROR, "[%s] failed to create an epoll instance", __func__);
-    cleanup(properties, logger, thread_pool, sessions, NULL);
     close(server_fds.listen_sockfd);
     close(server_fds.event_fd);
-    return 1;
+
+    goto sessions_cleanup;
   }
 
   if (register_fd(logger, epollfd, server_fds.listen_sockfd, EPOLLIN) != 0) {
     logger_log(logger, ERROR, "[%s] falied to add server listen socket to the epoll instance", __func__);
-    cleanup(properties, logger, thread_pool, sessions, epoll_events);
     close(server_fds.listen_sockfd);
     close(server_fds.event_fd);
     close(epollfd);
-    return 1;
+
+    goto epoll_events_cleanup;
   }
 
   if (register_fd(logger, epollfd, server_fds.event_fd, EPOLLIN) != 0) {
     logger_log(logger, ERROR, "[%s] falied to add server event socket to the epoll instance", __func__);
-    cleanup(properties, logger, thread_pool, sessions, epoll_events);
     close(server_fds.listen_sockfd);
     close(server_fds.event_fd);
     close(epollfd);
-    return 1;
+
+    goto epoll_events_cleanup;
   }
 
   // for ppoll
   sigset_t ppoll_sigset;
   if (sigemptyset(&ppoll_sigset) != 0) {
     logger_log(logger, ERROR, "[%s] falied to init sigset_t for ppoll", __func__);
-    cleanup(properties, logger, thread_pool, sessions, NULL);
     close(server_fds.listen_sockfd);
     close(server_fds.event_fd);
     close(epollfd);
-    return 1;
+
+    goto epoll_events_cleanup;
   }
 
   // main server loop
@@ -419,11 +421,12 @@ int main(int argc, char *argv[]) {
                          __func__,
                          session->context.ip,
                          session->context.port);
-              cleanup(properties, logger, thread_pool, sessions, epoll_events);
+              // cleanup(properties, logger, thread_pool, sessions, epoll_events);
               close(server_fds.listen_sockfd);
               close(server_fds.event_fd);
               close(epollfd);
-              return 1;
+              // return 1;
+              goto epoll_events_cleanup;
             }
 
             logger_log(logger,
@@ -484,7 +487,32 @@ int main(int argc, char *argv[]) {
   close(server_fds.listen_sockfd);
   close(server_fds.event_fd);
   close(epollfd);
-  cleanup(properties, logger, thread_pool, sessions, epoll_events);
+
+epoll_events_cleanup:
+  if (epoll_events) {
+    vector_destroy(epoll_events, NULL);
+    logger_log(logger, INFO, "[%s] epoll_events destroyed successfully", __func__);
+  }
+sessions_cleanup:
+  if (sessions) {
+    vector_s_destroy(sessions);
+    logger_log(logger, INFO, "[%s] sessions destroyed successfully", __func__);
+  }
+thread_pool_cleanup:
+  if (thread_pool) {
+    thread_pool_destroy(thread_pool);
+    logger_log(logger, INFO, "[%s] thread_pool destroyed successfully", __func__);
+  }
+logger_cleanup:
+  if (logger) {
+    logger_destroy(logger);
+    fprintf(stdout, "[%s] logger destroyed successfully\n", __func__);
+  }
+properties_cleanup:
+  if (properties) {
+    table_destroy(properties);
+    fprintf(stdout, "[%s] properties destroyed successfully\n", __func__);
+  }
 
   return 0;
 }
