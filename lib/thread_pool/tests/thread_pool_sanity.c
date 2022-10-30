@@ -38,6 +38,7 @@ int main(void) {
   struct thread_pool *thread_pool = thread_pool_init(20, destroy_task);
   assert(thread_pool);
 
+  logger_log(logger, INFO, "test start");
   for (uint8_t i = 0; i < 100; i++) {
     struct args *args = malloc(sizeof *args);
     args->i = i;
@@ -50,6 +51,7 @@ int main(void) {
   struct timespec wait = {.tv_sec = 2, .tv_nsec = 0};
   struct timespec remains;
   nanosleep(&wait, &remains);
+  logger_log(logger, INFO, "test end");
 
   thread_pool_destroy(thread_pool);
   logger_destroy(logger);
