@@ -25,8 +25,8 @@ int main(void) {
   struct logger *logger = logger_init("log.bin");
   // bool ret = log_init(NULL);
   assert(logger);
+  logger_log(logger, INFO, "test start");
 
-  // 'end condition'
   thrd_t threads[SIZE] = {0};
   size_t amount = sizeof threads / sizeof *threads;
 
@@ -42,6 +42,7 @@ int main(void) {
     assert(thrd_join(threads[i], NULL) == thrd_success);
   }
 
+  logger_log(logger, INFO, "test end");
   logger_destroy(logger);
   return 0;
 }
