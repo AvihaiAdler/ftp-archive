@@ -23,6 +23,20 @@
 #define CMD_MAX_LEN 4
 #define CMD_MIN_LEN 3
 
+typedef int (*handler)(void *);
+static handler handlers[] = {[REQ_UNKNOWN] = NULL,
+                             [REQ_PWD] = print_working_directory,
+                             [REQ_CWD] = change_directory,
+                             [REQ_MKD] = make_directory,
+                             [REQ_RMD] = remove_directory,
+                             [REQ_PORT] = port,
+                             [REQ_PASV] = passive,
+                             [REQ_LIST] = list,
+                             [REQ_DELE] = delete_file,
+                             [REQ_RETR] = retrieve_file,
+                             [REQ_STOR] = store_file,
+                             [REQ_QUIT] = quit};
+
 static bool parse_command(struct request *request, struct request_args *request_args) {
   if (!request->length) return false;
 
@@ -75,10 +89,7 @@ static bool parse_command(struct request *request, struct request_args *request_
   return true;
 }
 
-static void add_task(struct args *args,
-                     struct session *session,
-                     struct request_args *req_args,
-                     int (*handler)(void *arg)) {
+static void add_task(struct args *args, struct session *session, struct request_args *req_args, handler handler) {
   if (!args) return;
 
   // create the relevant task
@@ -100,10 +111,12 @@ static void add_task(struct args *args,
     handle_reply_err(args->logger, args->sessions, session, args->epollfd, err);
 
     // assume never fails. potential bug if it does
-    epoll_ctl(args->epollfd,
-              EPOLL_CTL_MOD,
-              args->remote_fd,
-              &(struct epoll_event){.events = EPOLLIN | EPOLLONESHOT, .data.fd = args->remote_fd});
+    if (err != ERR_SOCKET_TRANSMISSION_ERR) {
+      epoll_ctl(args->epollfd,
+                EPOLL_CTL_MOD,
+                args->remote_fd,
+                &(struct epoll_event){.events = EPOLLIN | EPOLLONESHOT, .data.fd = args->remote_fd});
+    }
     return;
   }
 
@@ -166,7 +179,7 @@ int get_request(void *arg) {
                        RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
                        str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
 
-    // possible bug. if the session can't be found args->remote_fd will never rearm
+    // possible bug. if the session can't be found args->remote_fd will never re-arm
     return 1;
   }
 
@@ -198,10 +211,13 @@ int get_request(void *arg) {
                                                  RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
                                                  str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
-    epoll_ctl(args->epollfd,
-              EPOLL_CTL_MOD,
-              args->remote_fd,
-              &(struct epoll_event){.events = EPOLLIN | EPOLLONESHOT, .data.fd = args->remote_fd});
+
+    if (err_code != ERR_SOCKET_TRANSMISSION_ERR) {
+      epoll_ctl(args->epollfd,
+                EPOLL_CTL_MOD,
+                args->remote_fd,
+                &(struct epoll_event){.events = EPOLLIN | EPOLLONESHOT, .data.fd = args->remote_fd});
+    }
     return 1;
   }
 
@@ -234,10 +250,13 @@ int get_request(void *arg) {
                                             RPLY_CMD_SYNTAX_ERR,
                                             str_reply_code(RPLY_CMD_SYNTAX_ERR));
     handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err);
-    epoll_ctl(args->epollfd,
-              EPOLL_CTL_MOD,
-              args->remote_fd,
-              &(struct epoll_event){.events = EPOLLIN | EPOLLONESHOT, .data.fd = args->remote_fd});
+
+    if (err != ERR_SOCKET_TRANSMISSION_ERR) {
+      epoll_ctl(args->epollfd,
+                EPOLL_CTL_MOD,
+                args->remote_fd,
+                &(struct epoll_event){.events = EPOLLIN | EPOLLONESHOT, .data.fd = args->remote_fd});
+    }
     return 1;
   }
 
@@ -259,10 +278,13 @@ int get_request(void *arg) {
                                               RPLY_DATA_CONN_CLOSED,
                                               str_reply_code(RPLY_DATA_CONN_CLOSED));
       handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err);
-      epoll_ctl(args->epollfd,
-                EPOLL_CTL_MOD,
-                args->remote_fd,
-                &(struct epoll_event){.events = EPOLLIN | EPOLLONESHOT, .data.fd = args->remote_fd});
+
+      if (err != ERR_SOCKET_TRANSMISSION_ERR) {
+        epoll_ctl(args->epollfd,
+                  EPOLL_CTL_MOD,
+                  args->remote_fd,
+                  &(struct epoll_event){.events = EPOLLIN | EPOLLONESHOT, .data.fd = args->remote_fd});
+      }
       return 1;
     }
 
@@ -281,6 +303,7 @@ int get_request(void *arg) {
 
     // update session
     if (!update_session(args->sessions, args->logger, &session)) {
+      close(session.fds.data_fd);  // close data socket
       logger_log(args->logger,
                  ERROR,
                  "[%lu] [%s] [%s:%s] failed to update session [%d]",
@@ -296,54 +319,18 @@ int get_request(void *arg) {
                                               RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
                                               str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
       handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err);
-      epoll_ctl(args->epollfd,
-                EPOLL_CTL_MOD,
-                args->remote_fd,
-                &(struct epoll_event){.events = EPOLLIN | EPOLLONESHOT, .data.fd = args->remote_fd});
-      close(session.fds.data_fd);  // close data socket
+
+      if (err != ERR_SOCKET_TRANSMISSION_ERR) {
+        epoll_ctl(args->epollfd,
+                  EPOLL_CTL_MOD,
+                  args->remote_fd,
+                  &(struct epoll_event){.events = EPOLLIN | EPOLLONESHOT, .data.fd = args->remote_fd});
+      }
       return 1;
     }
   }
 
-  int (*handler)(void *) = NULL;
-  switch (req_args.type) {
-    case REQ_PWD:
-      handler = print_working_directory;
-      break;
-    case REQ_CWD:
-      handler = change_directory;
-      break;
-    case REQ_MKD:
-      handler = make_directory;
-      break;
-    case REQ_RMD:
-      handler = remove_directory;
-      break;
-    case REQ_PORT:
-      handler = port;
-      break;
-    case REQ_PASV:
-      handler = passive;
-      break;
-    case REQ_DELE:
-      handler = delete_file;
-      break;
-    case REQ_LIST:
-      handler = list;
-      break;
-    case REQ_RETR:
-      handler = retrieve_file;
-      break;
-    case REQ_STOR:
-      handler = store_file;
-      break;
-    case REQ_QUIT:
-      handler = quit;
-      break;
-    default:
-      break;
-  }
-
+  handler handler = handlers[req_args.type];
   if (handler) { add_task(args, &session, &req_args, handler); }
 
   return 0;

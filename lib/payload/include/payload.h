@@ -42,6 +42,7 @@ enum descriptor_codes {
 };
 
 enum request_type {
+  REQ_UNKNOWN,
   REQ_PWD,
   REQ_CWD,
   REQ_MKD,
@@ -53,7 +54,6 @@ enum request_type {
   REQ_RETR,
   REQ_STOR,
   REQ_QUIT,
-  REQ_UNKNOWN,
 };
 
 struct reply {
