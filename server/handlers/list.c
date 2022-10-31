@@ -1,22 +1,105 @@
 #include "list.h"
-#include <dirent.h>  // opendir(), readdir(), closedir()
 #include <errno.h>
+#include <fcntl.h>  // fctrl
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>  // stat()
+#include <sys/wait.h>  // waitpid
+#include <unistd.h>    // fork, pipe, dup
 #include "misc/util.h"
 #include "util.h"
 
-static size_t dir_size(DIR *dir) {
-  if (!dir) return 0;
+#define ERR_SIZE 128
 
-  size_t count = 0;
-  for (struct dirent *dirent = readdir(dir); dirent; dirent = readdir(dir)) {
-    count++;
+enum pipe_end {
+  PIPE_READ = 0,
+  PIPE_WRITE = 1,
+};
+
+static bool send_dir_content(struct logger *logger,
+                             struct vector_s *sessions,
+                             struct session *session,
+                             int epollfd,
+                             char *dir_path) {
+  char err_buf[ERR_SIZE];
+
+  int pipefd[2];
+  int pipe_ret = pipe(pipefd);
+  if (pipe_ret != 0) {
+    int err = errno;
+    strerror_r(err, err_buf, sizeof err_buf);
+    logger_log(logger,
+               ERROR,
+               "[%lu] [%s] failed to initialize a pipe. reason: [%s]",
+               thrd_current(),
+               __func__,
+               err_buf);
+    return false;
   }
-  rewinddir(dir);
-  return count;
+  fcntl(pipefd[PIPE_READ], F_SETFL, O_NONBLOCK);
+
+  /* fork a child process. the child process will invoke ls -lh for the dir specified and will write all dir content
+   * into a pipe. the parent will then read from said pipe and send it to the client */
+  pid_t pid = fork();
+  switch (pid) {
+    case -1:
+      return false;
+    case 0: {
+      int dup_ret = dup2(pipefd[PIPE_WRITE], STDOUT_FILENO);
+      if (dup_ret == -1) {
+        int err = errno;
+        strerror_r(err, err_buf, sizeof err_buf);
+        logger_log(logger, ERROR, "[%lu] [%s] dup2 failure. reason: [%s]", thrd_current(), __func__, err_buf);
+        return false;
+      }
+
+      execlp("ls", "ls", "-lh", dir_path, (char *)NULL);
+    } break;
+    default: {
+      int events = 0;
+      struct pollfd pollfd = {.fd = pipefd[PIPE_READ], .events = POLLIN};
+      while (1) {
+        events = poll(&pollfd, 1, -1);
+        if (events == 1 && pollfd.revents & POLLIN) break;
+      }
+
+      bool done = false;
+      struct data_block data;
+      do {
+        ssize_t bytes_read = read(pipefd[PIPE_READ], data.data, DATA_BLOCK_MAX_LEN - 2);
+
+        /* an 'empty indicator'. since the pipe is set to nonblocking mode, if its empty - an attempt to read() from it
+         * will return with -1 & EAGAIN / EWOULDBLOCK */
+        uint8_t byte;
+        if (read(pipefd[PIPE_READ], &byte, 1) > 0) {
+          data.data[bytes_read] = byte;
+          bytes_read++;
+        }
+
+        // the pipe is empty
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+          data.descriptor = DESCPTR_EOF;
+          done = true;
+        }
+
+        data.data[bytes_read] = 0;
+        data.length = (uint32_t)bytes_read;
+
+        enum err_codes send_ret = send_data(&data, session->fds.data_fd, 0);
+        handle_reply_err(logger, sessions, session, epollfd, send_ret);
+        if (send_ret != ERR_SUCCESS) return false;
+
+      } while (!done);
+
+      waitpid(pid, NULL, WUNTRACED);
+    } break;
+  }
+
+  close(pipefd[PIPE_READ]);
+  close(pipefd[PIPE_WRITE]);
+  return true;
 }
 
 int list(void *arg) {
@@ -116,10 +199,10 @@ int list(void *arg) {
                session.context.port);
     enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
                                                  args->logger,
-                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_INVALID_FILENAME,
                                                  "[%d] %s",
-                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
-                                                 str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_INVALID_FILENAME,
+                                                 str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_INVALID_FILENAME));
     handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
     return 1;
@@ -128,136 +211,38 @@ int list(void *arg) {
   strcat(path, "/");
   strcat(path, dir_name);
 
-  // open the directory
-  DIR *dir = opendir(path);
-
-  // can't open directory
-  if (!dir) {
+  bool success = send_dir_content(args->logger, args->sessions, &session, args->epollfd, path);
+  if (!success) {
     logger_log(args->logger,
                ERROR,
-               "[%lu] [%s] [%s:%s] invalid path [%s]",
-               thrd_current(),
-               __func__,
-               session.context.ip,
-               session.context.port,
-               dir_name);
-    enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
-                                                 args->logger,
-                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
-                                                 "[%d] %s",
-                                                 RPLY_CMD_ARGS_SYNTAX_ERR,
-                                                 str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
-    handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
-    return 1;
-  }
-
-  enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
-                                               args->logger,
-                                               RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
-                                               "[%d] %s",
-                                               RPLY_DATA_CONN_OPEN_STARTING_TRANSFER,
-                                               str_reply_code(RPLY_DATA_CONN_OPEN_STARTING_TRANSFER));
-  handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
-
-  // get the fd of the directory
-  int dir_fd = dirfd(dir);
-
-  // get the number of files in the directory
-  size_t num_of_files = dir_size(dir);
-  size_t counter = 0;  // counts the number of files read from dir
-
-  struct data_block data = {0};
-  bool successful_trasnfer = true;
-  for (struct dirent *dirent = readdir(dir); dirent; dirent = readdir(dir), counter++) {
-    if (*dirent->d_name == '.') continue;  // hide all file names which start with '.'
-    // get the file size
-    struct stat statbuf = {0};
-    int ret = fstatat(dir_fd, dirent->d_name, &statbuf, 0);
-    int err = errno;
-    if (ret == -1) {
-      logger_log(args->logger,
-                 WARN,
-                 "[%lu] [%s] [%s:%s] invalid file [%s]. reason [%s]",
-                 thrd_current(),
-                 __func__,
-                 session.context.ip,
-                 session.context.port,
-                 dirent->d_name,
-                 str_err_code(err));
-      continue;
-    }
-
-    struct file_size file_size = get_file_size(statbuf.st_size);
-    int len = snprintf(NULL,
-                       0,
-                       "[%c] %s [%.1Lf %s]",
-                       dirent->d_type == DT_DIR ? 'd' : '-',
-                       dirent->d_name,
-                       file_size.size,
-                       file_size.units);
-    if (len < 0 || len + 1 > DATA_BLOCK_MAX_LEN - 1) {
-      logger_log(args->logger,
-                 WARN,
-                 "[%lu] [%s] [%s:%s] file name [%s] is too long",
-                 thrd_current(),
-                 __func__,
-                 session.context.ip,
-                 session.context.port,
-                 dirent->d_name);
-      continue;
-    }
-
-    snprintf((char *)data.data,
-             len + 1,
-             "[%c] %s [%.1Lf %s]",
-             dirent->d_type == DT_DIR ? 'd' : '-',
-             dirent->d_name,
-             file_size.size,
-             file_size.units);
-    data.length = (uint16_t)len + 1;
-
-    // check for the last file in the directory
-    if (counter == num_of_files - 1) data.descriptor = DESCPTR_EOF;
-
-    int send_ret = send_data(&data, session.fds.data_fd, 0);
-    if (send_ret != ERR_SUCCESS) {
-      logger_log(args->logger,
-                 ERROR,
-                 "[%lu] [%s] [%s:%s] failed to send data [%s]",
-                 thrd_current(),
-                 __func__,
-                 session.context.ip,
-                 session.context.port,
-                 str_err_code(send_ret));
-      enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
-                                                   args->logger,
-                                                   RPLY_DATA_CONN_CLOSED,
-                                                   "[%d] %s",
-                                                   RPLY_DATA_CONN_CLOSED,
-                                                   str_reply_code(RPLY_DATA_CONN_CLOSED));
-      handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
-      successful_trasnfer = false;
-      break;
-    }
-  }
-  closedir(dir);
-
-  if (successful_trasnfer) {
-    logger_log(args->logger,
-               INFO,
-               "[%lu] [%s] [%s:%s] file action complete. successful transfer",
+               "[%lu] [%s] [%s:%s] file action incomplete",
                thrd_current(),
                __func__,
                session.context.ip,
                session.context.port);
     enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
                                                  args->logger,
-                                                 RPLY_FILE_ACTION_COMPLETE,
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
                                                  "[%d] %s",
-                                                 RPLY_FILE_ACTION_COMPLETE,
-                                                 str_reply_code(RPLY_FILE_ACTION_COMPLETE));
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
+                                                 str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
   }
+
+  logger_log(args->logger,
+             INFO,
+             "[%lu] [%s] [%s:%s] file action complete. successful transfer",
+             thrd_current(),
+             __func__,
+             session.context.ip,
+             session.context.port);
+  enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                               args->logger,
+                                               RPLY_FILE_ACTION_COMPLETE,
+                                               "[%d] %s",
+                                               RPLY_FILE_ACTION_COMPLETE,
+                                               str_reply_code(RPLY_FILE_ACTION_COMPLETE));
+  handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
   return 0;
 }
