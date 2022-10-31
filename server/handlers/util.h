@@ -7,9 +7,9 @@
 #include "thread_pool.h"
 #include "vector_s.h"
 
-#define KB 1024.0
-#define MB (1024 * KB)
-#define GB (1024 * MB)
+#define KiB 1024.0
+#define MiB (1024 * KiB)
+#define GiB (1024 * MiB)
 
 struct request_args {
   enum request_type type;

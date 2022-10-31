@@ -152,15 +152,15 @@ bool validate_path(const char *path, struct logger *logger) {
 
 struct file_size get_file_size(off_t size_in_bytes) {
   struct file_size f_size = {0};
-  if (size_in_bytes > GB) {
-    f_size.size = size_in_bytes / GB;
-    f_size.units = "GB";
-  } else if (size_in_bytes > MB) {
-    f_size.size = size_in_bytes / MB;
-    f_size.units = "MB";
-  } else if (size_in_bytes > KB) {
-    f_size.size = size_in_bytes / KB;
-    f_size.units = "KB";
+  if (size_in_bytes > GiB) {
+    f_size.size = size_in_bytes / GiB;
+    f_size.units = "GiB";
+  } else if (size_in_bytes > MiB) {
+    f_size.size = size_in_bytes / MiB;
+    f_size.units = "MiB";
+  } else if (size_in_bytes > KiB) {
+    f_size.size = size_in_bytes / KiB;
+    f_size.units = "KiB";
   } else {
     f_size.size = (long double)size_in_bytes;
     f_size.units = "B";
