@@ -240,8 +240,7 @@ static void list(struct logger *logger, int sockfd) {
       break;
     }
 
-    data.data[data.length - 1] = 0;
-    fprintf(stdout, "\t\t%s\n", (char *)data.data);
+    fprintf(stdout, "%s", (char *)data.data);
   } while (data.descriptor != DESCPTR_EOF);
 }
 
