@@ -27,14 +27,12 @@ int main(int argc, char *argv[]) {
 
   if (!install_sig_handler(SIGINT, sigint_handler)) {
     logger_log(logger, ERROR, "failed to establish a signal handler for signal [%d]", SIGINT);
-    cleanup(logger, NULL);
-    return 1;
+    goto logger_cleanup;
   }
 
   if (argc != 3) {
     logger_log(logger, ERROR, "%s [ip] [port]", argv[0]);
-    cleanup(logger, NULL);
-    return 1;
+    goto logger_cleanup;
   }
 
   struct sockfds sockfds = {-1, -1, -1};
@@ -45,29 +43,26 @@ int main(int argc, char *argv[]) {
   sockfds.control_sockfd = connect_to_host(logger, ip, port);
   if (sockfds.control_sockfd == -1) {
     logger_log(logger, ERROR, "[%s] couldn't connect to [%s:%s]", __func__, ip, port);
-    cleanup(logger, &sockfds);
-    return 1;
+    goto fds_cleanup;
   }
 
   char local_ip[INET6_ADDRSTRLEN];
   char local_port[NI_MAXSERV];
-  get_ip_and_port(sockfds.control_sockfd, local_ip, sizeof local_ip, local_port, sizeof local_port);
+  get_sock_local_name(sockfds.control_sockfd, local_ip, sizeof local_ip, local_port, sizeof local_port);
   logger_log(logger, INFO, "[%s] local address: [%s:%s]", __func__, local_ip, local_port);
 
   sockfds.passive_sockfd = get_passive_socket(logger, local_port);
   if (sockfds.passive_sockfd == -1) {
     logger_log(logger, ERROR, "[%s] couldn't get a passive socket for port [%s]", __func__, local_port);
-    cleanup(logger, &sockfds);
-    return 1;
+    goto fds_cleanup;
   }
-  get_ip_and_port(sockfds.passive_sockfd, local_ip, sizeof local_ip, local_port, sizeof local_port);
+  get_sock_local_name(sockfds.passive_sockfd, local_ip, sizeof local_ip, local_port, sizeof local_port);
   logger_log(logger, INFO, "[%s] local (passive) address: [%s:%s]", __func__, local_ip, local_port);
 
   int epollfd = epoll_create1(0);
   if (epollfd == -1) {
     logger_log(logger, ERROR, "[%s] falied to create an epoll instance [%s]", __func__);
-    cleanup(logger, &sockfds);
-    return 1;
+    goto fds_cleanup;
   }
 
   epoll_ctl(epollfd,
@@ -83,7 +78,7 @@ int main(int argc, char *argv[]) {
   size_t epoll_events_size = sizeof epoll_events / sizeof *epoll_events;
 
   // main event loop
-  char cmd[REQUEST_MAX_LEN] = {0};
+  struct request request = {0};
   do {
     int event_count = epoll_wait(epollfd, epoll_events, epoll_events_size, -1);
     if (event_count == -1) {
@@ -92,10 +87,10 @@ int main(int argc, char *argv[]) {
     }
 
     enum request_type req_type = REQ_UNKNOWN;
-    struct request request = {0};
-    for (size_t i = 0; event_count > 0 && i < epoll_events_size; i++) {
+    for (size_t i = 0; event_count > 0 && i < epoll_events_size; i++) {  // look for events
       event_count--;
-      if (epoll_events[i].events & EPOLLIN) {
+
+      if (epoll_events[i].events & EPOLLIN) {  // something to be read
         if (epoll_events[i].data.fd == sockfds.passive_sockfd) {
           struct sockaddr_storage remote = {0};
           socklen_t remote_len = sizeof remote;
@@ -105,7 +100,6 @@ int main(int argc, char *argv[]) {
             continue;
           }
           sockfds.data_sockfd = data_fd;
-          // pollfds[2].fd = sockfds.data_sockfd;
         } else if (epoll_events[i].data.fd == sockfds.control_sockfd) {
           struct reply reply;
           int recv_ret = recieve_reply(&reply, sockfds.control_sockfd, 0);
@@ -120,34 +114,29 @@ int main(int argc, char *argv[]) {
             continue;
           }
 
-          fprintf(stdout, "%s\n", reply.reply);
+          fprintf(stdout, "\t\t%s\n", reply.reply);
 
           if (reply.code == RPLY_CLOSING_CTRL_CONN) {
-            goto end_lbl;
+            goto epoll_cleanup;
           } else if (reply.code == RPLY_DATA_CONN_OPEN_STARTING_TRANSFER) {
-            perform_file_operation(logger, sockfds.data_sockfd, req_type, &request);
+            perform_file_operation(logger, req_type, &request, sockfds.data_sockfd);
           }
         }
-      } else if (epoll_events[i].events & EPOLLERR) {
+
+      } else if (epoll_events[i].events & EPOLLHUP) {  // other end closed
+        logger_log(logger, ERROR, "[%s] the server closed its end of the connection", __func__);
+
+        if (epoll_events[i].data.fd == sockfds.control_sockfd) { goto epoll_cleanup; }
+
+        continue;
+      } else if (epoll_events[i].events & EPOLLERR) {  // error
         logger_log(logger, ERROR, "[%s] encountered an error whill polling. shutting down", __func__);
-        cleanup(logger, &sockfds);
-        close(epollfd);
-        return 1;
+        goto epoll_cleanup;
       }
     }
 
     do {
-      fputs("ftp > ", stdout);
-      fflush(stdout);
-
-      if (!fgets(cmd, sizeof cmd, stdin)) continue;
-      cmd[strcspn(cmd, "\n")] = 0;
-
-      // parse the command
-      req_type = parse_command(cmd);
-      request.length = strlen(cmd);
-      strcpy((char *)request.request, cmd);
-
+      req_type = get_request(&request);
     } while (req_type == REQ_UNKNOWN);
 
     // send the request
@@ -165,8 +154,17 @@ int main(int argc, char *argv[]) {
     logger_log(logger, INFO, "[%s] request [%hu : %s] sent", __func__, request.length, (char *)request.request);
   } while (!terminate);  // main event loop
 
-end_lbl:
-  cleanup(logger, &sockfds);
+epoll_cleanup:
   close(epollfd);
+
+fds_cleanup:
+  if (sockfds.control_sockfd >= 0) close(sockfds.control_sockfd);
+  if (sockfds.data_sockfd >= 0) close(sockfds.data_sockfd);
+  if (sockfds.passive_sockfd >= 0) close(sockfds.passive_sockfd);
+
+logger_cleanup:
+  logger_log(logger, INFO, "[%s] shutting down", __func__);
+  if (logger) logger_destroy(logger);
+
   return 0;
 }

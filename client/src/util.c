@@ -23,14 +23,13 @@ static const char *trim_str(const char *str) {
   return str;
 }
 
-void cleanup(struct logger *logger, struct sockfds *sockfds) {
-  if (logger) logger_destroy(logger);
+static const char *get_args(const struct request *request) {
+  if (!request) return NULL;
 
-  if (sockfds) {
-    if (sockfds->control_sockfd != -1) close(sockfds->control_sockfd);
-    if (sockfds->data_sockfd != -1) close(sockfds->data_sockfd);
-    if (sockfds->passive_sockfd != -1) close(sockfds->passive_sockfd);
-  }
+  const char *args = strchr((char *)request->request, ' ');
+  if (!args) return NULL;
+
+  return trim_str(args);
 }
 
 struct addrinfo *get_addr_info(const char *host, const char *serv, int flags) {
@@ -153,7 +152,7 @@ bool install_sig_handler(int signum, void (*handler)(int signum)) {
   return true;
 }
 
-void get_ip_and_port(int sockfd, char *ip, size_t ip_size, char *port, size_t port_size) {
+void get_sock_local_name(int sockfd, char *ip, size_t ip_size, char *port, size_t port_size) {
   struct sockaddr_storage addr;
   socklen_t addrlen = sizeof addr;
 
@@ -206,39 +205,128 @@ enum request_type parse_command(char *cmd) {
   return REQ_UNKNOWN;
 }
 
-void perform_file_operation(struct logger *logger, int sockfd, enum request_type req_type, struct request *request) {
-  if (!logger) return;
+enum request_type get_request(struct request *request) {
+  if (!request) return REQ_UNKNOWN;
 
-  if (req_type == REQ_UNKNOWN) {
-    logger_log(logger, ERROR, "[%s] unknown request", __func__);
+  enum request_type req_type = REQ_UNKNOWN;
+  char cmd[REQUEST_MAX_LEN] = {0};
+  do {
+    fputs("ftp > ", stdout);
+    fflush(stdout);
+
+    if (!fgets(cmd, sizeof cmd, stdin)) continue;
+    cmd[strcspn(cmd, "\n")] = 0;
+
+    // parse the command
+    req_type = parse_command(cmd);
+    request->length = strlen(cmd);
+    strcpy((char *)request->request, cmd);
+
+  } while (req_type == REQ_UNKNOWN);
+
+  return req_type;
+}
+
+static void list(struct logger *logger, int sockfd) {
+  struct data_block data = {0};
+  do {
+    int recv_ret = receive_data(&data, sockfd, MSG_DONTWAIT);
+    if (recv_ret != ERR_SUCCESS) {
+      logger_log(logger,
+                 ERROR,
+                 "[%s] encountered an error while recieveing data. reason: [%s]",
+                 __func__,
+                 str_err_code(recv_ret));
+      break;
+    }
+
+    data.data[data.length - 1] = 0;
+    fprintf(stdout, "\t\t%s\n", (char *)data.data);
+  } while (data.descriptor != DESCPTR_EOF);
+}
+
+static void retrieve_file(struct logger *logger, struct request *request, int sockfd) {
+  struct data_block data = {0};
+
+  const char *arg = get_args(request);
+  FILE *fp = fopen(arg, "w");
+  if (!fp) {
+    logger_log(logger, ERROR, "[%s] failed to create the file [%s]", __func__, arg ? arg : "null");
     return;
   }
+
+  do {
+    int recv_ret = receive_data(&data, sockfd, MSG_DONTWAIT);
+    if (recv_ret != ERR_SUCCESS) {
+      logger_log(logger,
+                 ERROR,
+                 "[%s] encountered an error while recieveing data. reason: [%s]",
+                 __func__,
+                 str_err_code(recv_ret));
+      break;
+    }
+
+    size_t written = fwrite(data.data, sizeof *data.data, data.length, fp);
+    if (written != data.length) {
+      logger_log(logger, ERROR, "[%s] recieved [%hu] bytes but managed to write [%zu]", __func__, data.length, written);
+      break;
+    }
+
+  } while (data.descriptor != DESCPTR_EOF);
+
+  fclose(fp);
+}
+
+static void store_file(struct logger *logger, struct request *request, int sockfd) {
+  const char *arg = get_args(request);
+  FILE *fp = fopen(arg, "r");
+  if (!fp) {
+    logger_log(logger, ERROR, "[%s] failed to open the file [%s]", __func__, arg ? arg : "null");
+    return;
+  }
+
+  struct data_block data = {0};
+
+  do {
+    size_t bytes_read = fread(data.data, sizeof *data.data, DATA_BLOCK_MAX_LEN, fp);
+    if (feof(fp)) { data.descriptor = DESCPTR_EOF; }
+
+    data.length = (uint16_t)bytes_read;
+    int sent = send_data(&data, sockfd, 0);
+    if (sent != ERR_SUCCESS) {
+      logger_log(logger,
+                 ERROR,
+                 "[%s] failed to send the data to the server on socket [%d]. reason: [%s]",
+                 __func__,
+                 sockfd,
+                 str_err_code(sent));
+      break;
+    }
+  } while (data.descriptor != DESCPTR_EOF);
+
+  fclose(fp);
+}
+
+void perform_file_operation(struct logger *logger, enum request_type req_type, struct request *request, int sockfd) {
+  if (!logger) return;
 
   if (!request) {
     logger_log(logger, ERROR, "[%s] request may not be NULL", __func__);
     return;
   }
 
-  struct data_block data = {0};
   switch (req_type) {
     case REQ_LIST:
-      do {
-        int recv_ret = receive_data(&data, sockfd, MSG_DONTWAIT);
-        if (recv_ret != ERR_SUCCESS) {
-          logger_log(logger,
-                     ERROR,
-                     "[%s] encountered an error while recieveing data. reason: [%s]",
-                     __func__,
-                     str_err_code(recv_ret));
-          break;
-        }
-      } while (data.descriptor != DESCPTR_EOF);
+      list(logger, sockfd);
       break;
     case REQ_RETR:
+      retrieve_file(logger, request, sockfd);
       break;
     case REQ_STOR:
+      store_file(logger, request, sockfd);
       break;
     default:
+      logger_log(logger, ERROR, "[%s] unknown request", __func__);
       break;
   }
 }
