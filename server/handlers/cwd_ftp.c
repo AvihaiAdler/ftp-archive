@@ -72,8 +72,9 @@ int change_directory(void *arg) {
 
     char tmp_path[MAX_PATH_LEN] = {0};
     snprintf(tmp_path, len + 1, "%s/%s", session.context.root_dir, args->req_args.request_args);
-    int ret = open(tmp_path, O_RDONLY | O_DIRECTORY);
-    if (ret == -1) {  // desired directory doesn't exist
+
+    bool is_dir = is_directory(tmp_path);
+    if (!is_dir) {  // desired directory doesn't exist
       logger_log(args->logger,
                  ERROR,
                  "[%lu] [%s] [%s:%s] invalid path [%s]",
@@ -91,7 +92,6 @@ int change_directory(void *arg) {
       handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
       return 1;
     }
-    close(ret);
 
     // replace session::context::curr_dir
     strcpy(session.context.curr_dir, args->req_args.request_args);
