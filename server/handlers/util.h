@@ -37,6 +37,8 @@ struct file_size {
 
 bool validate_path(const char *file_name, struct logger *logger);
 
+bool is_directory(const char *const path);
+
 const char *trim_str(const char *str);
 
 enum err_codes send_reply_wrapper(int sockfd, struct logger *logger, enum reply_codes reply_code, const char *fmt, ...);

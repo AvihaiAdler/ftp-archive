@@ -6,7 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/epoll.h>
-#include <unistd.h>  // getcwd()
+#include <sys/stat.h>  // stat()
+#include <unistd.h>    // getcwd()
 #include "misc/util.h"
 
 char *tolower_str(char *str, size_t len) {
@@ -148,6 +149,15 @@ bool validate_path(const char *path, struct logger *logger) {
   }
 
   return true;
+}
+
+bool is_directory(const char *const path) {
+  if (!path) return false;
+
+  struct stat buf = {0};
+  if (stat(path, &buf)) return false;
+
+  return S_ISDIR(buf.st_mode);
 }
 
 struct file_size get_file_size(off_t size_in_bytes) {
