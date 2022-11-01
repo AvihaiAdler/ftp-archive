@@ -84,7 +84,8 @@ static bool parse_command(struct request *request, struct request_args *request_
   }
 
   const char *req_args = trim_str(req_ptr + cmd_len);
-  if (*req_args) strcpy(request_args->request_args, req_args);
+  // if (*req_args)
+  strcpy(request_args->request_args, req_args);  // copy either the args, or the null terminator
 
   return true;
 }
