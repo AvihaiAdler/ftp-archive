@@ -150,7 +150,7 @@ int list(void *arg) {
 
   // get the directory path
   const char *dir_name = args->req_args.request_args;
-  if (dir_name && !validate_path(dir_name, args->logger)) {
+  if (*dir_name && !validate_path(dir_name, args->logger)) {
     enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
                                                  args->logger,
                                                  RPLY_CMD_ARGS_SYNTAX_ERR,
@@ -161,8 +161,6 @@ int list(void *arg) {
 
     return 1;
   }
-
-  if (!dir_name) dir_name = ".";
 
   // get file path
   char path[MAX_PATH_LEN];
@@ -186,30 +184,44 @@ int list(void *arg) {
     return 1;
   }
 
-  size_t args_len = strlen(args->req_args.request_args);
+  // dir_name isn't empty - copy it into path. otherwise list will show current directory of the session
+  if (*dir_name) {
+    size_t args_len = strlen(args->req_args.request_args);
 
-  // path too long
-  if (strlen(path) + 1 + args_len + 1 > MAX_PATH_LEN - 1) {
-    logger_log(args->logger,
-               ERROR,
-               "[%lu] [%s] [%s:%s] path too long",
-               thrd_current(),
-               __func__,
-               session.context.ip,
-               session.context.port);
+    // path too long
+    if (strlen(path) + 1 + args_len + 1 > MAX_PATH_LEN - 1) {
+      logger_log(args->logger,
+                 ERROR,
+                 "[%lu] [%s] [%s:%s] path too long",
+                 thrd_current(),
+                 __func__,
+                 session.context.ip,
+                 session.context.port);
+      enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
+                                                   args->logger,
+                                                   RPLY_FILE_ACTION_NOT_TAKEN_INVALID_FILENAME,
+                                                   "[%d] %s",
+                                                   RPLY_FILE_ACTION_NOT_TAKEN_INVALID_FILENAME,
+                                                   str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_INVALID_FILENAME));
+      handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
+
+      return 1;
+    }
+    strcat(path, "/");
+    strcat(path, dir_name);
+  }
+
+  if (!is_directory(path)) {
     enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
                                                  args->logger,
-                                                 RPLY_FILE_ACTION_NOT_TAKEN_INVALID_FILENAME,
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE,
                                                  "[%d] %s",
-                                                 RPLY_FILE_ACTION_NOT_TAKEN_INVALID_FILENAME,
-                                                 str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_INVALID_FILENAME));
+                                                 RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE,
+                                                 str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE));
     handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
     return 1;
   }
-
-  strcat(path, "/");
-  strcat(path, dir_name);
 
   bool success = send_dir_content(args->logger, args->sessions, &session, args->epollfd, path);
   if (!success) {
