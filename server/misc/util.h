@@ -62,5 +62,8 @@ struct list *get_local_ip(void);
 /* establish a signal handler */
 bool install_sig_handler(int signal, void (*handler)(int signal));
 
+/* blocks a signal for the process who called it. note that some signals may not be blocked */
+bool block_signal(int signal);
+
 /* returns a string literal corespond each errno code */
 const char *strerr_safe(int err);

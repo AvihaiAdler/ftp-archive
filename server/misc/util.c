@@ -352,6 +352,17 @@ bool install_sig_handler(int signal, void (*handler)(int signal)) {
   return true;
 }
 
+bool block_signal(int signal) {
+  sigset_t sigset;
+
+  int ret = sigemptyset(&sigset);
+  ret |= sigprocmask(SIG_BLOCK, NULL, &sigset);  // get the old signal mask
+  ret |= sigaddset(&sigset, signal);             // add the signal to the old mask
+  ret |= sigprocmask(SIG_BLOCK, &sigset, NULL);
+
+  return ret == 0;
+}
+
 const char *strerr_safe(int err) {
   const char *err_str = NULL;
   switch (err) {
