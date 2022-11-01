@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 #define MAX_PATH_LEN 4096
-#define MAX_ROOT_DIR_LEN 20
+#define MAX_ROOT_DIR_LEN 512
 
 struct fds {
   int control_fd;
