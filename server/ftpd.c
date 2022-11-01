@@ -43,10 +43,6 @@ static void sigint_handler(int signum) {
   atomic_store(&terminate, true);
 }
 
-static void sigpipe_handler(int signum) {
-  (void)signum;
-}
-
 int main(int argc, char *argv[]) {
   if (argc != 2) {
     fprintf(stderr, "[%s] %s [path to properties file]\n", __func__, argv[0]);
@@ -111,15 +107,17 @@ int main(int argc, char *argv[]) {
 
   logger_log(logger, INFO, "[%s] server root directory obtained", __func__);
 
-  // install a signal handler (must be invoked prior to the creation of the thread pool due to the sigprocmask() call)
+  // install a signal handler for SIGINT (must be invoked prior to the creation of the thread pool due to the
+  // sigprocmask() call)
   if (!install_sig_handler(SIGINT, sigint_handler)) {
-    logger_log(logger, ERROR, "[%s] failed to create a sigint handler", __func__);
+    logger_log(logger, ERROR, "[%s] failed to create a SIGINT handler", __func__);
 
     goto logger_cleanup;
   }
 
-  if (!install_sig_handler(SIGPIPE, sigpipe_handler)) {
-    logger_log(logger, ERROR, "[%s] failed to create a sigpipe handler", __func__);
+  // install a signal handler for SIGPIPE
+  if (!install_sig_handler(SIGPIPE, SIG_IGN)) {
+    logger_log(logger, ERROR, "[%s] failed to create a SIGPIPE handler", __func__);
 
     goto logger_cleanup;
   }
@@ -144,13 +142,8 @@ int main(int argc, char *argv[]) {
     num_of_threads = (uint8_t)tmp;
   }
 
-  // block SIGINT for all threads (including main)
-  sigset_t threads_sigset;
-  ret = sigemptyset(&threads_sigset);
-  ret |= sigaddset(&threads_sigset, SIGINT);
-  ret |= sigprocmask(SIG_BLOCK, &threads_sigset, NULL);
-
-  if (ret) {
+  // block SIGINT for all threads (including main) must be done be the creation of the thread pool to avoid UB
+  if (!block_signal(SIGINT)) {
     logger_log(logger, ERROR, "[%s] failed to establish a signal mask for all threads", __func__);
 
     goto logger_cleanup;
@@ -167,8 +160,11 @@ int main(int argc, char *argv[]) {
   logger_log(logger, INFO, "[%s] thread pool created successfully", __func__);
 
   // unblock SIGINT for (only) the main thread
-  if (pthread_sigmask(SIG_UNBLOCK, &threads_sigset, NULL) != 0) {
-    logger_log(logger, ERROR, "[%s] failed to establish a signal mask for main", __func__);
+  sigset_t sigset;
+  sigemptyset(&sigset);
+  sigaddset(&sigset, SIGINT);
+  if (pthread_sigmask(SIG_UNBLOCK, &sigset, NULL) != 0) {
+    logger_log(logger, ERROR, "[%s] failed to establish a signal mask", __func__);
 
     goto thread_pool_cleanup;
   }
