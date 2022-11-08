@@ -51,8 +51,8 @@ int main(void) {
   struct timespec wait = {.tv_sec = 2, .tv_nsec = 0};
   struct timespec remains;
   nanosleep(&wait, &remains);
-  logger_log(logger, INFO, "test end");
 
   thread_pool_destroy(thread_pool);
+  logger_log(logger, INFO, "test end");
   logger_destroy(logger);
 }

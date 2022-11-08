@@ -23,4 +23,7 @@ set_target_properties(
   IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/lib/generics/libgenerics.a
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/generics/include
 )
-target_link_libraries(thread_pool PRIVATE libgenerics)
+target_link_libraries(
+  thread_pool 
+  PRIVATE 
+  libgenerics)
