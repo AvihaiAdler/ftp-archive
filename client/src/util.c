@@ -76,14 +76,19 @@ int connect_to_host(struct logger *logger, const char *host, const char *serv) {
   return sockfd;
 }
 
-int get_passive_socket(struct logger *logger, const char *port) {
+int get_passive_socket(struct logger *logger, const char *ip, const char *port) {
   if (!logger) return -1;
+  if (!ip) {
+    logger_log(logger, ERROR, "[%s] [ip] may not be NULL", __func__);
+    return -1;
+  }
+
   if (!port) {
     logger_log(logger, ERROR, "[%s] [port] may not be NULL", __func__);
     return -1;
   }
 
-  struct addrinfo *info = get_addr_info(NULL, port, AI_PASSIVE);
+  struct addrinfo *info = get_addr_info(ip, port, AI_PASSIVE);
   if (!info) {
     logger_log(logger, ERROR, "[%s] failed to get address info for [%s:%s]", __func__, port);
     return -1;

@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
   get_sock_local_name(sockfds.control_sockfd, local_ip, sizeof local_ip, local_port, sizeof local_port);
   logger_log(logger, INFO, "[%s] local address: [%s:%s]", __func__, local_ip, local_port);
 
-  sockfds.passive_sockfd = get_passive_socket(logger, local_port);
+  sockfds.passive_sockfd = get_passive_socket(logger, local_ip, local_port);
   if (sockfds.passive_sockfd == -1) {
     logger_log(logger, ERROR, "[%s] couldn't get a passive socket for port [%s]", __func__, local_port);
     goto fds_cleanup;

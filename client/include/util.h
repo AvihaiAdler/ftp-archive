@@ -15,7 +15,7 @@ struct sockfds {
 int connect_to_host(struct logger *logger, const char *host, const char *serv);
 
 // the port must be the port used by the client 'control connection'
-int get_passive_socket(struct logger *logger, const char *port);
+int get_passive_socket(struct logger *logger, const char *ip, const char *port);
 
 bool install_sig_handler(int signum, void (*handler)(int signum));
 
