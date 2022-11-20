@@ -11,5 +11,4 @@ target_link_options(${TEST} PRIVATE -fsanitize=address,undefined)
 target_include_directories(${TEST} PRIVATE ${CMAKE_SOURCE_DIR}/lib/generics)
 target_link_libraries(${TEST} PRIVATE generics)
 
-
 endforeach(TEST)
