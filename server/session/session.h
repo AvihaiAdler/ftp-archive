@@ -3,9 +3,9 @@
 #include <arpa/inet.h>  // INET6_ADDERLEN
 #include <netdb.h>      // NI_MAXSERV
 #include <stdbool.h>
+#include "str.h"
 
 #define MAX_PATH_LEN 4096
-#define MAX_ROOT_DIR_LEN 512
 
 struct fds {
   int control_fd;
@@ -17,10 +17,10 @@ struct context {
   bool logged_in;  // reserved for future implmentation
 
   // current directory. the current directoy is relative to the process root directory
-  char curr_dir[MAX_PATH_LEN];
+  struct string *curr_dir;
 
   // the sessions root directory. reserved for future impelmentation
-  char root_dir[MAX_ROOT_DIR_LEN];
+  struct string *root_dir;
 
   // no thread thouching these after initialization
   char ip[INET6_ADDRSTRLEN];
