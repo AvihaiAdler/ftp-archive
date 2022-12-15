@@ -178,24 +178,23 @@ struct file_size get_file_size(off_t size_in_bytes) {
   return f_size;
 }
 
-bool get_path(struct session *session, char *path, size_t path_size) {
-  if (!path) return false;
+struct string *get_path(struct session *session) {
+  if (!session) return NULL;
 
-  char *ptr = getcwd(path, path_size);
-  if (!ptr) return false;
+  char working_dir[MAX_PATH_LEN];
+  char *ptr = getcwd(working_dir, sizeof working_dir);
+  if (!ptr) return NULL;
 
-  size_t path_len = strlen(path);  // length so far
-  size_t root_dir_len = strlen(session->context.root_dir);
-  size_t curr_dir_len = strlen(session->context.curr_dir);
+  struct string *path = string_init(working_dir);
+  if (!path) return NULL;
 
-  if (path_len + root_dir_len + 1 + curr_dir_len + 1 >= path_size - 1) return false;  // path too long
+  string_concat(path, "/");
+  string_concat(path, string_c_str(session->context.root_dir));
 
-  if (curr_dir_len) {
-    strcat(path, "/");
-    strcat(path, session->context.root_dir);
-    strcat(path, "/");
-    strcat(path, *session->context.curr_dir ? session->context.curr_dir : ".");
+  if (string_length(session->context.curr_dir)) {
+    string_concat(path, "/");
+    string_concat(path, string_c_str(session->context.curr_dir));
   }
 
-  return true;
+  return path;
 }

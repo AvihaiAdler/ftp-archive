@@ -4,6 +4,7 @@
 #include "logger.h"
 #include "payload.h"
 #include "session/session.h"
+#include "str.h"
 #include "thread_pool.h"
 #include "vector_s.h"
 
@@ -47,7 +48,7 @@ char *tolower_str(char *str, size_t len);
 
 struct file_size get_file_size(off_t size_in_bytes);
 
-bool get_path(struct session *session, char *path, size_t path_size);
+struct string *get_path(struct session *session);
 
 void handle_reply_err(struct logger *logger,
                       struct vector_s *sessions,
