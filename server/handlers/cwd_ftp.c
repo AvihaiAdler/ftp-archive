@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unistd.h>  // close()
 #include "misc/util.h"
+#include "str.h"
 #include "util.h"
 
 int change_directory(void *arg) {
@@ -35,7 +36,7 @@ int change_directory(void *arg) {
   free(tmp_session);
 
   if (!*args->req_args.request_args) {
-    *session.context.curr_dir = 0;
+    string_clear(session.context.curr_dir);
   } else {
     if (!validate_path(args->req_args.request_args, args->logger)) {
       enum err_codes err_code = send_reply_wrapper(args->remote_fd,
@@ -49,7 +50,7 @@ int change_directory(void *arg) {
     }
 
     // try to open the desired directory
-    int len = snprintf(NULL, 0, "%s/%s", session.context.root_dir, args->req_args.request_args);
+    int len = snprintf(NULL, 0, "%s/%s", string_c_str(session.context.root_dir), args->req_args.request_args);
 
     // path is too long
     if (len < 0 || len + 1 > MAX_PATH_LEN - 1) {
@@ -71,7 +72,7 @@ int change_directory(void *arg) {
     }
 
     char tmp_path[MAX_PATH_LEN] = {0};
-    snprintf(tmp_path, len + 1, "%s/%s", session.context.root_dir, args->req_args.request_args);
+    snprintf(tmp_path, len + 1, "%s/%s", string_c_str(session.context.root_dir), args->req_args.request_args);
 
     bool is_dir = is_directory(tmp_path);
     if (!is_dir) {  // desired directory doesn't exist
@@ -94,7 +95,7 @@ int change_directory(void *arg) {
     }
 
     // replace session::context::curr_dir
-    strcpy(session.context.curr_dir, args->req_args.request_args);
+    string_copy(session.context.curr_dir, args->req_args.request_args);
   }
 
   // replace the session
@@ -109,13 +110,14 @@ int change_directory(void *arg) {
     return 1;
   }
 
-  enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
-                                               args->logger,
-                                               RPLY_FILE_ACTION_COMPLETE,
-                                               "[%d] %s [%s]",
-                                               RPLY_FILE_ACTION_COMPLETE,
-                                               str_reply_code(RPLY_FILE_ACTION_COMPLETE),
-                                               *session.context.curr_dir ? session.context.curr_dir : "/");
+  enum err_codes err_code =
+    send_reply_wrapper(session.fds.control_fd,
+                       args->logger,
+                       RPLY_FILE_ACTION_COMPLETE,
+                       "[%d] %s [%s]",
+                       RPLY_FILE_ACTION_COMPLETE,
+                       str_reply_code(RPLY_FILE_ACTION_COMPLETE),
+                       string_length(session.context.curr_dir) ? string_c_str(session.context.curr_dir) : "/");
   handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
   logger_log(args->logger,
              INFO,
@@ -124,8 +126,8 @@ int change_directory(void *arg) {
              __func__,
              session.context.ip,
              session.context.port,
-             session.context.root_dir,
-             session.context.curr_dir);
+             string_c_str(session.context.root_dir),
+             string_c_str(session.context.curr_dir));
 
   return 0;
 }

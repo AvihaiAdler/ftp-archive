@@ -55,9 +55,8 @@ int make_directory(void *arg) {
   }
 
   // get the new directory path
-  char path[MAX_PATH_LEN];
-  bool ret = get_path(&session, path, sizeof path);
-  if (!ret) {
+  struct string *path = get_path(&session);
+  if (!path) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] get_path() failure",
@@ -79,7 +78,7 @@ int make_directory(void *arg) {
   size_t args_len = strlen(args->req_args.request_args);
 
   // path too long
-  if (strlen(path) + 1 + args_len + 1 > MAX_PATH_LEN - 1) {
+  if (string_length(path) + 1 + args_len + 1 > MAX_PATH_LEN - 1) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] path too long",
@@ -95,14 +94,15 @@ int make_directory(void *arg) {
                                                  str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
     handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
+    string_destroy(path);
     return 1;
   }
 
-  strcat(path, "/");
-  strcat(path, args->req_args.request_args);
+  string_concat(path, "/");
+  string_concat(path, args->req_args.request_args);
 
   // create the directory
-  if (mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR) != 0) {
+  if (mkdir(string_c_str(path), S_IRUSR | S_IWUSR | S_IXUSR) != 0) {
     int err = errno;
     logger_log(args->logger,
                ERROR,
@@ -129,7 +129,7 @@ int make_directory(void *arg) {
              __func__,
              session.context.ip,
              session.context.port,
-             path);
+             string_c_str(path));
 
   // there shouldn't be a possibilty for strstr to return NULL
   enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
@@ -141,5 +141,6 @@ int make_directory(void *arg) {
                                                str_reply_code(RPLY_PATHNAME_CREATED));
   handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
+  string_destroy(path);
   return 0;
 }

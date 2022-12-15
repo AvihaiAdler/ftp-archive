@@ -162,10 +162,9 @@ int list(void *arg) {
     return 1;
   }
 
-  // get file path
-  char path[MAX_PATH_LEN];
-  bool ret = get_path(&session, path, sizeof path);
-  if (!ret) {
+  // get the directory path
+  struct string *path = get_path(&session);
+  if (!path) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] get_path() failure",
@@ -189,7 +188,7 @@ int list(void *arg) {
     size_t args_len = strlen(args->req_args.request_args);
 
     // path too long
-    if (strlen(path) + 1 + args_len + 1 > MAX_PATH_LEN - 1) {
+    if (string_length(path) + 1 + args_len + 1 > MAX_PATH_LEN - 1) {
       logger_log(args->logger,
                  ERROR,
                  "[%lu] [%s] [%s:%s] path too long",
@@ -205,13 +204,15 @@ int list(void *arg) {
                                                    str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_INVALID_FILENAME));
       handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
+      string_destroy(path);
       return 1;
     }
-    strcat(path, "/");
-    strcat(path, dir_name);
+
+    string_concat(path, "/");
+    string_concat(path, dir_name);
   }
 
-  if (!is_directory(path)) {
+  if (!is_directory(string_c_str(path))) {
     enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
                                                  args->logger,
                                                  RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE,
@@ -220,10 +221,11 @@ int list(void *arg) {
                                                  str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE));
     handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
+    string_destroy(path);
     return 1;
   }
 
-  bool success = send_dir_content(args->logger, args->sessions, &session, args->epollfd, path);
+  bool success = send_dir_content(args->logger, args->sessions, &session, args->epollfd, string_c_str(path));
   if (!success) {
     logger_log(args->logger,
                ERROR,
@@ -256,5 +258,6 @@ int list(void *arg) {
                                                str_reply_code(RPLY_FILE_ACTION_COMPLETE));
   handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
+  string_destroy(path);
   return 0;
 }

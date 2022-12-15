@@ -47,9 +47,8 @@ int remove_directory(void *arg) {
   }
 
   // get file path
-  char path[MAX_PATH_LEN];
-  bool ret = get_path(&session, path, sizeof path);
-  if (!ret) {
+  struct string *path = get_path(&session);
+  if (!path) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] get_path() failure",
@@ -71,7 +70,7 @@ int remove_directory(void *arg) {
   size_t args_len = strlen(args->req_args.request_args);
 
   // path too long
-  if (strlen(path) + 1 + args_len + 1 > MAX_PATH_LEN - 1) {
+  if (string_length(path) + 1 + args_len + 1 > MAX_PATH_LEN - 1) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] path too long",
@@ -87,14 +86,15 @@ int remove_directory(void *arg) {
                                                  str_reply_code(RPLY_CMD_SYNTAX_ERR));
     handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
+    string_destroy(path);
     return 1;
   }
 
-  strcat(path, "/");
-  strcat(path, args->req_args.request_args);
+  string_concat(path, "/");
+  string_concat(path, args->req_args.request_args);
 
   // delete the directory
-  if (rmdir(path) != 0) {
+  if (rmdir(string_c_str(path)) != 0) {
     int err = errno;
     logger_log(args->logger,
                ERROR,
@@ -111,6 +111,8 @@ int remove_directory(void *arg) {
                                                  RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE,
                                                  str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_FILE_UNAVAILABLE));
     handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
+
+    string_destroy(path);
     return 1;
   }
 
@@ -130,7 +132,8 @@ int remove_directory(void *arg) {
              __func__,
              session.context.ip,
              session.context.port,
-             path);
+             string_c_str(path));
 
+  string_destroy(path);
   return 0;
 }

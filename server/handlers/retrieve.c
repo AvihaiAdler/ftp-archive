@@ -66,9 +66,8 @@ int retrieve_file(void *arg) {
   }
 
   // get file path
-  char path[MAX_PATH_LEN];
-  bool path_ret = get_path(&session, path, sizeof path);
-  if (!path_ret) {
+  struct string *path = get_path(&session);
+  if (!path) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] get_path() failure",
@@ -90,7 +89,7 @@ int retrieve_file(void *arg) {
   size_t args_len = strlen(args->req_args.request_args);
 
   // path too long
-  if (strlen(path) + 1 + args_len + 1 > MAX_PATH_LEN - 1) {
+  if (string_length(path) + 1 + args_len + 1 > MAX_PATH_LEN - 1) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] path too long",
@@ -106,14 +105,15 @@ int retrieve_file(void *arg) {
                                                  str_reply_code(RPLY_CMD_SYNTAX_ERR));
     handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
+    string_destroy(path);
     return 1;
   }
 
-  strcat(path, "/");
-  strcat(path, args->req_args.request_args);
+  string_concat(path, "/");
+  string_concat(path, args->req_args.request_args);
 
   // open the file
-  FILE *fp = fopen(path, "r");
+  FILE *fp = fopen(string_c_str(path), "r");
   int fp_fd = fileno(fp);
   if (!fp || fp_fd == -1) {
     logger_log(args->logger,
@@ -123,7 +123,7 @@ int retrieve_file(void *arg) {
                __func__,
                session.context.ip,
                session.context.port,
-               path);
+               string_c_str(path));
     enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
                                                  args->logger,
                                                  RPLY_CMD_ARGS_SYNTAX_ERR,
@@ -132,6 +132,7 @@ int retrieve_file(void *arg) {
                                                  str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
     handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
+    string_destroy(path);
     return 1;
   }
 
@@ -145,7 +146,7 @@ int retrieve_file(void *arg) {
                __func__,
                session.context.ip,
                session.context.port,
-               path);
+               string_c_str(path));
     enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
                                                  args->logger,
                                                  RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
@@ -153,6 +154,8 @@ int retrieve_file(void *arg) {
                                                  RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR,
                                                  str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
+
+    string_destroy(path);
     return 1;
   }
 
@@ -204,7 +207,7 @@ int retrieve_file(void *arg) {
                __func__,
                session.context.ip,
                session.context.port,
-               path + strlen(session.context.root_dir) + 1);
+               string_c_str(path) + string_length(session.context.root_dir) + 1);
     enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
                                                  args->logger,
                                                  RPLY_FILE_ACTION_COMPLETE,
@@ -228,6 +231,6 @@ int retrieve_file(void *arg) {
                                                  str_reply_code(RPLY_FILE_ACTION_NOT_TAKEN_PROCESS_ERROR));
     handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
   }
-
+  string_destroy(path);
   return 0;
 }

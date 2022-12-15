@@ -77,6 +77,15 @@ set_target_properties(
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/payload/include
 )
 
+#string
+add_library(libstring STATIC IMPORTED)
+set_target_properties(
+  libstring
+  PROPERTIES
+  IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/lib/string/libstring.a
+  INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/lib/string/include
+)
+
 target_link_libraries(
   ftpd PRIVATE 
   libgenerics 
@@ -84,5 +93,6 @@ target_link_libraries(
   liblogger
   libthread_pool
   libpayload
+  libstring
   pthread
 )

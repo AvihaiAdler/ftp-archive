@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>  // unlink()
 #include "misc/util.h"
+#include "str.h"
 #include "util.h"
 
 int store_file(void *arg) {
@@ -103,8 +104,8 @@ int store_file(void *arg) {
   int final_path_len = snprintf(NULL,
                                 0,
                                 "%s/%s/%s",
-                                session.context.root_dir,
-                                *session.context.curr_dir ? session.context.curr_dir : ".",
+                                string_c_str(session.context.root_dir),
+                                string_length(session.context.curr_dir) ? string_c_str(session.context.curr_dir) : ".",
                                 args->req_args.request_args);
 
   if (tmp_len < 0 || final_path_len < 0) {
@@ -151,8 +152,8 @@ int store_file(void *arg) {
   snprintf(final_file,
            final_path_len,
            "%s/%s/%s",
-           session.context.root_dir,
-           *session.context.curr_dir ? session.context.curr_dir : ".",
+           string_c_str(session.context.root_dir),
+           string_length(session.context.curr_dir) ? string_c_str(session.context.curr_dir) : ".",
            args->req_args.request_args);
 
   // create a file with a prefix of .
@@ -245,7 +246,7 @@ int store_file(void *arg) {
                __func__,
                session.context.ip,
                session.context.port,
-               final_file + strlen(session.context.root_dir) + 1);
+               final_file + string_length(session.context.root_dir) + 1);
     enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
                                                  args->logger,
                                                  RPLY_FILE_ACTION_COMPLETE,

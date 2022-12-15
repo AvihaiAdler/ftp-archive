@@ -47,9 +47,8 @@ int delete_file(void *arg) {
   }
 
   // get file path
-  char path[MAX_PATH_LEN];
-  bool path_ret = get_path(&session, path, sizeof path);
-  if (!path_ret) {
+  struct string *path = get_path(&session);
+  if (!path) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] get_path() failure",
@@ -71,7 +70,7 @@ int delete_file(void *arg) {
   size_t args_len = strlen(args->req_args.request_args);
 
   // path too long
-  if (strlen(path) + 1 + args_len + 1 > MAX_PATH_LEN - 1) {
+  if (string_length(path) + 1 + args_len + 1 > MAX_PATH_LEN - 1) {
     logger_log(args->logger,
                ERROR,
                "[%lu] [%s] [%s:%s] path too long",
@@ -87,14 +86,15 @@ int delete_file(void *arg) {
                                                  str_reply_code(RPLY_CMD_ARGS_SYNTAX_ERR));
     handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
+    string_destroy(path);
     return 1;
   }
 
-  strcat(path, "/");
-  strcat(path, args->req_args.request_args);
+  string_concat(path, "/");
+  string_concat(path, args->req_args.request_args);
 
   // delete the file
-  int ret = unlink(path);
+  int ret = unlink(string_c_str(path));
   if (ret != 0) {
     int err = errno;
     logger_log(args->logger,
@@ -104,7 +104,7 @@ int delete_file(void *arg) {
                __func__,
                session.context.ip,
                session.context.port,
-               path,
+               string_c_str(path),
                strerr_safe(err));
     enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
                                                  args->logger,
@@ -124,7 +124,7 @@ int delete_file(void *arg) {
              __func__,
              session.context.ip,
              session.context.port,
-             path);
+             string_c_str(path));
   enum err_codes err_code = send_reply_wrapper(session.fds.control_fd,
                                                args->logger,
                                                RPLY_FILE_ACTION_COMPLETE,
@@ -134,5 +134,6 @@ int delete_file(void *arg) {
                                                args->req_args.request_args);
   handle_reply_err(args->logger, args->sessions, &session, args->epollfd, err_code);
 
+  string_destroy(path);
   return 0;
 }
