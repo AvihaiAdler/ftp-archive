@@ -1,7 +1,6 @@
 #include "include/str.h"
 #include <stdlib.h>
 #include <string.h>
-#include "include/defines.h"
 
 #define INIT_SIZE (sizeof(struct ptrs) * 2)
 #define STRING_GROWTH_FACTOR 2
