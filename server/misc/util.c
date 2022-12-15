@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include "session/session.h"
+#include "str.h"
 #include "thread_pool.h"
 
 #define BUF_LEN 1024
@@ -223,9 +224,11 @@ bool construct_session(struct session *session, int remote_fd, struct sockaddr *
 
   // reserved for future implementation of a login system
   session->context = (struct context){.logged_in = false};
+  session->context.root_dir = string_init(".");
+  if (!session->context.root_dir) return false;
 
-  strcpy(session->context.root_dir, ".");
-  *session->context.curr_dir = 0;
+  session->context.curr_dir = string_init(NULL);
+  if (!session->context.curr_dir) return false;
 
   getnameinfo(remote,
               remote_len,
@@ -286,6 +289,9 @@ void close_session(struct vector_s *sessions, int fd) {
   if (session->fds.control_fd > 0) close(session->fds.control_fd);
   if (session->fds.data_fd > 0) close(session->fds.data_fd);
   if (session->fds.listen_sockfd > 0) close(session->fds.listen_sockfd);
+
+  if (session->context.curr_dir) string_destroy(session->context.curr_dir);
+  if (session->context.root_dir) string_destroy(session->context.root_dir);
   free(session);
 }
 
