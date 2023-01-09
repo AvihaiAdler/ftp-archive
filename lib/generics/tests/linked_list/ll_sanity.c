@@ -336,6 +336,9 @@ int main(void) {
   list_index_of_test(points, arr_size);
   list_replace_at_test(points, arr_size);
   list_replace_test(points, arr_size);
+  list_sort_test(points, 2);
+  list_sort_test(points, 3);
+  list_sort_test(points, arr_size - 1);
   list_sort_test(points, arr_size);
 
   destroy_points(points);

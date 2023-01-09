@@ -328,39 +328,33 @@ static struct node *list_merge(struct node *front, struct node *back, int (*cmpr
   return merged;
 }
 
-static void list_split(struct node *src, struct node **front, struct node **back) {
-  struct node *slow = src;
-  struct node *fast = slow->next;
+static struct node *get_middle(struct node *head) {
+  struct node *slow = head;
+  struct node *fast = head;
 
-  while (fast) {
-    fast = fast->next;
-    if (fast) {
-      slow = slow->next;
-      fast = fast->next;
-    }
+  while (fast && fast->next) {
+    slow = slow->next;
+    fast = fast->next->next;
   }
 
-  // slow reached the middle of the list;
-  if (slow->next) { slow->next->prev = NULL; }
-
-  *front = src;
-  *back = slow->next;
-
-  slow->next = NULL;
+  return slow;
 }
 
-static void sort(struct node **src, int (*cmpr)(const void *, const void *)) {
-  struct node *head = *src;
-  struct node *front;
-  struct node *back;
-  if (!head || !head->next) return;
+static struct node *sort(struct node *head, int (*cmpr)(const void *, const void *)) {
+  if (!head || !head->next) { return head; }
 
-  list_split(head, &front, &back);
+  struct node *middle = get_middle(head);
 
-  sort(&front, cmpr);
-  sort(&back, cmpr);
+  // split the list
+  struct node *front = head;
+  struct node *back = middle;
+  if (middle->prev) middle->prev->next = NULL;
+  if (middle) middle->prev = NULL;
 
-  *src = list_merge(front, back, cmpr);
+  front = sort(front, cmpr);
+  back = sort(back, cmpr);
+
+  return list_merge(front, back, cmpr);
 }
 
 /* sorts the list */
@@ -369,5 +363,5 @@ void list_sort(struct list *list, int (*cmpr)(const void *, const void *)) {
   if (!cmpr) return;
   if (!list->head) return;
 
-  sort(&list->head, cmpr);
+  list->head = sort(list->head, cmpr);
 }
