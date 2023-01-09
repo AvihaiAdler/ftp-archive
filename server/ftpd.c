@@ -29,6 +29,7 @@
 #define CONTROL_PORT "control_port"
 #define DATA_PORT "data_port"
 #define CONN_Q_SIZE "connection_queue_size"
+#define DEFAULT_QUEUE_SIZE 128
 #define ROOT_DIR "root_directory"
 
 struct server_fds {
@@ -172,12 +173,16 @@ int main(int argc, char *argv[]) {
   // load connection queue size (the number of connection the socket will accept and queue. after that - connections
   // will be refused)
   char *endptr;
-  char *conn_q_size = table_get(properties, CONN_Q_SIZE, strlen(CONN_Q_SIZE));
-  long q_size = strtol(conn_q_size, &endptr, 10);
-  if (conn_q_size == endptr || q_size > INT_MAX) {
-    logger_log(logger, ERROR, "[%s] invalid connection queue agrument [%s]", __func__, CONN_Q_SIZE);
+  long q_size = DEFAULT_QUEUE_SIZE;
 
-    goto thread_pool_cleanup;
+  char *conn_q_size = table_get(properties, CONN_Q_SIZE, strlen(CONN_Q_SIZE));
+  if (conn_q_size) {
+    q_size = strtol(conn_q_size, &endptr, 10);
+    if (conn_q_size == endptr || q_size > INT_MAX) {
+      logger_log(logger, ERROR, "[%s] invalid connection queue agrument [%s]", __func__, CONN_Q_SIZE);
+
+      goto thread_pool_cleanup;
+    }
   }
 
   // holds the fd for the server
