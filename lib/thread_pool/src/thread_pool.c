@@ -8,13 +8,13 @@ static int thread_func_wrapper(void *arg) {
   struct thread_args *thread_args = arg;
 
   // as long as the thread shouldn't terminate
-  while (!atomic_load(&thread_args->self->terminate)) {
+  while (!atomic_load_explicit(&thread_args->self->terminate, memory_order_relaxed)) {
     mtx_lock(thread_args->tasks_mtx);  // assumes never fails
     // there're no tasks
     if (list_size(thread_args->tasks) == 0) {
       cnd_wait(thread_args->tasks_cnd, thread_args->tasks_mtx);
 
-      if (atomic_load(&thread_args->self->terminate)) {
+      if (atomic_load_explicit(&thread_args->self->terminate, memory_order_relaxed)) {
         mtx_unlock(thread_args->tasks_mtx);
         goto end_lbl;
       }
@@ -117,7 +117,7 @@ void thread_pool_destroy(struct thread_pool *thread_pool) {
 
   // signal all threads to terminate
   for (uint8_t i = 0; i < thread_pool->num_of_threads; i++) {
-    atomic_store(&thread_pool->threads[i].terminate, true);
+    atomic_store_explicit(&thread_pool->threads[i].terminate, true, memory_order_relaxed);
   }
 
   // wakeup all threads
