@@ -95,6 +95,8 @@ The server is written in pure C, and uses CMake as its build tool, as such you n
 - invoke your generator `ninja -C <build directory>` or `make -C <build directory>` or any other generator you might used.
 - the server executable will be placed under `<source directory>/bin` as `ftpd`
 
+sending a `SIGINT` while the server is running (`ctrl + c`) shuts down the server gracefully. 
+
 ### todo
 - [ ] integration test
 - [ ] replace `sessions` ds from a vector to a tree
