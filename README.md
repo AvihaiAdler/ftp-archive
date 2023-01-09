@@ -6,10 +6,12 @@ The server uses the file system of the hosted environment _however_ it expects a
 
 The server is linux specific due to its use of the `epoll` interface.
 
+
 Commands (requests) and responses are sent in their own proprietary format. A single request consist of:
 - Its `length` a 16 bits integer in network byte order, followed by:
 - A valid c-string. A sequence of 8 bit bytes (the text of the request) terminated with the null terminator.
-A representation of a request looks as follows:
+
+Representation of a request structure looks as follows:
 ```
 struct request {
   uint16_t length;
@@ -17,11 +19,12 @@ struct request {
 };
 ```
 
-Response consists of:
+A response consists of:
 -  A `response code` (16 bit integer) in network byte order, followed by:
 -  The `length` of the text (as a 16 bit integer) in network byte order, followed by:
 -  A valid c-string. A sequence of 8 bit bytes (the text of the response) terminated with the null terminator. 
-A representation of a response looks as follows:
+
+Representation of a response structure looks as follows:
 ```
 struct response {
   uint16_t code;
@@ -34,7 +37,8 @@ When the server recieves/sends some data, be it a file or a response for `LIST` 
 - a `descriptor` 8 bit byte - which represent the block itself and can be use as a mean to handle errors. However as for now data errors aren't supported and the descritor can either be `0x40` (`EOF` - the last block in the stream) or `0x0`. Followed by:
 - the `length` of the data in the block, a 16 bytes integer in network byte order. Followed by:
 - the `data` itself, a sequence of 8 bit bytes. 
-A representation of a block looks as follows:
+
+Representation of a block structure looks as follows:
 ```
 struct block {
   uint8_t descriptor;
