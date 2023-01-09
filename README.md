@@ -1,4 +1,4 @@
-A close multithreaded implementation of a ftp server [specs] (https://www.rfc-editor.org/rfc/rfc959). 
+A close multithreaded implementation of a ftp server [rfc959](https://www.rfc-editor.org/rfc/rfc959). 
 
 ### design
 The server supports both active mode and passive mode and uses a thread pool to manage tasks as FIFO. There is no login system. Every file uploaded to the server is visible to all users.
@@ -15,9 +15,9 @@ The server supports the following commands, all of them can be found in the link
 | `CWD`   | change working directory                                |
 | `MKD`   | make directory                                          |
 | `RMD`   | remove directory                                        |
-| `PORT`  | [specs] (https://www.rfc-editor.org/rfc/rfc959) page 28 |
-| `PASV`  | [specs] (https://www.rfc-editor.org/rfc/rfc959) page 28 |
-| `LIST`  | [specs] (https://www.rfc-editor.org/rfc/rfc959) page 32 |
+| `PORT`  | [rfc959](https://www.rfc-editor.org/rfc/rfc959) page 28 |
+| `PASV`  | [rfc959](https://www.rfc-editor.org/rfc/rfc959) page 28 |
+| `LIST`  | [rfc959](https://www.rfc-editor.org/rfc/rfc959) page 32 |
 | `DELE`  | delete a file                                           |
 | `RETR`  | retrieve a file                                         |
 | `STOR`  | store a file                                            |
