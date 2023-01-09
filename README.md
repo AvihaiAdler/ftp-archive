@@ -1,27 +1,27 @@
-A close multithreaded implementation of a ftp server [rfc959] (https://www.rfc-editor.org/rfc/rfc959). 
+A close multithreaded implementation of a ftp server [specs] (https://www.rfc-editor.org/rfc/rfc959). 
 
 ### design
 The server supports both active mode and passive mode and uses a thread pool to manage tasks as FIFO. There is no login system. Every file uploaded to the server is visible to all users.
-The server uses the file system of the hosted environment _however_ it expects a 'mounting point' i.e. a root directory where all uploaded files will be stored. The server won't 'see' past this directory and users can only access said directory and all of its sub directories in other words - so long as the root directory isn't `/` users won't be able to compromise the machine the server runs on. 
+The server uses the file system of the hosted environment _however_ it expects a 'mounting point' i.e. a root directory where all uploaded files will be stored. The server won't 'see' past this directory and users can only access said directory and all of its sub directories. In other words - so long as the root directory isn't `/` users won't be able to compromise the machine the server runs on. 
 
 The server is linux specific due to its use of the `epoll` interface.
 
 ### functionality
 The server supports the following commands, all of them can be found in the link above:
 
-| command | description                                              |
-| ------- | -------------------------------------------------------- |
-| `PWD`   | print working directory                                  |
-| `CWD`   | change working directory                                 |
-| `MKD`   | make directory                                           |
-| `RMD`   | remove directory                                         |
-| `PORT`  | [rfc959] (https://www.rfc-editor.org/rfc/rfc959) page 28 |
-| `PASV`  | [rfc959] (https://www.rfc-editor.org/rfc/rfc959) page 28 |
-| `LIST`  | [rfc959] (https://www.rfc-editor.org/rfc/rfc959) page 32 |
-| `DELE`  | delete a file                                            |
-| `RETR`  | retrieve a file                                          |
-| `STOR`  | store a file                                             |
-| `QUIT`  | finish a session                                         |
+| command | description                                             |
+| ------- | ------------------------------------------------------- |
+| `PWD`   | print working directory                                 |
+| `CWD`   | change working directory                                |
+| `MKD`   | make directory                                          |
+| `RMD`   | remove directory                                        |
+| `PORT`  | [specs] (https://www.rfc-editor.org/rfc/rfc959) page 28 |
+| `PASV`  | [specs] (https://www.rfc-editor.org/rfc/rfc959) page 28 |
+| `LIST`  | [specs] (https://www.rfc-editor.org/rfc/rfc959) page 32 |
+| `DELE`  | delete a file                                           |
+| `RETR`  | retrieve a file                                         |
+| `STOR`  | store a file                                            |
+| `QUIT`  | finish and close a session                              |
 
 all commands are case insensitive.
 
