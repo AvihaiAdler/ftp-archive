@@ -16,7 +16,8 @@ int log_stuff(void *arg) {
   struct thread_arg *t_args = (struct thread_arg *)arg;
   for (size_t i = 0; i < t_args->boundry; i++) {
     long rand = lrand48();
-    logger_log(t_args->logger, i % 3 ? INFO : WARN, "thread [%ld]: [index:%zu] %ld", thrd_current(), i, rand);
+    // logger_log(t_args->logger, i % 3 ? INFO : WARN, "thread [%ld]: [index:%zu] %ld", thrd_current(), i, rand);
+    LOG(t_args->logger, i % 3 ? INFO : WARN, "thread [%ld]: [index:%zu] %ld", thrd_current(), i, rand);
   }
   return 0;
 }
@@ -25,7 +26,8 @@ int main(void) {
   struct logger *logger = logger_init("log.bin");
   // bool ret = log_init(NULL);
   assert(logger);
-  logger_log(logger, INFO, "test start");
+  // logger_log(logger, INFO, "test start");
+  LOG(logger, INFO, "test start");
 
   thrd_t threads[SIZE] = {0};
   size_t amount = sizeof threads / sizeof *threads;
@@ -42,7 +44,8 @@ int main(void) {
     assert(thrd_join(threads[i], NULL) == thrd_success);
   }
 
-  logger_log(logger, INFO, "test end");
+  // logger_log(logger, INFO, "test end");
+  LOG(logger, INFO, "test end");
   logger_destroy(logger);
   return 0;
 }
