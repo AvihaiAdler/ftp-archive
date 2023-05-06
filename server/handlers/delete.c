@@ -9,7 +9,7 @@
 
 int delete_file(void *arg) {
   if (!arg) return 1;
-  struct args *args = args;
+  struct args *args = arg;
 
   // find the session
   struct session *tmp_session = vector_s_find(args->sessions, &(struct session){.fds.control_fd = args->remote_fd});
